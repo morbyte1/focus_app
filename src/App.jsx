@@ -526,7 +526,7 @@ const FocusView = () => {
         
         <Card>
           <h3 className="text-lg font-semibold text-white mb-3">Diário da Sessão</h3>
-          <textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="O que você estudou?" value={notes} onChange={(e)=>setNotes(e.target.value)}></textarea>
+          <textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="Diga o que você estudou e explique-o brevemente com suas próprias palavras." value={notes} onChange={(e)=>setNotes(e.target.value)}></textarea>
         </Card>
       </div>
 
