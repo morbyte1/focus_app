@@ -293,7 +293,7 @@ const DashboardView = () => {
         </Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-orange-500">
           <div className="p-3 bg-orange-500/20 rounded-full text-orange-500"><Flame size={24}/></div>
-          <div><p className="text-sm text-gray-400">Streak</p><p className="text-2xl font-bold text-white">{kpiData.streak} dias</p></div>
+          <div><p className="text-sm text-gray-400">Sequência</p><p className="text-2xl font-bold text-white">{kpiData.streak} dias</p></div>
         </Card>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
