@@ -110,7 +110,6 @@ const FocusProvider = ({ children }) => {
   const [tasks, setTasks] = useStickyState([], 'focus_tasks');
   const [mistakes, setMistakes] = useStickyState([], 'focus_mistakes');
   const [themes, setThemes] = useStickyState([], 'focus_themes'); 
-  // Nota: 'my_study_schedule' é gerenciado pelo CalendarTab, mas acessível globalmente via localStorage
 
   // --- ESTADOS DO TIMER ---
   const [timerMode, setTimerMode] = useState('WORK'); 
@@ -119,8 +118,10 @@ const FocusProvider = ({ children }) => {
   const [isActive, setIsActive] = useState(false);
   const [cycles, setCycles] = useState(0);
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
+  
+  // NOVO: Estado para memorizar o tempo do Flow durante a pausa
+  const [flowStoredTime, setFlowStoredTime] = useState(0);
 
-  // Seleciona matéria padrão se não houver nenhuma
   useEffect(() => {
     if (subjects.length > 0) {
       if (!selectedSubjectId || !subjects.find(s => s.id === selectedSubjectId)) {
@@ -129,63 +130,56 @@ const FocusProvider = ({ children }) => {
     }
   }, [subjects, selectedSubjectId]);
 
-  // LÓGICA DO TIMER (SUBSTITUA O SEU useEffect ATUAL POR ESTE)
+  // Função para tocar som
+  const playNotificationSound = () => {
+    try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(() => {}); } catch(e){}
+  };
+
+  // --- LÓGICA DO TIMER (CORRIGIDA) ---
   useEffect(() => {
     let interval = null;
 
     if (isActive) {
-      // 1. MODO FLOW - TRABALHO (Conta pra cima progressivamente)
+      // 1. MODO FLOW - TRABALHO (Conta pra cima)
       if (timerType === 'FLOW' && timerMode === 'WORK') {
         interval = setInterval(() => setTimeLeft((t) => t + 1), 1000);
       } 
-      // 2. CONTAGEM REGRESSIVA (Pomodoro Trabalho, Pomodoro Pausa, Flow Pausa)
+      // 2. CONTAGEM REGRESSIVA (Todo o resto)
       else if (timeLeft > 0) {
         interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
       } 
-      // 3. TEMPO ACABOU (ZERO)
+      // 3. TEMPO ACABOU
       else if (timeLeft === 0 && !(timerType === 'FLOW' && timerMode === 'WORK')) {
         clearInterval(interval);
-        
-        // TOCA O SOM EM TODAS AS TRANSIÇÕES
-        try { 
-          new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(() => {}); 
-        } catch(e){}
+        playNotificationSound(); // Toca som ao fim de qualquer ciclo (pomodoro ou pausa)
 
         // --- LÓGICA POMODORO ---
         if (timerType === 'POMODORO') {
           if (timerMode === 'WORK') {
-            // Terminou trabalho -> Vai para descanso
             const newCycleCount = cycles + 1;
             setCycles(newCycleCount);
             setTimerMode('BREAK');
-            setIsActive(true); // Continua contando automaticamente (opcional, se quiser pausar mude para false)
-            
-            // Lógica do 3º ciclo = 15 minutos (Ciclos 1, 2 = 5min; Ciclo 3 = 15min)
-            if (newCycleCount % 3 === 0) {
-              setTimeLeft(POMODORO_LONG_BREAK); // 15 min
-            } else {
-              setTimeLeft(POMODORO_SHORT_BREAK); // 5 min
-            }
+            // Ciclo 3 = Pausa Longa (15min), Outros = Pausa Curta (5min)
+            setTimeLeft(newCycleCount % 3 === 0 ? POMODORO_LONG_BREAK : POMODORO_SHORT_BREAK);
           } else {
-            // Terminou descanso -> Volta para trabalho
             setTimerMode('WORK');
             setTimeLeft(POMODORO_WORK);
-            setIsActive(false); // Pausa para você dar o "Iniciar" no próximo pomodoro
+            setIsActive(false); // Pausa para o usuário iniciar manualmente
           }
         } 
-        // --- LÓGICA FLOW ---
+        // --- LÓGICA FLOW (AQUI ESTÁ A CORREÇÃO) ---
         else if (timerType === 'FLOW') {
           if (timerMode === 'BREAK') {
-            // Terminou o descanso do Flow -> Volta a trabalhar do zero
+            // Fim da pausa Flow -> Restaura o tempo de onde parou e volta a contar
             setTimerMode('WORK');
-            setTimeLeft(0);
-            setIsActive(true); // Já começa a contar progressivamente sozinho
+            setTimeLeft(flowStoredTime); // <--- RESTAURA O TEMPO ANTIGO
+            setIsActive(true); // Continua contando sozinho
           }
         }
       }
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, timerMode, timerType, cycles]);
+  }, [isActive, timeLeft, timerMode, timerType, cycles, flowStoredTime]);
 
   // Título da aba
   useEffect(() => {
@@ -199,36 +193,24 @@ const FocusProvider = ({ children }) => {
     }
   }, [isActive, timeLeft, timerMode]);
 
-  // --- AÇÕES GERAIS ---
+  // Ações
   const addSession = (minutes, notes) => setSessions(prev => [...prev, { id: Date.now(), date: new Date().toISOString(), minutes, subjectId: selectedSubjectId, notes }]);
   const addMistake = (subjectId, description, reason, solution) => setMistakes(prev => [{ id: Date.now(), date: new Date().toISOString(), subjectId: Number(subjectId), description, reason, solution }, ...prev]);
   const deleteMistake = (id) => { if (window.confirm("Apagar erro?")) setMistakes(prev => prev.filter(m => m.id !== id)); };
-  
   const addSubject = (name, color, goalHours) => setSubjects(prev => [...prev, { id: Date.now(), name, color, goalHours: Number(goalHours) }]);
   const updateSubject = (id, newGoal) => setSubjects(prev => prev.map(s => s.id === id ? { ...s, goalHours: Number(newGoal) } : s));
-  const deleteSubject = (id) => {
-    if (subjects.length <= 1) return alert("Mantenha uma matéria.");
-    if (window.confirm("Excluir matéria?")) {
-      const remaining = subjects.filter(s => s.id !== id);
-      setSubjects(remaining);
-      if (selectedSubjectId === id) setSelectedSubjectId(remaining[0].id);
-    }
-  };
-
+  const deleteSubject = (id) => { if (subjects.length <= 1) return alert("Mantenha uma matéria."); if (window.confirm("Excluir matéria?")) { const rem = subjects.filter(s => s.id !== id); setSubjects(rem); if (selectedSubjectId === id) setSelectedSubjectId(rem[0].id); } };
   const addTask = (text, subjectId) => setTasks(prev => [...prev, { id: Date.now(), text, completed: false, subjectId }]);
   const toggleTask = (id) => setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   const deleteTask = (id) => { if (window.confirm("Excluir tarefa?")) setTasks(prev => prev.filter(t => t.id !== id)); };
   const deleteDayHistory = (dateStr) => { if (window.confirm(`Apagar histórico de ${dateStr}?`)) setSessions(prev => prev.filter(s => new Date(s.date).toDateString() !== dateStr)); };
   const resetAllData = () => { if (window.confirm("Resetar TUDO?")) { localStorage.clear(); window.location.reload(); } };
-
-  // --- AÇÕES DE TEMAS (Conteúdo Programático) ---
   const addTheme = (subjectId, title) => setThemes(prev => [...prev, { id: Date.now(), subjectId, title, items: [] }]);
   const deleteTheme = (themeId) => { if(window.confirm("Excluir tema?")) setThemes(prev => prev.filter(t => t.id !== themeId)); };
   const addThemeItem = (themeId, text) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: [...t.items, { id: Date.now(), text, completed: false }] } : t));
   const toggleThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t));
   const deleteThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.filter(i => i.id !== itemId) } : t));
 
-  // KPIs
   const kpiData = useMemo(() => {
     const todayStr = new Date().toDateString();
     const totalMinutes = sessions.reduce((acc, curr) => acc + curr.minutes, 0);
@@ -265,13 +247,13 @@ const FocusProvider = ({ children }) => {
       timerMode, setTimerMode, timerType, setTimerType,
       timeLeft, setTimeLeft, isActive, setIsActive, cycles, setCycles,
       selectedSubjectId, setSelectedSubjectId,
+      flowStoredTime, setFlowStoredTime, // Exportando o novo estado
       resetAllData, kpiData, weeklyChartData
     }}>
       {children}
     </FocusContext.Provider>
   );
 };
-
 /**
  * --- COMPONENTES UI ---
  */
@@ -364,13 +346,13 @@ const FocusView = () => {
     subjects, selectedSubjectId, setSelectedSubjectId,
     timerMode, setTimerMode, timeLeft, setTimeLeft, 
     isActive, setIsActive, cycles, 
-    tasks, addTask, toggleTask, deleteTask, addSession 
+    tasks, addTask, toggleTask, deleteTask, addSession,
+    flowStoredTime, setFlowStoredTime // Pegando do contexto
   } = useContext(FocusContext);
 
   const [notes, setNotes] = useState("");
   const [newTaskText, setNewTaskText] = useState("");
 
-  // Alternar entre Pomodoro e Flow
   const toggleTimerType = (type) => {
     setIsActive(false);
     setTimerType(type);
@@ -378,61 +360,62 @@ const FocusView = () => {
     setTimeLeft(type === 'FLOW' ? 0 : POMODORO_WORK);
   };
 
-  // Botão de Resetar
   const handleReset = () => {
     setIsActive(false);
     setTimeLeft(timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? POMODORO_WORK : POMODORO_BREAK));
   };
 
-  // --- NOVA FUNÇÃO: Botão de Pausa do Flow (Xícara de Café) ---
+  // --- BOTÃO DE PAUSA DO FLOW (CAFÉ) ---
   const handleFlowBreak = () => {
     if (timerType === 'FLOW' && timerMode === 'WORK') {
-      const timeSpentSeconds = timeLeft; 
-      const minutesStudied = Math.round(timeSpentSeconds / 60);
+      const currentWorkTime = timeLeft; 
+      const minutesStudied = Math.round(currentWorkTime / 60);
 
       if (minutesStudied > 0) {
-        // 1. Salva a sessão automaticamente
-        addSession(minutesStudied, notes);
-        setNotes(""); // Limpa o campo de notas
+        // NÃO SALVA SESSÃO AINDA, APENAS MEMORIZA O TEMPO
+        setFlowStoredTime(currentWorkTime); 
         
-        // 2. Calcula 20% do tempo (Ex: 60min trabalho = 12min descanso)
-        const calculatedBreakSeconds = Math.floor(timeSpentSeconds * 0.20); 
+        // Cálculo 20%
+        const calculatedBreakSeconds = Math.floor(currentWorkTime * 0.20); 
         const breakMinutes = Math.ceil(calculatedBreakSeconds / 60);
         
-        alert(`Fim do Flow! ${minutesStudied} min focados.\nIniciando pausa de ${breakMinutes} min.`);
+        alert(`Pausa no Flow! Trabalho até agora: ${minutesStudied} min.\nIniciando pausa de ${breakMinutes} min.`);
         
-        // 3. Configura o timer para DESCASO (Regressivo)
+        // Inicia o descanso
         setTimerMode('BREAK');
         setTimeLeft(calculatedBreakSeconds);
-        setIsActive(true); // Começa a contar o descanso imediatamente
+        setIsActive(true); 
       } else {
-        alert("Tempo muito curto para registrar.");
+        alert("Trabalhe um pouco mais antes de pausar.");
       }
     }
   };
 
-  // Botão de Encerrar/Salvar (Botão Vermelho)
+  // --- BOTÃO DE ENCERRAR/SALVAR (VERMELHO) ---
   const handleFinish = () => {
     let timeSpentSeconds = 0;
     
-    // Calcula o tempo baseado no modo
-    if (timerType === 'FLOW' && timerMode === 'WORK') {
-      timeSpentSeconds = timeLeft; 
+    if (timerType === 'FLOW') {
+      // Se estiver no meio do descanso, o tempo trabalhado é o que estava memorizado
+      if (timerMode === 'BREAK') {
+        timeSpentSeconds = flowStoredTime;
+      } else {
+        timeSpentSeconds = timeLeft;
+      }
     } else {
+      // Lógica Pomodoro
       const totalDuration = timerMode === 'WORK' ? POMODORO_WORK : POMODORO_BREAK;
       timeSpentSeconds = totalDuration - timeLeft;
     }
 
     const minutesStudied = Math.round(timeSpentSeconds / 60);
 
-    // Salva se tiver estudado algo
-    if (timerMode === 'WORK' && minutesStudied > 0) {
+    if (minutesStudied > 0) {
       addSession(minutesStudied, notes);
       setNotes("");
-      alert(`Sessão salva: ${minutesStudied} min.`);
+      alert(`Sessão finalizada e salva: ${minutesStudied} min.`);
     }
 
-    // Reseta tudo para o estado inicial de trabalho
     setIsActive(false);
     setTimerMode('WORK');
     setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO_WORK);
@@ -449,16 +432,15 @@ const FocusView = () => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-24 md:pb-0">
       <div className="lg:col-span-2 space-y-6">
         <Card className="flex flex-col items-center justify-center min-h-[450px] relative overflow-hidden">
-          {/* Efeito de Fundo */}
           <div className={`absolute w-96 h-96 rounded-full blur-[120px] opacity-20 pointer-events-none transition-colors duration-1000 ${isActive ? (timerMode==='WORK'?'bg-violet-600 animate-pulse':'bg-emerald-500 animate-pulse'):'bg-gray-700'}`}></div>
           
-          {/* Switch Pomodoro/Flow */}
+          {/* Switch */}
           <div className="flex bg-[#0F0F12] p-1 rounded-lg border border-gray-800 mb-6 z-10">
             <button onClick={() => toggleTimerType('POMODORO')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-zinc-800 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}>Pomodoro</button>
             <button onClick={() => toggleTimerType('FLOW')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${timerType === 'FLOW' ? 'bg-violet-600 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}><InfinityIcon size={12}/> Flow</button>
           </div>
 
-          {/* Seletor de Matéria */}
+          {/* Matéria */}
           <div className="w-full max-w-xs mb-8 z-10">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Matéria</label>
             <div className="relative">
@@ -469,85 +451,39 @@ const FocusView = () => {
             </div>
           </div>
 
-          {/* O TIMER */}
+          {/* Relógio */}
           <div className="z-10 text-center">
-            {/* Tag de Status (Foco / Pausa) */}
             <div className="mb-6"><span className={`px-4 py-1.5 rounded-full text-sm font-bold tracking-widest uppercase border ${timerMode==='WORK'?'bg-violet-500/10 text-violet-400 border-violet-500/20':'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>{timerMode==='WORK'?'Foco Total':'Pausa'}</span></div>
-            
-            {/* Relógio */}
             <div className="text-8xl md:text-9xl font-mono font-bold text-white tracking-tighter mb-4 tabular-nums drop-shadow-2xl">{formatTime(timeLeft)}</div>
-            
-            {/* Contador de Ciclos */}
             <div className="text-gray-400 mb-8 font-medium">Ciclos: <span className="text-white font-bold ml-2">{cycles}</span></div>
             
-            {/* --- ÁREA DOS BOTÕES --- */}
+            {/* Botões */}
             <div className="flex gap-4 justify-center items-center mt-8">
-              
-              {/* 1. Botão Play/Pause (Com Texto) */}
-              <button 
-                onClick={()=>setIsActive(!isActive)} 
-                className={`px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive?'bg-zinc-800 text-white border border-zinc-700':(timerMode==='WORK'?'bg-violet-600 hover:bg-violet-700 text-white shadow-violet-600/30':'bg-emerald-500 hover:bg-emerald-600 text-white')}`}
-              >
+              <button onClick={()=>setIsActive(!isActive)} className={`px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive?'bg-zinc-800 text-white border border-zinc-700':(timerMode==='WORK'?'bg-violet-600 hover:bg-violet-700 text-white shadow-violet-600/30':'bg-emerald-500 hover:bg-emerald-600 text-white')}`}>
                 {isActive ? <Pause size={24} fill="currentColor"/> : <Play size={24} fill="currentColor"/>}
                 <span className="text-lg">{isActive ? 'Pausar' : 'Iniciar'}</span>
               </button>
-
-              {/* 2. Botão Resetar */}
-              <button onClick={handleReset} className="p-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white border border-zinc-700 transition-colors" title="Resetar Timer">
-                <RotateCcw size={24}/>
-              </button>
-
-              {/* 3. Botão Café (Aparece APENAS no Flow e trabalhando) */}
+              <button onClick={handleReset} className="p-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white border border-zinc-700 transition-colors" title="Resetar"><RotateCcw size={24}/></button>
+              
+              {/* Botão Café (Flow) */}
               {timerType === 'FLOW' && timerMode === 'WORK' && (
-                <button 
-                  onClick={handleFlowBreak} 
-                  className="p-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 transition-colors" 
-                  title="Pausar e Calcular Descanso (20%)"
-                >
+                <button onClick={handleFlowBreak} className="p-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 transition-colors" title="Pausa (20%)">
                   <Coffee size={24}/>
                 </button>
               )}
 
-              {/* 4. Botão Salvar (Genérico) */}
-              <button 
-                onClick={handleFinish} 
-                className="p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-colors" 
-                title="Encerrar Sessão sem Pausa"
-              >
-                <CheckCircle size={24}/>
-              </button>
+              {/* Botão Salvar */}
+              <button onClick={handleFinish} className="p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-colors" title="Encerrar Sessão"><CheckCircle size={24}/></button>
             </div>
-            
-            {/* Texto de ajuda do Flow */}
-            {timerType === 'FLOW' && timerMode === 'WORK' && <p className="text-xs text-zinc-500 mt-4">Clique no <Coffee size={12} className="inline"/> para calcular sua pausa.</p>}
-
+            {timerType === 'FLOW' && timerMode === 'WORK' && <p className="text-xs text-zinc-500 mt-4">Clique no <Coffee size={12} className="inline"/> para calcular pausa.</p>}
           </div>
         </Card>
         
-        <Card>
-          <h3 className="text-lg font-semibold text-white mb-3">Diário da Sessão</h3>
-          <textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="Diga o que você estudou e explique-o brevemente com suas próprias palavras." value={notes} onChange={(e)=>setNotes(e.target.value)}></textarea>
-        </Card>
+        <Card><h3 className="text-lg font-semibold text-white mb-3">Diário da Sessão</h3><textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="O que você estudou?" value={notes} onChange={(e)=>setNotes(e.target.value)}></textarea></Card>
       </div>
 
       <div className="lg:col-span-1">
-        <Card className="h-full flex flex-col min-h-[300px]">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-violet-500"/> Tarefas</h3>
-          <form onSubmit={handleTaskSubmit} className="mb-4 flex gap-2">
-            <input type="text" placeholder="Nova tarefa..." className="flex-1 bg-[#0F0F12] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)}/>
-            <button type="submit" className="bg-violet-600 rounded-lg px-3 text-white"><Plus size={18}/></button>
-          </form>
-          <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-            {tasks.filter(t=>t.subjectId===selectedSubjectId).length===0 && <p className="text-sm text-gray-600 text-center mt-4">Sem tarefas.</p>}
-            {tasks.filter(t=>t.subjectId===selectedSubjectId).map(task=>(
-              <div key={task.id} className={`group flex items-center gap-3 p-3 rounded-lg border transition-all ${task.completed?'bg-violet-900/10 border-violet-500/20 opacity-60':'bg-[#27272A] border-gray-700'}`}>
-                <button onClick={()=>toggleTask(task.id)} className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center ${task.completed?'bg-violet-500 border-violet-500':'border-gray-500'}`}>{task.completed&&<CheckCircle size={14} className="text-white"/>}</button>
-                <span className={`text-sm flex-1 break-words ${task.completed?'text-gray-500 line-through':'text-gray-200'}`}>{task.text}</span>
-                <button onClick={(e)=>{e.stopPropagation();deleteTask(task.id)}} className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <Card className="h-full flex flex-col min-h-[300px]"><h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-violet-500"/> Tarefas</h3><form onSubmit={handleTaskSubmit} className="mb-4 flex gap-2"><input type="text" placeholder="Nova tarefa..." className="flex-1 bg-[#0F0F12] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" value={newTaskText} onChange={(e)=>setNewTaskText(e.target.value)}/><button type="submit" className="bg-violet-600 rounded-lg px-3 text-white"><Plus size={18}/></button></form><div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">{tasks.filter(t=>t.subjectId===selectedSubjectId).length===0 && <p className="text-sm text-gray-600 text-center mt-4">Sem tarefas.</p>}{tasks.filter(t=>t.subjectId===selectedSubjectId).map(task=>(<div key={task.id} className={`group flex items-center gap-3 p-3 rounded-lg border transition-all ${task.completed?'bg-violet-900/10 border-violet-500/20 opacity-60':'bg-[#27272A] border-gray-700'}`}><button onClick={()=>toggleTask(task.id)} className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center ${task.completed?'bg-violet-500 border-violet-500':'border-gray-500'}`}>{task.completed&&<CheckCircle size={14} className="text-white"/>}</button><span className={`text-sm flex-1 break-words ${task.completed?'text-gray-500 line-through':'text-gray-200'}`}>{task.text}</span><button onClick={(e)=>{e.stopPropagation();deleteTask(task.id)}} className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button></div>))}</div></Card>
       </div>
     </div>
   );
