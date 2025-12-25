@@ -6,6 +6,7 @@ import {
   BarChart2, 
   Play, 
   Pause, 
+  Coffee,
   RotateCcw, 
   CheckCircle, 
   Plus, 
@@ -128,30 +129,63 @@ const FocusProvider = ({ children }) => {
     }
   }, [subjects, selectedSubjectId]);
 
-  // Lógica do Timer
+  // LÓGICA DO TIMER (SUBSTITUA O SEU useEffect ATUAL POR ESTE)
   useEffect(() => {
     let interval = null;
+
     if (isActive) {
+      // 1. MODO FLOW - TRABALHO (Conta pra cima progressivamente)
       if (timerType === 'FLOW' && timerMode === 'WORK') {
         interval = setInterval(() => setTimeLeft((t) => t + 1), 1000);
-      } else if (timeLeft > 0) {
+      } 
+      // 2. CONTAGEM REGRESSIVA (Pomodoro Trabalho, Pomodoro Pausa, Flow Pausa)
+      else if (timeLeft > 0) {
         interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-      } else if (timeLeft === 0 && timerType !== 'FLOW') {
+      } 
+      // 3. TEMPO ACABOU (ZERO)
+      else if (timeLeft === 0 && !(timerType === 'FLOW' && timerMode === 'WORK')) {
         clearInterval(interval);
-        try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(() => {}); } catch(e){}
-        setIsActive(false);
-        if (timerMode === 'WORK') {
-          setCycles(c => c + 1);
-          setTimerMode('BREAK');
-          setTimeLeft(POMODORO_BREAK);
-        } else {
-          setTimerMode('WORK');
-          setTimeLeft(POMODORO_WORK);
+        
+        // TOCA O SOM EM TODAS AS TRANSIÇÕES
+        try { 
+          new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(() => {}); 
+        } catch(e){}
+
+        // --- LÓGICA POMODORO ---
+        if (timerType === 'POMODORO') {
+          if (timerMode === 'WORK') {
+            // Terminou trabalho -> Vai para descanso
+            const newCycleCount = cycles + 1;
+            setCycles(newCycleCount);
+            setTimerMode('BREAK');
+            setIsActive(true); // Continua contando automaticamente (opcional, se quiser pausar mude para false)
+            
+            // Lógica do 3º ciclo = 15 minutos (Ciclos 1, 2 = 5min; Ciclo 3 = 15min)
+            if (newCycleCount % 3 === 0) {
+              setTimeLeft(POMODORO_LONG_BREAK); // 15 min
+            } else {
+              setTimeLeft(POMODORO_SHORT_BREAK); // 5 min
+            }
+          } else {
+            // Terminou descanso -> Volta para trabalho
+            setTimerMode('WORK');
+            setTimeLeft(POMODORO_WORK);
+            setIsActive(false); // Pausa para você dar o "Iniciar" no próximo pomodoro
+          }
+        } 
+        // --- LÓGICA FLOW ---
+        else if (timerType === 'FLOW') {
+          if (timerMode === 'BREAK') {
+            // Terminou o descanso do Flow -> Volta a trabalhar do zero
+            setTimerMode('WORK');
+            setTimeLeft(0);
+            setIsActive(true); // Já começa a contar progressivamente sozinho
+          }
         }
       }
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, timerMode, timerType]);
+  }, [isActive, timeLeft, timerMode, timerType, cycles]);
 
   // Título da aba
   useEffect(() => {
@@ -320,6 +354,10 @@ const DashboardView = () => {
   );
 };
 
+// 1. VERIFIQUE SEUS IMPORTS LÁ NO TOPO DO ARQUIVO
+// Certifique-se de que 'Coffee' está na lista de importações do 'lucide-react'
+// Ex: import { ..., Coffee, ... } from 'lucide-react';
+
 const FocusView = () => {
   const { 
     timerType, setTimerType,
@@ -332,6 +370,7 @@ const FocusView = () => {
   const [notes, setNotes] = useState("");
   const [newTaskText, setNewTaskText] = useState("");
 
+  // Alternar entre Pomodoro e Flow
   const toggleTimerType = (type) => {
     setIsActive(false);
     setTimerType(type);
@@ -339,13 +378,44 @@ const FocusView = () => {
     setTimeLeft(type === 'FLOW' ? 0 : POMODORO_WORK);
   };
 
+  // Botão de Resetar
   const handleReset = () => {
     setIsActive(false);
     setTimeLeft(timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? POMODORO_WORK : POMODORO_BREAK));
   };
 
+  // --- NOVA FUNÇÃO: Botão de Pausa do Flow (Xícara de Café) ---
+  const handleFlowBreak = () => {
+    if (timerType === 'FLOW' && timerMode === 'WORK') {
+      const timeSpentSeconds = timeLeft; 
+      const minutesStudied = Math.round(timeSpentSeconds / 60);
+
+      if (minutesStudied > 0) {
+        // 1. Salva a sessão automaticamente
+        addSession(minutesStudied, notes);
+        setNotes(""); // Limpa o campo de notas
+        
+        // 2. Calcula 20% do tempo (Ex: 60min trabalho = 12min descanso)
+        const calculatedBreakSeconds = Math.floor(timeSpentSeconds * 0.20); 
+        const breakMinutes = Math.ceil(calculatedBreakSeconds / 60);
+        
+        alert(`Fim do Flow! ${minutesStudied} min focados.\nIniciando pausa de ${breakMinutes} min.`);
+        
+        // 3. Configura o timer para DESCASO (Regressivo)
+        setTimerMode('BREAK');
+        setTimeLeft(calculatedBreakSeconds);
+        setIsActive(true); // Começa a contar o descanso imediatamente
+      } else {
+        alert("Tempo muito curto para registrar.");
+      }
+    }
+  };
+
+  // Botão de Encerrar/Salvar (Botão Vermelho)
   const handleFinish = () => {
     let timeSpentSeconds = 0;
+    
+    // Calcula o tempo baseado no modo
     if (timerType === 'FLOW' && timerMode === 'WORK') {
       timeSpentSeconds = timeLeft; 
     } else {
@@ -355,28 +425,17 @@ const FocusView = () => {
 
     const minutesStudied = Math.round(timeSpentSeconds / 60);
 
+    // Salva se tiver estudado algo
     if (timerMode === 'WORK' && minutesStudied > 0) {
       addSession(minutesStudied, notes);
       setNotes("");
-
-      if (timerType === 'FLOW') {
-        const calculatedBreak = Math.floor(timeSpentSeconds * 0.20); 
-        const breakMinutes = Math.ceil(calculatedBreak / 60);
-        alert(`Sessão Flow salva: ${minutesStudied} min.\nPausa sugerida: ${breakMinutes} min.`);
-        setIsActive(false);
-        setTimerMode('BREAK');
-        setTimeLeft(calculatedBreak);
-      } else {
-        alert(`Sessão Pomodoro salva: ${minutesStudied} min.`);
-        setIsActive(false);
-        setTimerMode('WORK');
-        setTimeLeft(POMODORO_WORK);
-      }
-    } else {
-      setIsActive(false);
-      setTimerMode('WORK');
-      setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO_WORK);
+      alert(`Sessão salva: ${minutesStudied} min.`);
     }
+
+    // Reseta tudo para o estado inicial de trabalho
+    setIsActive(false);
+    setTimerMode('WORK');
+    setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO_WORK);
   };
 
   const handleTaskSubmit = (e) => {
@@ -390,13 +449,16 @@ const FocusView = () => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-24 md:pb-0">
       <div className="lg:col-span-2 space-y-6">
         <Card className="flex flex-col items-center justify-center min-h-[450px] relative overflow-hidden">
+          {/* Efeito de Fundo */}
           <div className={`absolute w-96 h-96 rounded-full blur-[120px] opacity-20 pointer-events-none transition-colors duration-1000 ${isActive ? (timerMode==='WORK'?'bg-violet-600 animate-pulse':'bg-emerald-500 animate-pulse'):'bg-gray-700'}`}></div>
           
+          {/* Switch Pomodoro/Flow */}
           <div className="flex bg-[#0F0F12] p-1 rounded-lg border border-gray-800 mb-6 z-10">
             <button onClick={() => toggleTimerType('POMODORO')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-zinc-800 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}>Pomodoro</button>
             <button onClick={() => toggleTimerType('FLOW')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${timerType === 'FLOW' ? 'bg-violet-600 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}><InfinityIcon size={12}/> Flow</button>
           </div>
 
+          {/* Seletor de Matéria */}
           <div className="w-full max-w-xs mb-8 z-10">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Matéria</label>
             <div className="relative">
@@ -407,22 +469,67 @@ const FocusView = () => {
             </div>
           </div>
 
+          {/* O TIMER */}
           <div className="z-10 text-center">
+            {/* Tag de Status (Foco / Pausa) */}
             <div className="mb-6"><span className={`px-4 py-1.5 rounded-full text-sm font-bold tracking-widest uppercase border ${timerMode==='WORK'?'bg-violet-500/10 text-violet-400 border-violet-500/20':'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>{timerMode==='WORK'?'Foco Total':'Pausa'}</span></div>
+            
+            {/* Relógio */}
             <div className="text-8xl md:text-9xl font-mono font-bold text-white tracking-tighter mb-4 tabular-nums drop-shadow-2xl">{formatTime(timeLeft)}</div>
+            
+            {/* Contador de Ciclos */}
             <div className="text-gray-400 mb-8 font-medium">Ciclos: <span className="text-white font-bold ml-2">{cycles}</span></div>
-            <div className="flex gap-6 justify-center items-center">
-              <button onClick={()=>setIsActive(!isActive)} className={`w-20 h-20 rounded-full flex items-center justify-center transition-all hover:scale-105 ${isActive?'bg-gray-800 border border-gray-600':(timerMode==='WORK'?'bg-violet-600 hover:bg-violet-700 shadow-lg shadow-violet-600/30':'bg-emerald-500 hover:bg-emerald-600')} text-white`}>{isActive?<Pause size={36}/>:<Play size={36} className="ml-1"/>}</button>
-              <button onClick={handleReset} className="w-14 h-14 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center border border-gray-700"><RotateCcw size={22}/></button>
+            
+            {/* --- ÁREA DOS BOTÕES --- */}
+            <div className="flex gap-4 justify-center items-center mt-8">
+              
+              {/* 1. Botão Play/Pause (Com Texto) */}
+              <button 
+                onClick={()=>setIsActive(!isActive)} 
+                className={`px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive?'bg-zinc-800 text-white border border-zinc-700':(timerMode==='WORK'?'bg-violet-600 hover:bg-violet-700 text-white shadow-violet-600/30':'bg-emerald-500 hover:bg-emerald-600 text-white')}`}
+              >
+                {isActive ? <Pause size={24} fill="currentColor"/> : <Play size={24} fill="currentColor"/>}
+                <span className="text-lg">{isActive ? 'Pausar' : 'Iniciar'}</span>
+              </button>
+
+              {/* 2. Botão Resetar */}
+              <button onClick={handleReset} className="p-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white border border-zinc-700 transition-colors" title="Resetar Timer">
+                <RotateCcw size={24}/>
+              </button>
+
+              {/* 3. Botão Café (Aparece APENAS no Flow e trabalhando) */}
+              {timerType === 'FLOW' && timerMode === 'WORK' && (
+                <button 
+                  onClick={handleFlowBreak} 
+                  className="p-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 transition-colors" 
+                  title="Pausar e Calcular Descanso (20%)"
+                >
+                  <Coffee size={24}/>
+                </button>
+              )}
+
+              {/* 4. Botão Salvar (Genérico) */}
+              <button 
+                onClick={handleFinish} 
+                className="p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-colors" 
+                title="Encerrar Sessão sem Pausa"
+              >
+                <CheckCircle size={24}/>
+              </button>
             </div>
-            <div className="mt-8 flex justify-center"><Button onClick={handleFinish} variant="danger" className="text-xs">Encerrar & Salvar</Button></div>
+            
+            {/* Texto de ajuda do Flow */}
+            {timerType === 'FLOW' && timerMode === 'WORK' && <p className="text-xs text-zinc-500 mt-4">Clique no <Coffee size={12} className="inline"/> para calcular sua pausa.</p>}
+
           </div>
         </Card>
+        
         <Card>
           <h3 className="text-lg font-semibold text-white mb-3">Diário da Sessão</h3>
-          <textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="Diga o conteúdo estudado e explique-o brevemente." value={notes} onChange={(e)=>setNotes(e.target.value)}></textarea>
+          <textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="O que você estudou?" value={notes} onChange={(e)=>setNotes(e.target.value)}></textarea>
         </Card>
       </div>
+
       <div className="lg:col-span-1">
         <Card className="h-full flex flex-col min-h-[300px]">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-violet-500"/> Tarefas</h3>
