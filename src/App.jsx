@@ -890,6 +890,9 @@ const App = () => (
       .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #3f3f46; border-radius: 20px; } 
       @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
       .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
+      ::selection {
+        background-color: #ffffffff; /* Cor Violeta (combinando com seu tema) */
+        color: #000000ff;            /* Texto Branco */
     `}</style>
   </FocusProvider>
 );
