@@ -42,12 +42,18 @@ import {
   Cell 
 } from 'recharts';
 
-// Importação do Calendário (Certifique-se que o arquivo existe em src/components/CalendarTab.jsx)
+// Importação do Calendário
 import { CalendarTab } from './components/CalendarTab';
 
 /**
  * --- UTILITÁRIOS & CONFIGURAÇÕES ---
  */
+
+// CONSTANTES DE TEMPO (Centralizadas para evitar erros de duplicidade)
+const POMODORO_WORK = 25 * 60; 
+const POMODORO_SHORT_BREAK = 5 * 60; // 5 minutos
+const POMODORO_LONG_BREAK = 15 * 60; // 15 minutos
+const POMODORO_BREAK = 5 * 60; // Usado no reset padrão
 
 const QUOTES = [
   "A persistência é o caminho do êxito.",
@@ -62,9 +68,6 @@ const DEFAULT_SUBJECTS = [
   { id: 2, name: 'Matemática', color: '#10b981', goalHours: 10 },
   { id: 3, name: 'Inglês', color: '#f59e0b', goalHours: 5 },
 ];
-
-const POMODORO_WORK = 25 * 60; 
-const POMODORO_BREAK = 5 * 60; 
 
 const formatTime = (seconds) => {
   const mins = Math.floor(seconds / 60);
@@ -119,7 +122,7 @@ const FocusProvider = ({ children }) => {
   const [cycles, setCycles] = useState(0);
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   
-  // NOVO: Estado para memorizar o tempo do Flow durante a pausa
+  // Estado para memorizar o tempo do Flow durante a pausa
   const [flowStoredTime, setFlowStoredTime] = useState(0);
 
   useEffect(() => {
@@ -151,15 +154,15 @@ const FocusProvider = ({ children }) => {
       // 3. TEMPO ACABOU
       else if (timeLeft === 0 && !(timerType === 'FLOW' && timerMode === 'WORK')) {
         clearInterval(interval);
-        playNotificationSound(); // Toca som ao fim de qualquer ciclo (pomodoro ou pausa)
+        playNotificationSound(); // Toca som ao fim de qualquer ciclo
 
         // --- LÓGICA POMODORO ---
         if (timerType === 'POMODORO') {
           if (timerMode === 'WORK') {
             const newCycleCount = cycles + 1;
-            setCycles(newCycleCount);
+            setCycles(c => c + 1); // Atualização funcional para evitar dependência direta
             setTimerMode('BREAK');
-            // Ciclo 3 = Pausa Longa (15min), Outros = Pausa Curta (5min)
+            // Ciclo 3, 6, 9... = Pausa Longa (15min), Outros = Pausa Curta (5min)
             setTimeLeft(newCycleCount % 3 === 0 ? POMODORO_LONG_BREAK : POMODORO_SHORT_BREAK);
           } else {
             setTimerMode('WORK');
@@ -167,7 +170,7 @@ const FocusProvider = ({ children }) => {
             setIsActive(false); // Pausa para o usuário iniciar manualmente
           }
         } 
-        // --- LÓGICA FLOW (AQUI ESTÁ A CORREÇÃO) ---
+        // --- LÓGICA FLOW ---
         else if (timerType === 'FLOW') {
           if (timerMode === 'BREAK') {
             // Fim da pausa Flow -> Restaura o tempo de onde parou e volta a contar
@@ -179,7 +182,9 @@ const FocusProvider = ({ children }) => {
       }
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, timerMode, timerType, cycles, flowStoredTime]);
+    
+    // IMPORTANTE: Removido 'cycles' da dependência para evitar loop infinito
+  }, [isActive, timeLeft, timerMode, timerType, flowStoredTime]);
 
   // Título da aba
   useEffect(() => {
@@ -254,6 +259,7 @@ const FocusProvider = ({ children }) => {
     </FocusContext.Provider>
   );
 };
+
 /**
  * --- COMPONENTES UI ---
  */
@@ -336,10 +342,6 @@ const DashboardView = () => {
   );
 };
 
-// 1. VERIFIQUE SEUS IMPORTS LÁ NO TOPO DO ARQUIVO
-// Certifique-se de que 'Coffee' está na lista de importações do 'lucide-react'
-// Ex: import { ..., Coffee, ... } from 'lucide-react';
-
 const FocusView = () => {
   const { 
     timerType, setTimerType,
@@ -416,9 +418,11 @@ const FocusView = () => {
       alert(`Sessão finalizada e salva: ${minutesStudied} min.`);
     }
 
+    // Reseta tudo
     setIsActive(false);
     setTimerMode('WORK');
     setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO_WORK);
+    setFlowStoredTime(0); // Limpa a memória
   };
 
   const handleTaskSubmit = (e) => {
@@ -745,7 +749,7 @@ const HistoryView = () => {
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <h1 className="text-2xl font-bold text-white mb-6">Histórico</h1>
       <div className="grid gap-4">
-        {grouped.length===0 && <p className="text-center text-gray-500 py-10">Vazio.</p>}
+        {grouped.length===0 && <p className="text-center text-gray-500 py-10">Nenhum estudo foi registrado até o momento.</p>}
         {grouped.map((g,i)=>(
           <Card key={i} className="flex justify-between items-center hover:bg-[#202024] cursor-pointer group">
              <div className="flex-1 flex gap-4 items-center" onClick={()=>{setSelectedHistoryDate(g.date);setCurrentView('report')}}>
@@ -936,6 +940,7 @@ const App = () => (
       ::selection {
         background-color: #ffffffff; /* Cor Violeta (combinando com seu tema) */
         color: #000000ff;            /* Texto Branco */
+      }
     `}</style>
   </FocusProvider>
 );
