@@ -162,15 +162,37 @@ const Button = ({ children, onClick, variant='primary', className="" }) => {
   const vars = { primary: "bg-violet-600 hover:bg-violet-700 text-white shadow-violet-600/30", secondary: "bg-gray-700 hover:bg-gray-600 text-white border-gray-600", danger: "bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20" };
   return <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 active:scale-95 ${vars[variant]} ${className}`}>{children}</button>;
 };
-const Modal = ({ isOpen, onClose, title, children }) => !isOpen ? null : (
-  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
-    <div className="bg-[#18181B] border border-gray-700 rounded-xl w-full max-w-md p-6 relative shadow-2xl">
-      <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={20}/></button>
-      <h2 className="text-xl font-bold text-white mb-4">{title}</h2>
-      {children}
+const Modal = ({ isOpen, onClose, title, children }) => {
+  // Efeito para travar o scroll do fundo quando o modal abrir
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'; // Trava o scroll da página
+    } else {
+      document.body.style.overflow = 'unset'; // Destrava
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    // Backdrop: fixo (fixed), ocupa a tela toda (inset-0), centraliza o filho (flex items-center justify-center)
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      
+      {/* O "Cartão" do Modal */}
+      <div className="bg-[#18181B] border border-gray-700 rounded-2xl w-full max-w-md p-6 relative shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+        >
+          <X size={20}/>
+        </button>
+        <h2 className="text-xl font-bold text-white mb-6 pr-8">{title}</h2>
+        {children}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // --- VIEWS ---
 const DashboardView = () => {
@@ -263,7 +285,7 @@ const FocusView = () => {
             {timerType==='FLOW'&&timerMode==='WORK'&&<p className="text-xs text-zinc-500 mt-4">Clique no <Coffee size={12} className="inline"/> para pausa.</p>}
           </div>
         </Card>
-        <Card><h3 className="text-lg font-semibold text-white mb-3">Diário</h3><textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="O que estudou?" value={notes} onChange={e=>setNotes(e.target.value)}/></Card>
+        <Card><h3 className="text-lg font-semibold text-white mb-3">Diário da Sessão</h3><textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="Diga o que você estudou durante a sessão e o explique brevemente." value={notes} onChange={e=>setNotes(e.target.value)}/></Card>
       </div>
       <div className="lg:col-span-1">
         <Card className="h-full flex flex-col min-h-[300px]"><h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-violet-500"/> Tarefas</h3><form onSubmit={e=>{e.preventDefault(); if(newTask&&selectedSubjectId){addTask(newTask,selectedSubjectId);setNewTask("");}}} className="mb-4 flex gap-2"><input placeholder="Nova tarefa..." className="flex-1 bg-[#0F0F12] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" value={newTask} onChange={e=>setNewTask(e.target.value)}/><button type="submit" className="bg-violet-600 rounded-lg px-3 text-white"><Plus size={18}/></button></form><div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">{tasks.filter(t=>t.subjectId===selectedSubjectId).map(t=>(<div key={t.id} className={`group flex items-center gap-3 p-3 rounded-lg border transition-all ${t.completed?'bg-violet-900/10 border-violet-500/20 opacity-60':'bg-[#27272A] border-gray-700'}`}><button onClick={()=>toggleTask(t.id)} className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center ${t.completed?'bg-violet-500 border-violet-500':'border-gray-500'}`}>{t.completed&&<CheckCircle size={14} className="text-white"/>}</button><span className={`text-sm flex-1 break-words ${t.completed?'text-gray-500 line-through':'text-gray-200'}`}>{t.text}</span><button onClick={()=>deleteTask(t.id)} className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button></div>))}</div></Card>
@@ -330,7 +352,7 @@ const FocusView = () => {
         <form onSubmit={handleManual} className="space-y-4">
           <div><label className="text-sm text-gray-400">Matéria</label><select required className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-2.5 text-white" value={manSubId} onChange={e=>setManSubId(e.target.value)}>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
           <div><label className="text-sm text-gray-400">Minutos</label><input required type="number" min="1" className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-2.5 text-white" value={manMins} onChange={e=>setManMins(e.target.value)}/></div>
-          <div><label className="text-sm text-gray-400">Diário</label><textarea className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-2.5 text-white h-24" value={manNotes} onChange={e=>setManNotes(e.target.value)}/></div>
+          <div><label className="text-sm text-gray-400">Diário da Sessão</label><textarea className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-2.5 text-white h-24" value={manNotes} onChange={e=>setManNotes(e.target.value)}/></div>
           <Button type="submit" className="w-full">Salvar</Button>
         </form>
       </Modal>
