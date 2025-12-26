@@ -127,6 +127,29 @@ const FocusProvider = ({ children }) => {
   // Estado para memorizar o tempo do Flow durante a pausa
   const [flowStoredTime, setFlowStoredTime] = useState(0);
 
+// COLOQUE ISSO DENTRO DO FocusProvider
+  useEffect(() => {
+    // Essa função percorre seus temas e garante que cada item tenha um ID ÚNICO
+    const healData = () => {
+      let changed = false;
+      const healedThemes = themes.map(theme => {
+        const uniqueItems = theme.items.map((item, index) => {
+          // Se o ID for repetido ou muito curto, geramos um novo baseado na posição
+          // Usamos o index para garantir que mesmo criados no mesmo milissegundo, sejam diferentes
+          return { ...item, id: item.id + (Math.random() * index) };
+        });
+        return { ...theme, items: uniqueItems };
+      });
+      
+      // Só atualiza se realmente houver dados para evitar loops
+      if (themes.length > 0 && JSON.stringify(themes) !== JSON.stringify(healedThemes)) {
+        setThemes(healedThemes);
+      }
+    };
+
+    healData();
+  }, []); // Roda apenas uma vez quando o app abre
+
   useEffect(() => {
     if (subjects.length > 0) {
       if (!selectedSubjectId || !subjects.find(s => s.id === selectedSubjectId)) {
@@ -214,7 +237,22 @@ const FocusProvider = ({ children }) => {
   const resetAllData = () => { if (window.confirm("Resetar TUDO?")) { localStorage.clear(); window.location.reload(); } };
   const addTheme = (subjectId, title) => setThemes(prev => [...prev, { id: Date.now(), subjectId, title, items: [] }]);
   const deleteTheme = (themeId) => { if(window.confirm("Excluir tema?")) setThemes(prev => prev.filter(t => t.id !== themeId)); };
-  const addThemeItem = (themeId, text) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: [...t.items, { id: Date.now(), text, completed: false }] } : t));
+  // No arquivo src/App.jsx, substitua a função addThemeItem por esta:
+
+  const addThemeItem = (themeId, text) => {
+    setThemes(prev => prev.map(t => 
+      t.id === themeId 
+        ? { 
+            ...t, 
+            items: [
+              ...t.items, 
+              // AQUI ESTÁ A CORREÇÃO: Adicionamos Math.random() para garantir que o ID seja único
+              { id: Date.now() + Math.random(), text, completed: false } 
+            ] 
+          } 
+        : t
+    ));
+  };
   const toggleThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t));
   const deleteThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.filter(i => i.id !== itemId) } : t));
 
