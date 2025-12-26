@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, createContext, useMemo } from 'react';
-import { createPortal } from 'react-dom'; // Importante para o Modal funcionar
+import { createPortal } from 'react-dom';
 import { 
   LayoutDashboard, Zap, Target, BarChart2, Play, Pause, Coffee, RotateCcw, 
   CheckCircle, Plus, Clock, Flame, Settings, BookOpen, Quote, Trash2, Menu, X, 
@@ -82,7 +82,6 @@ const FocusProvider = ({ children }) => {
     const healData = () => {
       const healedThemes = themes.map(theme => {
         const uniqueItems = theme.items.map((item, index) => {
-          // Se o ID parecer duplicado ou simples demais, regenera
           return { ...item, id: item.id + (Math.random() * (index + 1)) };
         });
         return { ...theme, items: uniqueItems };
@@ -93,6 +92,18 @@ const FocusProvider = ({ children }) => {
     };
     if (themes.length > 0) healData();
   }, []);
+
+  // --- CORREÇÃO DO TÍTULO DA ABA ---
+  useEffect(() => {
+    if (isActive) {
+      const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+      const secs = (timeLeft % 60).toString().padStart(2, '0');
+      const modeText = timerMode === 'WORK' ? 'Foco' : 'Pausa';
+      document.title = `${mins}:${secs} - ${modeText}`;
+    } else {
+      document.title = "Focus App";
+    }
+  }, [isActive, timeLeft, timerMode]);
 
   // Lógica do Timer
   useEffect(() => {
@@ -161,10 +172,7 @@ const FocusProvider = ({ children }) => {
 
   const addTheme = (subId, title) => setThemes(prev => [...prev, { id: Date.now(), subjectId: subId, title, items: [] }]);
   const deleteTheme = (id) => { if(window.confirm("Excluir tema?")) setThemes(prev => prev.filter(t => t.id !== id)); };
-  
-  // CORREÇÃO DO MATH.RANDOM AQUI PARA EVITAR BUGS NO CTRL+V
   const addThemeItem = (themeId, text) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text, completed: false }] } : t));
-  
   const toggleThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t));
   const deleteThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.filter(i => i.id !== itemId) } : t));
 
@@ -221,7 +229,7 @@ const Button = ({ children, onClick, variant = 'primary', className = "" }) => {
   return <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 active:scale-95 ${variants[variant]} ${className}`}>{children}</button>;
 };
 
-// --- MODAL CORRIGIDO COM PORTAL (Evita bugs visuais) ---
+// --- MODAL CORRIGIDO COM PORTAL ---
 const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
@@ -251,7 +259,7 @@ const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo de volta, Arthur!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
+      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo a melhor plataforma de estudos!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-violet-500"><div className="p-3 bg-violet-500/20 rounded-full text-violet-500"><Clock size={24}/></div><div><p className="text-sm text-gray-400">Total</p><p className="text-2xl font-bold text-white">{kpiData.totalHours} h</p></div></Card>
@@ -262,9 +270,21 @@ const DashboardView = () => {
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-violet-500"/> Atividade Semanal</h3>
           <div className="h-[250px] w-full"><ResponsiveContainer><LineChart data={weeklyChartData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#71717a" tick={{fill:'#a1a1aa',fontSize:12}} axisLine={false}/><YAxis stroke="#71717a" tick={{fill:'#a1a1aa'}} axisLine={false}/><Tooltip contentStyle={{backgroundColor:'#18181B',borderColor:'#3f3f46',color:'#fff'}}/><Line type="monotone" dataKey="minutos" stroke="#8b5cf6" strokeWidth={3} dot={{r:4,fill:'#8b5cf6'}}/></LineChart></ResponsiveContainer></div>
         </Card>
-        <Card className="bg-gradient-to-br from-violet-900/40 to-[#18181B] border-violet-500/30 flex flex-col justify-between">
-          <div><h3 className="text-xl font-bold text-white mb-2">Focar Agora</h3><p className="text-gray-300 mb-6">Comece um ciclo de produtividade.</p></div>
-          <Button onClick={() => setCurrentView('focus')} className="w-full py-4 text-lg">Ir para o Timer <Zap size={20}/></Button>
+        
+        {/* CARD COM FRASE ATUALIZADA (OPÇÃO "DEEP WORK") */}
+        <Card className="bg-gradient-to-br from-violet-900/40 to-[#18181B] border-violet-500/30 flex flex-col justify-between relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 blur-[50px] group-hover:bg-violet-500/20 transition-all duration-500"></div>
+          <div>
+            <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+              Trabalho Profundo <InfinityIcon size={18} className="text-violet-400"/>
+            </h3>
+            <p className="text-gray-300 mb-6 italic text-sm border-l-2 border-violet-500/50 pl-3">
+              "A superficialidade não constrói impérios."
+            </p>
+          </div>
+          <Button onClick={() => setCurrentView('focus')} className="w-full py-4 text-lg shadow-lg shadow-violet-900/20 hover:shadow-violet-600/40 border border-white/5">
+            Mergulhar no Foco <Zap size={20} className="fill-current"/>
+          </Button>
         </Card>
       </div>
     </div>
@@ -329,7 +349,7 @@ const FocusView = () => {
             {timerType==='FLOW'&&timerMode==='WORK'&&<p className="text-xs text-zinc-500 mt-4">Clique no <Coffee size={12} className="inline"/> para pausa.</p>}
           </div>
         </Card>
-        <Card><h3 className="text-lg font-semibold text-white mb-3">Diário de Sessão</h3><textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="O que estudou?" value={notes} onChange={e=>setNotes(e.target.value)}/></Card>
+        <Card><h3 className="text-lg font-semibold text-white mb-3">Diário da Sessão</h3><textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="O que estudou?" value={notes} onChange={e=>setNotes(e.target.value)}/></Card>
       </div>
       
       <div className="lg:col-span-1">
@@ -340,23 +360,38 @@ const FocusView = () => {
         </Card>
       </div>
 
-      {/* --- BOTÃO DE REGISTRO MANUAL (COM VISUAL MELHORADO) --- */}
+      {/* --- BOTÃO DE REGISTRO MANUAL COM VISUAL MELHORADO --- */}
       <div className="lg:col-span-3 mt-12 mb-8 flex flex-col items-center justify-center border-t border-zinc-800/50 pt-10">
         <div className="bg-zinc-900/30 p-6 rounded-2xl border border-zinc-800/50 max-w-md w-full text-center backdrop-blur-sm">
           <Clock size={24} className="mx-auto mb-3 text-zinc-500 opacity-50" />
           <p className="text-zinc-400 text-sm mb-4">Esqueceu de ligar o timer ou estudou fora do app?</p>
-          <button onClick={() => { setManualSubId(subjects[0]?.id); setIsManualOpen(true); }} className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-violet-600/10 hover:bg-violet-600 text-violet-400 hover:text-white rounded-xl border border-violet-500/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-violet-500/5">
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> Lançar Estudo Manual
+          <button 
+            onClick={() => { setManualSubId(subjects[0]?.id); setIsManualOpen(true); }}
+            className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-violet-600/10 hover:bg-violet-600 text-violet-400 hover:text-white rounded-xl border border-violet-500/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-violet-500/5"
+          >
+            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+            Enviar estudo manualmente
           </button>
         </div>
       </div>
 
       <Modal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} title="Registro Manual">
         <form onSubmit={handleManualSubmit} className="space-y-5">
-          <div className="space-y-2"><label className="text-xs font-bold text-zinc-500 uppercase">Matéria</label><select required className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white" value={manualSubId} onChange={e => setManualSubId(e.target.value)}>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-          <div className="space-y-2"><label className="text-xs font-bold text-zinc-500 uppercase">Tempo (min)</label><input required type="number" min="1" className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white" value={manualMinutes} onChange={e => setManualMinutes(e.target.value)}/></div>
-          <div className="space-y-2"><label className="text-xs font-bold text-zinc-500 uppercase">Diário da Sessão</label><textarea className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white h-28" value={manualNotes} onChange={e => setManualNotes(e.target.value)}/></div>
-          <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-violet-600/20">Confirmar</Button>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Matéria</label>
+            <select required className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white outline-none focus:border-violet-500 transition-colors" value={manualSubId} onChange={e => setManualSubId(e.target.value)}>
+              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Tempo (minutos)</label>
+            <input required type="number" min="1" placeholder="Ex: 60" className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white outline-none focus:border-violet-500 transition-colors" value={manualMinutes} onChange={e => setManualMinutes(e.target.value)}/>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Diário da Sessão</label>
+            <textarea className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white h-28 outline-none focus:border-violet-500 transition-colors resize-none text-sm" placeholder="Resumo..." value={manualNotes} onChange={e => setManualNotes(e.target.value)}/>
+          </div>
+          <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-violet-600/20">Confirmar Registro</Button>
         </form>
       </Modal>
     </div>
