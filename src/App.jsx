@@ -177,7 +177,7 @@ const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo de volta!</h1><p className="text-gray-400">Visão geral do progresso.</p></header>
+      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo de volta, Arthur!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { l:'Hoje', v:`${kpiData.todayMinutes} min`, i:Zap, c:'yellow' },
@@ -268,10 +268,64 @@ const FocusView = () => {
       <div className="lg:col-span-1">
         <Card className="h-full flex flex-col min-h-[300px]"><h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-violet-500"/> Tarefas</h3><form onSubmit={e=>{e.preventDefault(); if(newTask&&selectedSubjectId){addTask(newTask,selectedSubjectId);setNewTask("");}}} className="mb-4 flex gap-2"><input placeholder="Nova tarefa..." className="flex-1 bg-[#0F0F12] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" value={newTask} onChange={e=>setNewTask(e.target.value)}/><button type="submit" className="bg-violet-600 rounded-lg px-3 text-white"><Plus size={18}/></button></form><div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">{tasks.filter(t=>t.subjectId===selectedSubjectId).map(t=>(<div key={t.id} className={`group flex items-center gap-3 p-3 rounded-lg border transition-all ${t.completed?'bg-violet-900/10 border-violet-500/20 opacity-60':'bg-[#27272A] border-gray-700'}`}><button onClick={()=>toggleTask(t.id)} className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center ${t.completed?'bg-violet-500 border-violet-500':'border-gray-500'}`}>{t.completed&&<CheckCircle size={14} className="text-white"/>}</button><span className={`text-sm flex-1 break-words ${t.completed?'text-gray-500 line-through':'text-gray-200'}`}>{t.text}</span><button onClick={()=>deleteTask(t.id)} className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button></div>))}</div></Card>
       </div>
-      <div className="lg:col-span-3 mt-8 border-t border-gray-800 pt-8 text-center">
-        <p className="text-gray-500 mb-3">Esqueceu de ligar o timer?</p>
-        <button onClick={()=>{setManSubId(subjects[0]?.id); setIsManOpen(true);}} className="text-sm font-bold text-violet-400 hover:text-violet-300 underline">Já estudou hoje? Registre manualmente aqui.</button>
+     {/* --- BOTÃO DE REGISTRO MANUAL (VISUAL MELHORADO) --- */}
+      <div className="lg:col-span-3 mt-12 mb-8 flex flex-col items-center justify-center border-t border-zinc-800/50 pt-10">
+        <div className="bg-zinc-900/30 p-6 rounded-2xl border border-zinc-800/50 max-w-md w-full text-center backdrop-blur-sm">
+          <Clock size={24} className="mx-auto mb-3 text-zinc-500 opacity-50" />
+          <p className="text-zinc-400 text-sm mb-4">Esqueceu de ligar o timer ou estudou fora do app?</p>
+          <button 
+            onClick={() => { setManSubId(subjects[0]?.id); setIsManOpen(true); }}
+            className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-violet-600/10 hover:bg-violet-600 text-violet-400 hover:text-white rounded-xl border border-violet-500/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-violet-500/5"
+          >
+            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+            Lançar Estudo Manual
+          </button>
+        </div>
       </div>
+
+      {/* --- MODAL DE REGISTRO MANUAL (ORGANIZADO) --- */}
+      <Modal isOpen={isManOpen} onClose={() => setIsManOpen(false)} title="Registro Manual">
+        <form onSubmit={handleManual} className="space-y-5">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Matéria Estudada</label>
+            <select 
+              required 
+              className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white outline-none focus:border-violet-500 transition-colors cursor-pointer" 
+              value={manSubId} 
+              onChange={e => setManSubId(e.target.value)}
+            >
+              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Tempo (minutos)</label>
+            <input 
+              required 
+              type="number" 
+              min="1" 
+              placeholder="Ex: 60"
+              className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white outline-none focus:border-violet-500 transition-colors" 
+              value={manMins} 
+              onChange={e => setManMins(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Diário da Sessão</label>
+            <textarea 
+              className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white h-28 outline-none focus:border-violet-500 transition-colors resize-none text-sm" 
+              placeholder="Resuma o que foi visto..."
+              value={manNotes} 
+              onChange={e => setManNotes(e.target.value)}
+            />
+          </div>
+
+          <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-violet-600/20">
+            Confirmar Registro
+          </Button>
+        </form>
+      </Modal>
       <Modal isOpen={isManOpen} onClose={()=>setIsManOpen(false)} title="Registro Manual">
         <form onSubmit={handleManual} className="space-y-4">
           <div><label className="text-sm text-gray-400">Matéria</label><select required className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-2.5 text-white" value={manSubId} onChange={e=>setManSubId(e.target.value)}>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
