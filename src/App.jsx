@@ -588,12 +588,33 @@ const GoalsView = () => {
     }
   };
 
-  const handleAddItem = (e, themeId) => {
+const handleAddItem = (e, themeId) => {
     e.preventDefault();
     const val = e.target.elements.itemText.value;
     if(val) {
       addThemeItem(themeId, val);
-      e.target.reset();
+      e.target.reset(); // Limpa o input após o Enter
+    }
+  };
+
+  // --- NOVA FUNÇÃO MÁGICA: DETECTAR O CTRL+V ---
+  const handlePasteItems = (e, themeId) => {
+    const pasteData = e.clipboardData.getData('text');
+
+    // Verifica se o texto colado tem quebra de linha (significa que é uma lista)
+    if (pasteData.includes('\n')) {
+      e.preventDefault(); // Impede que o texto fique "linguição" no input
+      
+      // Separa por linha, limpa espaços e remove linhas vazias
+      const lines = pasteData.split('\n').map(line => line.trim()).filter(line => line !== "");
+
+      // Adiciona cada linha como um item novo
+      lines.forEach((line) => {
+        addThemeItem(themeId, line);
+      });
+      
+      // Feedback visual opcional (pode remover se quiser)
+      console.log(`Adicionados ${lines.length} itens via colar.`);
     }
   };
 
