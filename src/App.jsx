@@ -555,8 +555,6 @@ const GoalsView = () => {
   } = useContext(FocusContext);
 
   const [viewingSubject, setViewingSubject] = useState(null); 
-  
-  // --- NOVO: Estado para saber quais temas estão fechados ---
   const [collapsedThemes, setCollapsedThemes] = useState({});
 
   // States para criação de matéria
@@ -588,7 +586,7 @@ const GoalsView = () => {
     }
   };
 
-const handleAddItem = (e, themeId) => {
+  const handleAddItem = (e, themeId) => {
     e.preventDefault();
     const val = e.target.elements.itemText.value;
     if(val) {
@@ -618,7 +616,6 @@ const handleAddItem = (e, themeId) => {
     }
   };
 
-  // --- NOVA FUNÇÃO: Alternar entre abrir/fechar tema ---
   const toggleThemeCollapse = (themeId) => {
     setCollapsedThemes(prev => ({
       ...prev,
@@ -661,6 +658,7 @@ const handleAddItem = (e, themeId) => {
               className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white outline-none focus:border-violet-500"
               placeholder="Digite o título do tema..."
               value={newThemeTitle} onChange={e => setNewThemeTitle(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddTheme(e)} // Enter cria o tema também
             />
           </div>
           <Button onClick={handleAddTheme} className="w-full md:w-auto h-10">Adicionar Tema</Button>
@@ -680,14 +678,12 @@ const handleAddItem = (e, themeId) => {
             const totalCount = theme.items ? theme.items.length : 0;
             const progress = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
             
-            // Verifica se está fechado
             const isCollapsed = collapsedThemes[theme.id];
 
             return (
               <Card key={theme.id} className="relative group/theme transition-all duration-300">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex gap-3 items-start w-full">
-                    {/* Botão de Minimizar */}
                     <button 
                       onClick={() => toggleThemeCollapse(theme.id)}
                       className="mt-1 text-zinc-500 hover:text-white transition-colors focus:outline-none"
@@ -696,7 +692,6 @@ const handleAddItem = (e, themeId) => {
                     </button>
 
                     <div className="flex-1">
-                      {/* Título Clicável */}
                       <h3 
                         className="text-xl font-bold text-white flex items-center gap-2 cursor-pointer hover:text-violet-400 transition-colors select-none"
                         onClick={() => toggleThemeCollapse(theme.id)}
@@ -704,7 +699,6 @@ const handleAddItem = (e, themeId) => {
                         <BookOpen size={20} className="text-violet-500" /> {theme.title}
                       </h3>
                       
-                      {/* Barra de Progresso (Sempre visível) */}
                       <div className="flex items-center gap-2 mt-1">
                          <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden">
                            <div className="h-full bg-violet-500 transition-all duration-500" style={{width: `${progress}%`}}></div>
@@ -714,13 +708,11 @@ const handleAddItem = (e, themeId) => {
                     </div>
                   </div>
 
-                  {/* Botão de Excluir Tema */}
                   <button onClick={() => deleteTheme(theme.id)} className="text-zinc-600 hover:text-red-500 transition-colors ml-4">
                     <Trash2 size={16} />
                   </button>
                 </div>
 
-                {/* Conteúdo do Tema (Checklists) - Só aparece se NÃO estiver colapsado */}
                 {!isCollapsed && (
                   <div className="space-y-2 mb-4 animate-fadeIn pl-8">
                     {(theme.items || []).map(item => (
@@ -740,13 +732,14 @@ const handleAddItem = (e, themeId) => {
                       </div>
                     ))}
                     
-                    {/* Input de Novo Item */}
+                    {/* INPUT COM SUPORTE A ENTER E CTRL+V */}
                     <form onSubmit={(e) => handleAddItem(e, theme.id)} className="flex gap-2 mt-4 pt-4 border-t border-zinc-800/50">
                        <input 
                          name="itemText"
                          className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm text-white outline-none focus:border-violet-500"
-                         placeholder="Adicionar tópico..."
+                         placeholder="Adicionar tópico (Enter envia, Ctrl+V adiciona lista)..."
                          autoComplete="off"
+                         onPaste={(e) => handlePasteItems(e, theme.id)} // <--- AQUI ESTÁ O SEGREDO
                        />
                        <button type="submit" className="p-1.5 bg-zinc-800 hover:bg-violet-600 text-white rounded transition-colors">
                          <Plus size={16} />
@@ -762,7 +755,7 @@ const handleAddItem = (e, themeId) => {
     );
   }
 
-  // MODO LISTA DE MATÉRIAS (GRID PRINCIPAL)
+  // MODO LISTA DE MATÉRIAS
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-white">Metas & Matérias</h1><Button onClick={()=>setIsModalOpen(true)}><Plus size={18}/> Nova Matéria</Button></header>
