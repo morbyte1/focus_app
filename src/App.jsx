@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
+import React, { useState, useEffect, useContext, createContext, useMemo } from 'react';
+import { createPortal } from 'react-dom'; // <--- ADICIONE ESTA LINHA IMPORTANTE
 
 // --- UTILITÁRIOS ---
 const POMODORO_WORK = 25 * 60, POMODORO_SHORT = 5 * 60, POMODORO_LONG = 15 * 60;
@@ -163,24 +165,24 @@ const Button = ({ children, onClick, variant='primary', className="" }) => {
   return <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 active:scale-95 ${vars[variant]} ${className}`}>{children}</button>;
 };
 const Modal = ({ isOpen, onClose, title, children }) => {
-  // Efeito para travar o scroll do fundo quando o modal abrir
+  // Trava o scroll do fundo quando o modal abre
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'; // Trava o scroll da página
-    } else {
-      document.body.style.overflow = 'unset'; // Destrava
-    }
+    if (isOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = 'unset';
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  return (
-    // Backdrop: fixo (fixed), ocupa a tela toda (inset-0), centraliza o filho (flex items-center justify-center)
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      
-      {/* O "Cartão" do Modal */}
-      <div className="bg-[#18181B] border border-gray-700 rounded-2xl w-full max-w-md p-6 relative shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+  // O "createPortal" joga esse HTML direto no final do <body> do site,
+  // fugindo de qualquer div que esteja limitando o tamanho ou a posição.
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      {/* Onde você clica fora para fechar (opcional, mas boa prática) */}
+      <div className="absolute inset-0" onClick={onClose}></div>
+
+      {/* O Cartão do Modal */}
+      <div className="bg-[#18181B] border border-gray-700 rounded-2xl w-full max-w-md p-6 relative shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar z-10">
         <button 
           onClick={onClose} 
           className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
@@ -190,7 +192,8 @@ const Modal = ({ isOpen, onClose, title, children }) => {
         <h2 className="text-xl font-bold text-white mb-6 pr-8">{title}</h2>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
