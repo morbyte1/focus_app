@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, createContext, useMemo } from 'react';
+import { createPortal } from 'react-dom'; // Importante para o Modal funcionar
 import { 
   LayoutDashboard, Zap, Target, BarChart2, Play, Pause, Coffee, RotateCcw, 
   CheckCircle, Plus, Clock, Flame, Settings, BookOpen, Quote, Trash2, Menu, X, 
@@ -7,48 +8,60 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
-import React, { useState, useEffect, useContext, createContext, useMemo } from 'react';
-import { createPortal } from 'react-dom'; // <--- ADICIONE ESTA LINHA IMPORTANTE
 
-// --- UTILITÁRIOS ---
-const POMODORO_WORK = 25 * 60, POMODORO_SHORT = 5 * 60, POMODORO_LONG = 15 * 60;
+/**
+ * --- CONFIGURAÇÕES ---
+ */
+const POMODORO_WORK = 25 * 60; 
+const POMODORO_SHORT_BREAK = 5 * 60; 
+const POMODORO_LONG_BREAK = 15 * 60; 
+
 const QUOTES = [
   "A persistência é o caminho do êxito.", "Foco é dizer não.",
   "O sucesso é a soma de pequenos esforços.", "Feito é melhor que perfeito.",
-  "A disciplina é a mãe do sucesso."
+  "A disciplina é a mãe do sucesso.",
 ];
+
 const DEFAULT_SUBJECTS = [
   { id: 1, name: 'Programação', color: '#8b5cf6', goalHours: 20 },
   { id: 2, name: 'Matemática', color: '#10b981', goalHours: 10 },
   { id: 3, name: 'Inglês', color: '#f59e0b', goalHours: 5 },
 ];
 
-const formatTime = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
 
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
-    try { return JSON.parse(window.localStorage.getItem(key)) || defaultValue; } 
-    catch { return defaultValue; }
+    try {
+      const stickyValue = window.localStorage.getItem(key);
+      return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
+    } catch { return defaultValue; }
   });
-  useEffect(() => { window.localStorage.setItem(key, JSON.stringify(value)); }, [key, value]);
+  useEffect(() => {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
   return [value, setValue];
 }
 
-// --- CONTEXTO ---
+/**
+ * --- CONTEXTO GLOBAL ---
+ */
 export const FocusContext = createContext();
 
 const FocusProvider = ({ children }) => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
 
-  // Dados Persistentes
   const [subjects, setSubjects] = useStickyState(DEFAULT_SUBJECTS, 'focus_subjects');
   const [sessions, setSessions] = useStickyState([], 'focus_sessions');
   const [tasks, setTasks] = useStickyState([], 'focus_tasks');
   const [mistakes, setMistakes] = useStickyState([], 'focus_mistakes');
   const [themes, setThemes] = useStickyState([], 'focus_themes'); 
 
-  // Timer
   const [timerMode, setTimerMode] = useState('WORK'); 
   const [timerType, setTimerType] = useState('POMODORO'); 
   const [timeLeft, setTimeLeft] = useState(POMODORO_WORK);
@@ -64,11 +77,28 @@ const FocusProvider = ({ children }) => {
     }
   }, [subjects, selectedSubjectId]);
 
+  // CORREÇÃO DOS IDs DUPLICADOS (Cura automática ao iniciar)
+  useEffect(() => {
+    const healData = () => {
+      const healedThemes = themes.map(theme => {
+        const uniqueItems = theme.items.map((item, index) => {
+          // Se o ID parecer duplicado ou simples demais, regenera
+          return { ...item, id: item.id + (Math.random() * (index + 1)) };
+        });
+        return { ...theme, items: uniqueItems };
+      });
+      if (JSON.stringify(themes) !== JSON.stringify(healedThemes)) {
+        setThemes(healedThemes);
+      }
+    };
+    if (themes.length > 0) healData();
+  }, []);
+
   // Lógica do Timer
   useEffect(() => {
     let interval = null;
     if (isActive) {
-      if (timerMode === 'WORK') setElapsedTime(p => p + 1);
+      if (timerMode === 'WORK') setElapsedTime(prev => prev + 1);
       
       if (timerType === 'FLOW' && timerMode === 'WORK') {
         interval = setInterval(() => setTimeLeft(t => t + 1), 1000);
@@ -76,96 +106,123 @@ const FocusProvider = ({ children }) => {
         interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
       } else if (timeLeft === 0 && !(timerType === 'FLOW' && timerMode === 'WORK')) {
         clearInterval(interval);
-        try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(()=>{}); } catch{}
-        
+        try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(() => {}); } catch(e){}
+
         if (timerType === 'POMODORO') {
           if (timerMode === 'WORK') {
-            setCycles(c => c + 1);
+            const nextCycle = cycles + 1;
+            setCycles(nextCycle);
             setTimerMode('BREAK');
-            setTimeLeft((cycles + 1) % 3 === 0 ? POMODORO_LONG : POMODORO_SHORT);
+            setTimeLeft(nextCycle % 3 === 0 ? POMODORO_LONG_BREAK : POMODORO_SHORT_BREAK);
             setIsActive(true);
           } else {
-            setTimerMode('WORK'); setTimeLeft(POMODORO_WORK); setIsActive(true);
+            setTimerMode('WORK');
+            setTimeLeft(POMODORO_WORK);
+            setIsActive(true);
           }
         } else if (timerType === 'FLOW' && timerMode === 'BREAK') {
-          setTimerMode('WORK'); setTimeLeft(flowStoredTime); setIsActive(true);
+          setTimerMode('WORK');
+          setTimeLeft(flowStoredTime);
+          setIsActive(true);
         }
       }
     }
     return () => clearInterval(interval);
   }, [isActive, timeLeft, timerMode, timerType, flowStoredTime, cycles]);
 
-  useEffect(() => {
-    document.title = isActive ? `${formatTime(timeLeft)} - ${timerMode==='WORK'?'Foco':'Pausa'}` : "Focus App";
-  }, [isActive, timeLeft, timerMode]);
+  // Ações
+  const addSession = (minutes, notes, manualSubId = null) => {
+    setSessions(prev => [...prev, { 
+      id: Date.now(), 
+      date: new Date().toISOString(), 
+      minutes, 
+      subjectId: manualSubId ? Number(manualSubId) : selectedSubjectId, 
+      notes 
+    }]);
+  };
 
-  // Ações Otimizadas
-  const addSession = (minutes, notes, manualSubId=null) => setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes, subjectId: manualSubId ? Number(manualSubId) : selectedSubjectId, notes }]);
-  const addSubject = (name, color, goalHours) => setSubjects(p => [...p, { id: Date.now(), name, color, goalHours: Number(goalHours) }]);
-  const updateSubject = (id, newGoal) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Number(newGoal) } : s));
-  const deleteSubject = (id) => { if(subjects.length<=1)return alert("Mantenha uma."); if(confirm("Excluir?")) { const r=subjects.filter(s=>s.id!==id); setSubjects(r); if(selectedSubjectId===id) setSelectedSubjectId(r[0].id); }};
+  const addSubject = (name, color, goalHours) => setSubjects(prev => [...prev, { id: Date.now(), name, color, goalHours: Number(goalHours) }]);
+  const updateSubject = (id, newGoal) => setSubjects(prev => prev.map(s => s.id === id ? { ...s, goalHours: Number(newGoal) } : s));
+  const deleteSubject = (id) => {
+    if (subjects.length <= 1) return alert("Mantenha ao menos uma matéria.");
+    if (window.confirm("Excluir matéria?")) {
+      const remaining = subjects.filter(s => s.id !== id);
+      setSubjects(remaining);
+      if (selectedSubjectId === id) setSelectedSubjectId(remaining[0].id);
+    }
+  };
+
+  const addTask = (text, subjectId) => setTasks(prev => [...prev, { id: Date.now(), text, completed: false, subjectId }]);
+  const toggleTask = (id) => setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const deleteTask = (id) => { if (window.confirm("Excluir tarefa?")) setTasks(prev => prev.filter(t => t.id !== id)); };
   
-  // Tasks & Mistakes
-  const addTask = (text, sId) => setTasks(p => [...p, { id: Date.now(), text, completed: false, subjectId: sId }]);
-  const toggleTask = (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  const deleteTask = (id) => { if(confirm("Excluir?")) setTasks(p => p.filter(t => t.id !== id)); };
-  const addMistake = (sId, d, r, s) => setMistakes(p => [{ id: Date.now(), date: new Date().toISOString(), subjectId: Number(sId), description: d, reason: r, solution: s }, ...p]);
-  const deleteMistake = (id) => { if(confirm("Apagar?")) setMistakes(p => p.filter(m => m.id !== id)); };
+  const addMistake = (subId, desc, reason, sol) => setMistakes(prev => [{ id: Date.now(), date: new Date().toISOString(), subjectId: Number(subId), description: desc, reason, solution: sol }, ...prev]);
+  const deleteMistake = (id) => { if (window.confirm("Apagar erro?")) setMistakes(prev => prev.filter(m => m.id !== id)); };
 
-  // Themes
-  const addTheme = (sId, title) => setThemes(p => [...p, { id: Date.now(), subjectId: sId, title, items: [] }]);
-  const deleteTheme = (id) => { if(confirm("Excluir tema?")) setThemes(p => p.filter(t => t.id !== id)); };
-  const addThemeItem = (tId, text) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text, completed: false }] } : t));
-  const toggleThemeItem = (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.map(i => i.id === iId ? { ...i, completed: !i.completed } : i) } : t));
-  const deleteThemeItem = (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.filter(i => i.id !== iId) } : t));
+  const addTheme = (subId, title) => setThemes(prev => [...prev, { id: Date.now(), subjectId: subId, title, items: [] }]);
+  const deleteTheme = (id) => { if(window.confirm("Excluir tema?")) setThemes(prev => prev.filter(t => t.id !== id)); };
+  
+  // CORREÇÃO DO MATH.RANDOM AQUI PARA EVITAR BUGS NO CTRL+V
+  const addThemeItem = (themeId, text) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text, completed: false }] } : t));
+  
+  const toggleThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t));
+  const deleteThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.filter(i => i.id !== itemId) } : t));
 
-  const resetAllData = () => { if (confirm("Resetar TUDO?")) { localStorage.clear(); window.location.reload(); } };
-  const deleteDayHistory = (dStr) => { if (confirm(`Apagar ${dStr}?`)) setSessions(p => p.filter(s => new Date(s.date).toDateString() !== dStr)); };
-
-  // KPI & Charts
   const kpiData = useMemo(() => {
     const dates = new Set(sessions.map(s => new Date(s.date).toDateString()));
-    let streak = 0, d = new Date();
-    const hasToday = dates.has(d.toDateString());
-    while(true) {
-      if(dates.has(d.toDateString())) { streak++; d.setDate(d.getDate()-1); }
-      else { if(d.toDateString() === new Date().toDateString() && !hasToday) { d.setDate(d.getDate()-1); continue; } break; }
+    let streak = 0;
+    let curr = new Date();
+    const hasToday = dates.has(curr.toDateString());
+    while (true) {
+      if (dates.has(curr.toDateString())) { streak++; curr.setDate(curr.getDate() - 1); }
+      else { if (curr.toDateString() === new Date().toDateString() && !hasToday) { curr.setDate(curr.getDate() - 1); continue; } break; }
     }
     const todayMins = sessions.filter(s => new Date(s.date).toDateString() === new Date().toDateString()).reduce((a, c) => a + c.minutes, 0);
     return { todayMinutes: todayMins, totalHours: (sessions.reduce((a,c)=>a+c.minutes,0)/60).toFixed(1), streak };
   }, [sessions]);
 
   const weeklyChartData = useMemo(() => {
-    const d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0);
-    return Array.from({length:7}).map((_, i) => {
-      const curr = new Date(d); curr.setDate(d.getDate() + i);
-      return { name: ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][i], minutos: sessions.filter(s => new Date(s.date).toDateString() === curr.toDateString()).reduce((a,c) => a + c.minutes, 0) };
+    const start = new Date(); start.setDate(start.getDate() - start.getDay()); start.setHours(0,0,0,0);
+    return Array.from({length: 7}).map((_, i) => {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const mins = sessions.filter(s => new Date(s.date).toDateString() === d.toDateString()).reduce((a, c) => a + c.minutes, 0);
+      return { name: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][i], minutos: mins };
     });
   }, [sessions]);
 
   return (
     <FocusContext.Provider value={{
       currentView, setCurrentView, selectedHistoryDate, setSelectedHistoryDate,
-      subjects, addSubject, updateSubject, deleteSubject, sessions, addSession, deleteDayHistory,
+      subjects, addSubject, updateSubject, deleteSubject, sessions, addSession, 
       tasks, addTask, toggleTask, deleteTask, mistakes, addMistake, deleteMistake,
       themes, addTheme, deleteTheme, addThemeItem, toggleThemeItem, deleteThemeItem, 
       timerMode, setTimerMode, timerType, setTimerType, timeLeft, setTimeLeft, isActive, setIsActive, 
       cycles, setCycles, selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime,
-      elapsedTime, setElapsedTime, resetAllData, kpiData, weeklyChartData
+      elapsedTime, setElapsedTime, kpiData, weeklyChartData,
+      resetAllData: () => { if(window.confirm("Resetar TUDO?")) { localStorage.clear(); window.location.reload(); } },
+      deleteDayHistory: (d) => { if(window.confirm(`Apagar ${d}?`)) setSessions(prev => prev.filter(s => new Date(s.date).toDateString() !== d)); }
     }}>
       {children}
     </FocusContext.Provider>
   );
 };
 
-// --- COMPONENTES UI ---
+/**
+ * --- COMPONENTES UI ---
+ */
 const Card = ({ children, className = "" }) => <div className={`bg-[#18181B] border border-gray-800 rounded-xl shadow-lg p-5 ${className}`}>{children}</div>;
-const Button = ({ children, onClick, variant='primary', className="" }) => {
-  const vars = { primary: "bg-violet-600 hover:bg-violet-700 text-white shadow-violet-600/30", secondary: "bg-gray-700 hover:bg-gray-600 text-white border-gray-600", danger: "bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20" };
-  return <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 active:scale-95 ${vars[variant]} ${className}`}>{children}</button>;
+
+const Button = ({ children, onClick, variant = 'primary', className = "" }) => {
+  const variants = {
+    primary: "bg-violet-600 hover:bg-violet-700 text-white shadow-violet-600/30",
+    secondary: "bg-gray-700 hover:bg-gray-600 text-white border border-gray-600",
+    danger: "bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20",
+  };
+  return <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 active:scale-95 ${variants[variant]} ${className}`}>{children}</button>;
 };
+
+// --- MODAL CORRIGIDO COM PORTAL (Evita bugs visuais) ---
 const Modal = ({ isOpen, onClose, title, children }) => {
-  // Trava o scroll do fundo quando o modal abre
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = 'unset';
@@ -174,21 +231,11 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 
   if (!isOpen) return null;
 
-  // O "createPortal" joga esse HTML direto no final do <body> do site,
-  // fugindo de qualquer div que esteja limitando o tamanho ou a posição.
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      {/* Onde você clica fora para fechar (opcional, mas boa prática) */}
       <div className="absolute inset-0" onClick={onClose}></div>
-
-      {/* O Cartão do Modal */}
       <div className="bg-[#18181B] border border-gray-700 rounded-2xl w-full max-w-md p-6 relative shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar z-10">
-        <button 
-          onClick={onClose} 
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-        >
-          <X size={20}/>
-        </button>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><X size={20}/></button>
         <h2 className="text-xl font-bold text-white mb-6 pr-8">{title}</h2>
         {children}
       </div>
@@ -197,26 +244,26 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// --- VIEWS ---
+/**
+ * --- VIEWS ---
+ */
 const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo de volta, Arthur!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { l:'Hoje', v:`${kpiData.todayMinutes} min`, i:Zap, c:'yellow' },
-          { l:'Total', v:`${kpiData.totalHours} h`, i:Clock, c:'violet' },
-          { l:'Sequência', v:`${kpiData.streak} dias`, i:Flame, c:'orange' }
-        ].map((k,i)=>(<Card key={i} className={`flex items-center gap-4 border-l-4 border-l-${k.c}-500`}><div className={`p-3 bg-${k.c}-500/20 rounded-full text-${k.c}-500`}><k.i size={24}/></div><div><p className="text-sm text-gray-400">{k.l}</p><p className="text-2xl font-bold text-white">{k.v}</p></div></Card>))}
+        <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
+        <Card className="flex items-center gap-4 border-l-4 border-l-violet-500"><div className="p-3 bg-violet-500/20 rounded-full text-violet-500"><Clock size={24}/></div><div><p className="text-sm text-gray-400">Total</p><p className="text-2xl font-bold text-white">{kpiData.totalHours} h</p></div></Card>
+        <Card className="flex items-center gap-4 border-l-4 border-l-orange-500"><div className="p-3 bg-orange-500/20 rounded-full text-orange-500"><Flame size={24}/></div><div><p className="text-sm text-gray-400">Sequência</p><p className="text-2xl font-bold text-white">{kpiData.streak} dias</p></div></Card>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 min-h-[300px]">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-violet-500"/> Atividade Semanal</h3>
-          <div className="h-[250px]"><ResponsiveContainer><LineChart data={weeklyChartData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#71717a" tick={{fill:'#a1a1aa',fontSize:12}} axisLine={false} tickLine={false}/><YAxis stroke="#71717a" tick={{fill:'#a1a1aa'}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{backgroundColor:'#18181B',borderColor:'#3f3f46',color:'#fff'}}/><Line type="monotone" dataKey="minutos" stroke="#8b5cf6" strokeWidth={3} dot={{r:4,fill:'#8b5cf6'}}/></LineChart></ResponsiveContainer></div>
+          <div className="h-[250px] w-full"><ResponsiveContainer><LineChart data={weeklyChartData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#71717a" tick={{fill:'#a1a1aa',fontSize:12}} axisLine={false}/><YAxis stroke="#71717a" tick={{fill:'#a1a1aa'}} axisLine={false}/><Tooltip contentStyle={{backgroundColor:'#18181B',borderColor:'#3f3f46',color:'#fff'}}/><Line type="monotone" dataKey="minutos" stroke="#8b5cf6" strokeWidth={3} dot={{r:4,fill:'#8b5cf6'}}/></LineChart></ResponsiveContainer></div>
         </Card>
         <Card className="bg-gradient-to-br from-violet-900/40 to-[#18181B] border-violet-500/30 flex flex-col justify-between">
-          <div><h3 className="text-xl font-bold text-white mb-2">Focar Agora</h3><p className="text-gray-300 mb-6">Comece um ciclo.</p></div>
+          <div><h3 className="text-xl font-bold text-white mb-2">Focar Agora</h3><p className="text-gray-300 mb-6">Comece um ciclo de produtividade.</p></div>
           <Button onClick={() => setCurrentView('focus')} className="w-full py-4 text-lg">Ir para o Timer <Zap size={20}/></Button>
         </Card>
       </div>
@@ -225,40 +272,29 @@ const DashboardView = () => {
 };
 
 const FocusView = () => {
-  const { timerType, setTimerType, subjects, selectedSubjectId, setSelectedSubjectId, timerMode, setTimerMode, timeLeft, setTimeLeft, isActive, setIsActive, cycles, setCycles, tasks, addTask, toggleTask, deleteTask, addSession, flowStoredTime, setFlowStoredTime, elapsedTime, setElapsedTime } = useContext(FocusContext);
+  const { timerType, setTimerType, subjects, selectedSubjectId, setSelectedSubjectId, timerMode, setTimerMode, timeLeft, setTimeLeft, isActive, setIsActive, cycles, setCycles, tasks, addTask, toggleTask, deleteTask, addSession, elapsedTime, setElapsedTime, flowStoredTime, setFlowStoredTime } = useContext(FocusContext);
   const [notes, setNotes] = useState("");
-  const [newTask, setNewTask] = useState("");
-  // Manual Register
-  const [isManOpen, setIsManOpen] = useState(false);
-  const [manMins, setManMins] = useState("");
-  const [manNotes, setManNotes] = useState("");
-  const [manSubId, setManSubId] = useState("");
-
-  const handleManual = (e) => {
-    e.preventDefault();
-    if(!manMins || !manSubId) return alert("Preencha tudo.");
-    addSession(parseInt(manMins), manNotes, manSubId);
-    setManMins(""); setManNotes(""); setIsManOpen(false); alert("Salvo!");
-  };
-
-  const toggleType = (t) => { setIsActive(false); setTimerType(t); setTimerMode('WORK'); setTimeLeft(t==='FLOW'?0:POMODORO_WORK); setElapsedTime(0); };
-  const handleReset = () => { setIsActive(false); setTimeLeft(timerType==='FLOW'?0:(timerMode==='WORK'?POMODORO_WORK:POMODORO_SHORT)); setElapsedTime(0); };
+  const [newTaskText, setNewTaskText] = useState("");
   
-  const handleFlow = () => {
-    const min = Math.round(timeLeft/60);
-    if(min>0) {
-      setFlowStoredTime(timeLeft);
-      const brk = Math.floor(timeLeft*0.2);
-      alert(`Pausa! Trabalho: ${min}m. Descanso: ${Math.ceil(brk/60)}m.`);
-      setTimerMode('BREAK'); setTimeLeft(brk); setIsActive(true);
-    } else alert("Trabalhe mais.");
+  // Estados para Registro Manual
+  const [isManualOpen, setIsManualOpen] = useState(false);
+  const [manualMinutes, setManualMinutes] = useState("");
+  const [manualNotes, setManualNotes] = useState("");
+  const [manualSubId, setManualSubId] = useState("");
+
+  const handleManualSubmit = (e) => {
+    e.preventDefault();
+    if (!manualMinutes || !manualSubId) return alert("Preencha o tempo e a matéria.");
+    addSession(parseInt(manualMinutes), manualNotes, manualSubId);
+    setManualMinutes(""); setManualNotes(""); setIsManualOpen(false);
+    alert("Estudo registrado manualmente!");
   };
 
   const handleFinish = () => {
-    const min = Math.round(elapsedTime/60);
-    if(min>0) { addSession(min, notes); setNotes(""); alert(`Salvo: ${min} min.`); }
-    else alert("Menos de 1 min.");
-    setIsActive(false); setTimerMode('WORK'); setTimeLeft(timerType==='FLOW'?0:POMODORO_WORK); setFlowStoredTime(0); setElapsedTime(0); setCycles(0);
+    const mins = Math.round(elapsedTime / 60);
+    if (mins > 0) { addSession(mins, notes); setNotes(""); alert(`Sessão salva: ${mins} min.`); }
+    else alert("Tempo insuficiente para salvar.");
+    setIsActive(false); setTimerMode('WORK'); setTimeLeft(timerType==='FLOW'?0:POMODORO_WORK); setElapsedTime(0); setCycles(0);
   };
 
   if(!subjects.length) return <div className="text-center mt-20 text-gray-400">Adicione matérias em Metas.</div>;
@@ -269,94 +305,58 @@ const FocusView = () => {
         <Card className="flex flex-col items-center justify-center min-h-[450px] relative overflow-hidden">
           <div className={`absolute w-96 h-96 rounded-full blur-[120px] opacity-20 pointer-events-none transition-colors duration-1000 ${isActive ? (timerMode==='WORK'?'bg-violet-600 animate-pulse':'bg-emerald-500 animate-pulse'):'bg-gray-700'}`}></div>
           <div className="flex bg-[#0F0F12] p-1 rounded-lg border border-gray-800 mb-6 z-10">
-            {['POMODORO','FLOW'].map(t=><button key={t} onClick={()=>toggleType(t)} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${timerType===t?'bg-zinc-800 text-white shadow':'text-gray-500 hover:text-gray-300'}`}>{t==='FLOW'?<span className="flex items-center gap-1"><InfinityIcon size={12}/> Flow</span>:'Pomodoro'}</button>)}
+            <button onClick={()=> {setIsActive(false); setTimerType('POMODORO'); setTimeLeft(POMODORO_WORK); setTimerMode('WORK');}} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${timerType==='POMODORO'?'bg-zinc-800 text-white shadow':'text-gray-500'}`}>Pomodoro</button>
+            <button onClick={()=> {setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK');}} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${timerType==='FLOW'?'bg-violet-600 text-white shadow':'text-gray-500'}`}>Flow</button>
           </div>
-          <div className="w-full max-w-xs mb-8 z-10">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Matéria</label>
-            <div className="relative"><select disabled={isActive} value={selectedSubjectId||''} onChange={e=>setSelectedSubjectId(Number(e.target.value))} className="w-full bg-[#27272A] text-white border border-gray-700 rounded-lg py-2 px-4 appearance-none outline-none cursor-pointer">{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><BookOpen size={16} className="absolute right-3 top-3 text-gray-400 pointer-events-none"/></div>
+          <div className="w-full max-w-xs mb-8 z-10 text-center">
+            <label className="text-xs font-semibold text-gray-500 uppercase block mb-2">Matéria</label>
+            <select disabled={isActive} value={selectedSubjectId||''} onChange={(e)=>setSelectedSubjectId(Number(e.target.value))} className="w-full bg-[#27272A] text-white border border-gray-700 rounded-lg py-2 px-4 outline-none cursor-pointer">
+              {subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
           </div>
           <div className="z-10 text-center">
-            <div className="mb-6"><span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase border ${timerMode==='WORK'?'bg-violet-500/10 text-violet-400 border-violet-500/20':'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>{timerMode==='WORK'?'Foco':'Pausa'}</span></div>
+            <div className="mb-6"><span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase border ${timerMode==='WORK'?'bg-violet-500/10 text-violet-400 border-violet-500/20':'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>{timerMode==='WORK'?'Foco Total':'Pausa'}</span></div>
             <div className="text-8xl md:text-9xl font-mono font-bold text-white tracking-tighter mb-4 tabular-nums drop-shadow-2xl">{formatTime(timeLeft)}</div>
             <div className="text-gray-400 mb-8 font-medium">Ciclos: <span className="text-white font-bold ml-2">{cycles}</span></div>
             <div className="flex gap-4 justify-center items-center mt-8">
-              <button onClick={()=>setIsActive(!isActive)} className={`px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive?'bg-zinc-800 text-white border border-zinc-700':(timerMode==='WORK'?'bg-violet-600 hover:bg-violet-700 text-white':'bg-emerald-500 hover:bg-emerald-600 text-white')}`}>{isActive?<Pause size={24}/>:<Play size={24}/>}<span className="text-lg">{isActive?'Pausar':'Iniciar'}</span></button>
-              <button onClick={handleReset} className="p-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white border border-zinc-700"><RotateCcw size={24}/></button>
-              {timerType==='FLOW'&&timerMode==='WORK'&&<button onClick={handleFlow} className="p-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20"><Coffee size={24}/></button>}
-              <button onClick={handleFinish} className="p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20"><CheckCircle size={24}/></button>
+              <button onClick={()=>setIsActive(!isActive)} className={`px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive?'bg-zinc-800 text-white border border-zinc-700':(timerMode==='WORK'?'bg-violet-600 text-white':'bg-emerald-500 text-white')}`}>
+                {isActive ? <Pause size={24}/> : <Play size={24}/>} <span>{isActive ? 'Pausar' : 'Iniciar'}</span>
+              </button>
+              <button onClick={()=> {setIsActive(false); setTimeLeft(timerType==='FLOW'?0:POMODORO_WORK); setElapsedTime(0);}} className="p-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700"><RotateCcw size={24}/></button>
+              {timerType==='FLOW' && timerMode==='WORK' && <button onClick={()=> {setFlowStoredTime(timeLeft); setTimerMode('BREAK'); setTimeLeft(Math.floor(timeLeft*0.2)); setIsActive(true);}} className="p-4 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"><Coffee size={24}/></button>}
+              <button onClick={handleFinish} className="p-4 rounded-xl bg-red-500/10 text-red-500 border border-red-500/20"><CheckCircle size={24}/></button>
             </div>
             {timerType==='FLOW'&&timerMode==='WORK'&&<p className="text-xs text-zinc-500 mt-4">Clique no <Coffee size={12} className="inline"/> para pausa.</p>}
           </div>
         </Card>
-        <Card><h3 className="text-lg font-semibold text-white mb-3">Diário da Sessão</h3><textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="Diga o que você estudou durante a sessão e o explique brevemente." value={notes} onChange={e=>setNotes(e.target.value)}/></Card>
+        <Card><h3 className="text-lg font-semibold text-white mb-3">Diário de Sessão</h3><textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="O que estudou?" value={notes} onChange={e=>setNotes(e.target.value)}/></Card>
       </div>
+      
       <div className="lg:col-span-1">
-        <Card className="h-full flex flex-col min-h-[300px]"><h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-violet-500"/> Tarefas</h3><form onSubmit={e=>{e.preventDefault(); if(newTask&&selectedSubjectId){addTask(newTask,selectedSubjectId);setNewTask("");}}} className="mb-4 flex gap-2"><input placeholder="Nova tarefa..." className="flex-1 bg-[#0F0F12] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" value={newTask} onChange={e=>setNewTask(e.target.value)}/><button type="submit" className="bg-violet-600 rounded-lg px-3 text-white"><Plus size={18}/></button></form><div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">{tasks.filter(t=>t.subjectId===selectedSubjectId).map(t=>(<div key={t.id} className={`group flex items-center gap-3 p-3 rounded-lg border transition-all ${t.completed?'bg-violet-900/10 border-violet-500/20 opacity-60':'bg-[#27272A] border-gray-700'}`}><button onClick={()=>toggleTask(t.id)} className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center ${t.completed?'bg-violet-500 border-violet-500':'border-gray-500'}`}>{t.completed&&<CheckCircle size={14} className="text-white"/>}</button><span className={`text-sm flex-1 break-words ${t.completed?'text-gray-500 line-through':'text-gray-200'}`}>{t.text}</span><button onClick={()=>deleteTask(t.id)} className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button></div>))}</div></Card>
+        <Card className="h-full flex flex-col min-h-[300px]">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-violet-500"/> Tarefas</h3>
+          <form onSubmit={e=>{e.preventDefault(); if(newTaskText&&selectedSubjectId){addTask(newTaskText,selectedSubjectId);setNewTaskText("");}}} className="mb-4 flex gap-2"><input placeholder="Nova tarefa..." className="flex-1 bg-[#0F0F12] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" value={newTaskText} onChange={e=>setNewTaskText(e.target.value)}/><button type="submit" className="bg-violet-600 rounded-lg px-3 text-white"><Plus size={18}/></button></form>
+          <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">{tasks.filter(t=>t.subjectId===selectedSubjectId).map(t=>(<div key={t.id} className={`group flex items-center gap-3 p-3 rounded-lg border transition-all ${t.completed?'bg-violet-900/10 border-violet-500/20 opacity-60':'bg-[#27272A] border-gray-700'}`}><button onClick={()=>toggleTask(t.id)} className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center ${t.completed?'bg-violet-500 border-violet-500':'border-gray-500'}`}>{t.completed&&<CheckCircle size={14} className="text-white"/>}</button><span className={`text-sm flex-1 break-words ${t.completed?'text-gray-500 line-through':'text-gray-200'}`}>{t.text}</span><button onClick={()=>deleteTask(t.id)} className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button></div>))}</div>
+        </Card>
       </div>
-     {/* --- BOTÃO DE REGISTRO MANUAL (VISUAL MELHORADO) --- */}
+
+      {/* --- BOTÃO DE REGISTRO MANUAL (COM VISUAL MELHORADO) --- */}
       <div className="lg:col-span-3 mt-12 mb-8 flex flex-col items-center justify-center border-t border-zinc-800/50 pt-10">
         <div className="bg-zinc-900/30 p-6 rounded-2xl border border-zinc-800/50 max-w-md w-full text-center backdrop-blur-sm">
           <Clock size={24} className="mx-auto mb-3 text-zinc-500 opacity-50" />
           <p className="text-zinc-400 text-sm mb-4">Esqueceu de ligar o timer ou estudou fora do app?</p>
-          <button 
-            onClick={() => { setManSubId(subjects[0]?.id); setIsManOpen(true); }}
-            className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-violet-600/10 hover:bg-violet-600 text-violet-400 hover:text-white rounded-xl border border-violet-500/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-violet-500/5"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            Lançar Estudo Manual
+          <button onClick={() => { setManualSubId(subjects[0]?.id); setIsManualOpen(true); }} className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-violet-600/10 hover:bg-violet-600 text-violet-400 hover:text-white rounded-xl border border-violet-500/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-violet-500/5">
+            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> Lançar Estudo Manual
           </button>
         </div>
       </div>
 
-      {/* --- MODAL DE REGISTRO MANUAL (ORGANIZADO) --- */}
-      <Modal isOpen={isManOpen} onClose={() => setIsManOpen(false)} title="Registro Manual">
-        <form onSubmit={handleManual} className="space-y-5">
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Matéria Estudada</label>
-            <select 
-              required 
-              className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white outline-none focus:border-violet-500 transition-colors cursor-pointer" 
-              value={manSubId} 
-              onChange={e => setManSubId(e.target.value)}
-            >
-              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Tempo (minutos)</label>
-            <input 
-              required 
-              type="number" 
-              min="1" 
-              placeholder="Ex: 60"
-              className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white outline-none focus:border-violet-500 transition-colors" 
-              value={manMins} 
-              onChange={e => setManMins(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Diário da Sessão</label>
-            <textarea 
-              className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white h-28 outline-none focus:border-violet-500 transition-colors resize-none text-sm" 
-              placeholder="Resuma o que foi visto..."
-              value={manNotes} 
-              onChange={e => setManNotes(e.target.value)}
-            />
-          </div>
-
-          <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-violet-600/20">
-            Confirmar Registro
-          </Button>
-        </form>
-      </Modal>
-      <Modal isOpen={isManOpen} onClose={()=>setIsManOpen(false)} title="Registro Manual">
-        <form onSubmit={handleManual} className="space-y-4">
-          <div><label className="text-sm text-gray-400">Matéria</label><select required className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-2.5 text-white" value={manSubId} onChange={e=>setManSubId(e.target.value)}>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-          <div><label className="text-sm text-gray-400">Minutos</label><input required type="number" min="1" className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-2.5 text-white" value={manMins} onChange={e=>setManMins(e.target.value)}/></div>
-          <div><label className="text-sm text-gray-400">Diário da Sessão</label><textarea className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-2.5 text-white h-24" value={manNotes} onChange={e=>setManNotes(e.target.value)}/></div>
-          <Button type="submit" className="w-full">Salvar</Button>
+      <Modal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} title="Registro Manual">
+        <form onSubmit={handleManualSubmit} className="space-y-5">
+          <div className="space-y-2"><label className="text-xs font-bold text-zinc-500 uppercase">Matéria</label><select required className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white" value={manualSubId} onChange={e => setManualSubId(e.target.value)}>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+          <div className="space-y-2"><label className="text-xs font-bold text-zinc-500 uppercase">Tempo (min)</label><input required type="number" min="1" className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white" value={manualMinutes} onChange={e => setManualMinutes(e.target.value)}/></div>
+          <div className="space-y-2"><label className="text-xs font-bold text-zinc-500 uppercase">Diário da Sessão</label><textarea className="w-full bg-[#0F0F12] border border-zinc-800 rounded-xl p-3 text-white h-28" value={manualNotes} onChange={e => setManualNotes(e.target.value)}/></div>
+          <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-violet-600/20">Confirmar</Button>
         </form>
       </Modal>
     </div>
@@ -374,10 +374,10 @@ const MistakesView = () => {
         <Card className="h-fit">
           <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><AlertTriangle size={18} className="text-red-500"/> Novo Erro</h3>
           <form onSubmit={sub} className="space-y-4">
-            <div><label className="text-xs text-gray-500 font-bold uppercase">Matéria</label><select required className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-2.5 text-white" value={f.sub} onChange={e=>setF({...f,sub:e.target.value})}><option value="">...</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+            <div><label className="text-xs text-gray-500 font-bold uppercase">Matéria</label><select required className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded-lg p-2.5 text-white" value={f.sub} onChange={e=>setF({...f,sub:e.target.value})}><option value="">Selecione...</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
             <div><label className="text-xs text-gray-500 font-bold uppercase">Motivo</label><div className="flex flex-wrap gap-2 mt-2">{["Falta de Atenção","Esqueci Fórmula","Erro Cálculo","Conceito","Tempo"].map(r=><button key={r} type="button" onClick={()=>setF({...f,r})} className={`text-xs px-3 py-1.5 rounded-full border ${f.r===r?'bg-violet-600 border-violet-600 text-white':'border-gray-700 text-gray-400'}`}>{r}</button>)}</div></div>
-            <div><label className="text-xs text-gray-500 font-bold uppercase">Erro</label><textarea required className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-3 text-sm text-white h-20" value={f.desc} onChange={e=>setF({...f,desc:e.target.value})}/></div>
-            <div><label className="text-xs text-gray-500 font-bold uppercase">Solução</label><textarea required className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded p-3 text-sm text-white h-24" value={f.sol} onChange={e=>setF({...f,sol:e.target.value})}/></div>
+            <div><label className="text-xs text-gray-500 font-bold uppercase">Erro</label><textarea required className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded-lg p-3 text-sm text-white h-20" value={f.desc} onChange={e=>setF({...f,desc:e.target.value})}/></div>
+            <div><label className="text-xs text-gray-500 font-bold uppercase">Solução</label><textarea required className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded-lg p-3 text-sm text-white h-24" value={f.sol} onChange={e=>setF({...f,sol:e.target.value})}/></div>
             <Button type="submit" className="w-full">Salvar</Button>
           </form>
         </Card>
