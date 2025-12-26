@@ -27,7 +27,9 @@ import {
   List,
   CheckSquare,
   Download,
-  Upload
+  Upload,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -551,6 +553,15 @@ const GoalsView = () => {
     themes = [], addTheme = () => {}, deleteTheme = () => {}, addThemeItem = () => {}, toggleThemeItem = () => {}, deleteThemeItem = () => {} 
   } = context || {}; 
 
+const [collapsedThemes, setCollapsedThemes] = useState({});
+
+  const toggleThemeCollapse = (themeId) => {
+    setCollapsedThemes(prev => ({
+      ...prev,
+      [themeId]: !prev[themeId] // Inverte: se tava aberto, fecha. Se tava fechado, abre.
+    }));
+  };
+
   const [viewingSubject, setViewingSubject] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -627,6 +638,65 @@ const GoalsView = () => {
             const totalCount = theme.items ? theme.items.length : 0;
             const progress = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
 
+            const isCollapsed = collapsedThemes[theme.id];
+
+            return (
+              <Card key={theme.id} className="relative group/theme transition-all duration-300">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex gap-3 items-start">
+                    {/* BOTÃO DE MINIMIZAR (NOVO) */}
+                    <button 
+                      onClick={() => toggleThemeCollapse(theme.id)}
+                      className="mt-1 text-zinc-500 hover:text-white transition-colors"
+                    >
+                      {isCollapsed ? <ChevronRight size={20}/> : <ChevronDown size={20}/>}
+                    </button>
+
+                    <div>
+                      {/* TÍTULO CLICÁVEL (Também pode minimizar clicando no título se quiser) */}
+                      <h3 
+                        className="text-xl font-bold text-white flex items-center gap-2 cursor-pointer hover:text-violet-400 transition-colors"
+                        onClick={() => toggleThemeCollapse(theme.id)}
+                      >
+                        <BookOpen size={20} className="text-violet-500" /> {theme.title}
+                      </h3>
+                      
+                      <div className="flex items-center gap-2 mt-1">
+                         <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden">
+                           <div className="h-full bg-violet-500 transition-all duration-500" style={{width: `${progress}%`}}></div>
+                         </div>
+                         <span className="text-xs text-zinc-500">{progress}% concluído</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button onClick={() => deleteTheme(theme.id)} className="text-zinc-600 hover:text-red-500 transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+
+                {/* A MÁGICA ACONTECE AQUI: SÓ MOSTRA SE NÃO ESTIVER COLAPSADO */}
+                {!isCollapsed && (
+                  <div className="space-y-2 mb-4 animate-fadeIn">
+                    {(theme.items || []).map(item => (
+                      <div key={item.id} className="flex items-start gap-3 p-2 hover:bg-zinc-800/50 rounded-lg transition-colors group/item">
+                        <button onClick={() => toggleThemeItem(theme.id, item.id)} className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${item.completed ? 'bg-violet-600 border-violet-600' : 'border-zinc-600 hover:border-violet-500'}`}>{item.completed && <CheckSquare size={14} className="text-white" />}</button>
+                        <span className={`text-sm flex-1 ${item.completed ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>{item.text}</span>
+                        <button onClick={() => deleteThemeItem(theme.id, item.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-600 hover:text-red-500"><X size={14} /></button>
+                      </div>
+                    ))}
+                    
+                    {/* Input de Adicionar Item (Também some quando minimiza) */}
+                    <form onSubmit={(e) => handleAddItem(e, theme.id)} className="flex gap-2 mt-4 pt-4 border-t border-zinc-800/50">
+                       <input name="itemText" className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm text-white outline-none focus:border-violet-500" placeholder="Adicionar tópico..." autoComplete="off"/>
+                       <button type="submit" className="p-1.5 bg-zinc-800 hover:bg-violet-600 text-white rounded transition-colors"><Plus size={16} /></button>
+                    </form>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+            
             return (
               <Card key={theme.id} className="relative group/theme">
                 <div className="flex justify-between items-start mb-4">
@@ -654,7 +724,6 @@ const GoalsView = () => {
                 </form>
               </Card>
             );
-          })}
         </div>
       </div>
     );
