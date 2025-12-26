@@ -545,35 +545,33 @@ const MistakesView = () => {
   );
 };
 
+// 1. GARANTA QUE LÁ NO TOPO OS IMPORTS ESTEJAM ASSIM:
+// import { ..., ChevronDown, ChevronRight, ... } from 'lucide-react';
+
 const GoalsView = () => {
-  const context = useContext(FocusContext);
   const { 
-    subjects = [], sessions = [], 
-    addSubject = () => {}, updateSubject = () => {}, deleteSubject = () => {},
-    themes = [], addTheme = () => {}, deleteTheme = () => {}, addThemeItem = () => {}, toggleThemeItem = () => {}, deleteThemeItem = () => {} 
-  } = context || {}; 
+    subjects, sessions, addSubject, updateSubject, deleteSubject,
+    themes, addTheme, deleteTheme, addThemeItem, toggleThemeItem, deleteThemeItem 
+  } = useContext(FocusContext);
 
-const [collapsedThemes, setCollapsedThemes] = useState({});
+  const [viewingSubject, setViewingSubject] = useState(null); 
+  
+  // --- NOVO: Estado para saber quais temas estão fechados ---
+  const [collapsedThemes, setCollapsedThemes] = useState({});
 
-  const toggleThemeCollapse = (themeId) => {
-    setCollapsedThemes(prev => ({
-      ...prev,
-      [themeId]: !prev[themeId] // Inverte: se tava aberto, fecha. Se tava fechado, abre.
-    }));
-  };
-
-  const [viewingSubject, setViewingSubject] = useState(null);
+  // States para criação de matéria
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newGoal, setNewGoal] = useState(10);
   const [newColor, setNewColor] = useState("#8b5cf6");
   const [editId, setEditId] = useState(null);
   const [editGoalVal, setEditGoalVal] = useState("");
+
+  // States para criação de TEMA
   const [newThemeTitle, setNewThemeTitle] = useState("");
 
   const getProgress = (subjId, goalH) => {
-    const safeSessions = Array.isArray(sessions) ? sessions : [];
-    const mins = safeSessions.filter(s => s.subjectId === subjId).reduce((a, b) => a + b.minutes, 0);
+    const mins = sessions.filter(s => s.subjectId === subjId).reduce((a, b) => a + b.minutes, 0);
     return { current: (mins/60).toFixed(1), percent: Math.min(100, (mins/(goalH*60))*100) };
   };
 
@@ -584,13 +582,27 @@ const [collapsedThemes, setCollapsedThemes] = useState({});
 
   const handleAddTheme = (e) => {
     e.preventDefault();
-    if(newThemeTitle && viewingSubject) { addTheme(viewingSubject, newThemeTitle); setNewThemeTitle(""); }
+    if(newThemeTitle && viewingSubject) {
+      addTheme(viewingSubject, newThemeTitle);
+      setNewThemeTitle("");
+    }
   };
 
   const handleAddItem = (e, themeId) => {
     e.preventDefault();
     const val = e.target.elements.itemText.value;
-    if(val) { addThemeItem(themeId, val); e.target.reset(); }
+    if(val) {
+      addThemeItem(themeId, val);
+      e.target.reset();
+    }
+  };
+
+  // --- NOVA FUNÇÃO: Alternar entre abrir/fechar tema ---
+  const toggleThemeCollapse = (themeId) => {
+    setCollapsedThemes(prev => ({
+      ...prev,
+      [themeId]: !prev[themeId]
+    }));
   };
 
   // MODO DETALHES DA MATÉRIA
@@ -598,8 +610,7 @@ const [collapsedThemes, setCollapsedThemes] = useState({});
     const subject = subjects.find(s => s.id === viewingSubject);
     if(!subject) return <div className="p-8 text-center text-gray-500 cursor-pointer" onClick={()=>setViewingSubject(null)}>Matéria não encontrada. Clique para voltar.</div>;
 
-    const safeThemes = Array.isArray(themes) ? themes : [];
-    const subjectThemes = safeThemes.filter(t => t.subjectId === subject.id);
+    const subjectThemes = themes.filter(t => t.subjectId === subject.id);
 
     return (
       <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
@@ -609,7 +620,9 @@ const [collapsedThemes, setCollapsedThemes] = useState({});
 
         <header className="flex justify-between items-end border-b border-zinc-800 pb-6">
           <div>
-             <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded text-white mb-2 inline-block" style={{backgroundColor: subject.color}}>{subject.name}</span>
+             <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded text-white mb-2 inline-block" style={{backgroundColor: subject.color}}>
+               {subject.name}
+             </span>
              <h1 className="text-3xl font-bold text-white">Conteúdo Programático</h1>
              <p className="text-zinc-400 mt-1">Organize seus estudos por temas e tópicos.</p>
           </div>
@@ -623,44 +636,54 @@ const [collapsedThemes, setCollapsedThemes] = useState({});
         <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 flex flex-col md:flex-row gap-4 items-end md:items-center">
           <div className="flex-1 w-full">
             <label className="text-xs text-zinc-500 uppercase font-bold mb-1 block">Novo Tema</label>
-            <input className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white outline-none focus:border-violet-500" placeholder="Digite o título..." value={newThemeTitle} onChange={e => setNewThemeTitle(e.target.value)}/>
+            <input 
+              className="w-full bg-black border border-zinc-700 rounded-lg p-2 text-white outline-none focus:border-violet-500"
+              placeholder="Digite o título do tema..."
+              value={newThemeTitle} onChange={e => setNewThemeTitle(e.target.value)}
+            />
           </div>
-          <Button onClick={handleAddTheme} className="w-full md:w-auto h-10">Adicionar</Button>
+          <Button onClick={handleAddTheme} className="w-full md:w-auto h-10">Adicionar Tema</Button>
         </div>
 
         {/* Lista de Temas */}
         <div className="space-y-6">
           {subjectThemes.length === 0 && (
-            <div className="text-center py-12 text-zinc-500 border border-dashed border-zinc-800 rounded-xl"><List size={48} className="mx-auto mb-2 opacity-20"/><p>Nenhum tema criado ainda.</p></div>
+            <div className="text-center py-12 text-zinc-500 border border-dashed border-zinc-800 rounded-xl">
+              <List size={48} className="mx-auto mb-2 opacity-20"/>
+              <p>Nenhum tema criado ainda.</p>
+            </div>
           )}
+
           {subjectThemes.map(theme => {
             const completedCount = theme.items ? theme.items.filter(i => i.completed).length : 0;
             const totalCount = theme.items ? theme.items.length : 0;
             const progress = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
-
+            
+            // Verifica se está fechado
             const isCollapsed = collapsedThemes[theme.id];
 
             return (
               <Card key={theme.id} className="relative group/theme transition-all duration-300">
                 <div className="flex justify-between items-start mb-4">
-                  <div className="flex gap-3 items-start">
-                    {/* BOTÃO DE MINIMIZAR (NOVO) */}
+                  <div className="flex gap-3 items-start w-full">
+                    {/* Botão de Minimizar */}
                     <button 
                       onClick={() => toggleThemeCollapse(theme.id)}
-                      className="mt-1 text-zinc-500 hover:text-white transition-colors"
+                      className="mt-1 text-zinc-500 hover:text-white transition-colors focus:outline-none"
                     >
                       {isCollapsed ? <ChevronRight size={20}/> : <ChevronDown size={20}/>}
                     </button>
 
-                    <div>
-                      {/* TÍTULO CLICÁVEL (Também pode minimizar clicando no título se quiser) */}
+                    <div className="flex-1">
+                      {/* Título Clicável */}
                       <h3 
-                        className="text-xl font-bold text-white flex items-center gap-2 cursor-pointer hover:text-violet-400 transition-colors"
+                        className="text-xl font-bold text-white flex items-center gap-2 cursor-pointer hover:text-violet-400 transition-colors select-none"
                         onClick={() => toggleThemeCollapse(theme.id)}
                       >
                         <BookOpen size={20} className="text-violet-500" /> {theme.title}
                       </h3>
                       
+                      {/* Barra de Progresso (Sempre visível) */}
                       <div className="flex items-center gap-2 mt-1">
                          <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden">
                            <div className="h-full bg-violet-500 transition-all duration-500" style={{width: `${progress}%`}}></div>
@@ -670,91 +693,86 @@ const [collapsedThemes, setCollapsedThemes] = useState({});
                     </div>
                   </div>
 
-                  <button onClick={() => deleteTheme(theme.id)} className="text-zinc-600 hover:text-red-500 transition-colors">
+                  {/* Botão de Excluir Tema */}
+                  <button onClick={() => deleteTheme(theme.id)} className="text-zinc-600 hover:text-red-500 transition-colors ml-4">
                     <Trash2 size={16} />
                   </button>
                 </div>
 
-                {/* A MÁGICA ACONTECE AQUI: SÓ MOSTRA SE NÃO ESTIVER COLAPSADO */}
+                {/* Conteúdo do Tema (Checklists) - Só aparece se NÃO estiver colapsado */}
                 {!isCollapsed && (
-                  <div className="space-y-2 mb-4 animate-fadeIn">
+                  <div className="space-y-2 mb-4 animate-fadeIn pl-8">
                     {(theme.items || []).map(item => (
                       <div key={item.id} className="flex items-start gap-3 p-2 hover:bg-zinc-800/50 rounded-lg transition-colors group/item">
-                        <button onClick={() => toggleThemeItem(theme.id, item.id)} className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${item.completed ? 'bg-violet-600 border-violet-600' : 'border-zinc-600 hover:border-violet-500'}`}>{item.completed && <CheckSquare size={14} className="text-white" />}</button>
-                        <span className={`text-sm flex-1 ${item.completed ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>{item.text}</span>
-                        <button onClick={() => deleteThemeItem(theme.id, item.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-600 hover:text-red-500"><X size={14} /></button>
+                        <button 
+                          onClick={() => toggleThemeItem(theme.id, item.id)}
+                          className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${item.completed ? 'bg-violet-600 border-violet-600' : 'border-zinc-600 hover:border-violet-500'}`}
+                        >
+                          {item.completed && <CheckSquare size={14} className="text-white" />}
+                        </button>
+                        <span className={`text-sm flex-1 ${item.completed ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>
+                          {item.text}
+                        </span>
+                        <button onClick={() => deleteThemeItem(theme.id, item.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-600 hover:text-red-500">
+                          <X size={14} />
+                        </button>
                       </div>
                     ))}
                     
-                    {/* Input de Adicionar Item (Também some quando minimiza) */}
+                    {/* Input de Novo Item */}
                     <form onSubmit={(e) => handleAddItem(e, theme.id)} className="flex gap-2 mt-4 pt-4 border-t border-zinc-800/50">
-                       <input name="itemText" className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm text-white outline-none focus:border-violet-500" placeholder="Adicionar tópico..." autoComplete="off"/>
-                       <button type="submit" className="p-1.5 bg-zinc-800 hover:bg-violet-600 text-white rounded transition-colors"><Plus size={16} /></button>
+                       <input 
+                         name="itemText"
+                         className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm text-white outline-none focus:border-violet-500"
+                         placeholder="Adicionar tópico..."
+                         autoComplete="off"
+                       />
+                       <button type="submit" className="p-1.5 bg-zinc-800 hover:bg-violet-600 text-white rounded transition-colors">
+                         <Plus size={16} />
+                       </button>
                     </form>
                   </div>
                 )}
               </Card>
             );
           })}
-            
-            return (
-              <Card key={theme.id} className="relative group/theme">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2"><BookOpen size={20} className="text-violet-500" /> {theme.title}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                       <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-violet-500 transition-all duration-500" style={{width: `${progress}%`}}></div></div>
-                       <span className="text-xs text-zinc-500">{progress}% concluído</span>
-                    </div>
-                  </div>
-                  <button onClick={() => deleteTheme(theme.id)} className="text-zinc-600 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
-                </div>
-                <div className="space-y-2 mb-4">
-                  {(theme.items || []).map(item => (
-                    <div key={item.id} className="flex items-start gap-3 p-2 hover:bg-zinc-800/50 rounded-lg transition-colors group/item">
-                      <button onClick={() => toggleThemeItem(theme.id, item.id)} className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${item.completed ? 'bg-violet-600 border-violet-600' : 'border-zinc-600 hover:border-violet-500'}`}>{item.completed && <CheckSquare size={14} className="text-white" />}</button>
-                      <span className={`text-sm flex-1 ${item.completed ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>{item.text}</span>
-                      <button onClick={() => deleteThemeItem(theme.id, item.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-600 hover:text-red-500"><X size={14} /></button>
-                    </div>
-                  ))}
-                </div>
-                <form onSubmit={(e) => handleAddItem(e, theme.id)} className="flex gap-2 mt-4 pt-4 border-t border-zinc-800/50">
-                   <input name="itemText" className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm text-white outline-none focus:border-violet-500" placeholder="Adicionar tópico..." autoComplete="off"/>
-                   <button type="submit" className="p-1.5 bg-zinc-800 hover:bg-violet-600 text-white rounded transition-colors"><Plus size={16} /></button>
-                </form>
-              </Card>
-            );
         </div>
       </div>
     );
   }
 
-  // MODO LISTA DE MATÉRIAS
+  // MODO LISTA DE MATÉRIAS (GRID PRINCIPAL)
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-white">Metas & Matérias</h1><Button onClick={()=>setIsModalOpen(true)}><Plus size={18}/> Nova Matéria</Button></header>
       {(!subjects || subjects.length === 0) && <div className="text-center py-10 text-zinc-500">Nenhuma matéria cadastrada.</div>}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {(subjects || []).map(s => {
+        {subjects.map(s => {
           const { current, percent } = getProgress(s.id, s.goalHours);
           return (
             <Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-violet-500/50 transition-all">
               <div onClick={() => setViewingSubject(s.id)}>
                 <div className="absolute top-0 left-0 w-full h-1" style={{backgroundColor:s.color}}></div>
                 <div className="flex justify-between items-start mb-4">
-                  <div><h3 className="text-xl font-bold text-white group-hover:text-violet-400 transition-colors">{s.name}</h3>{editId!==s.id && <p className="text-sm text-gray-400">Meta: {s.goalHours}h</p>}</div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white group-hover:text-violet-400 transition-colors">{s.name}</h3>
+                    {editId!==s.id && <p className="text-sm text-gray-400">Meta: {s.goalHours}h</p>}
+                  </div>
                 </div>
                 {editId!==s.id && (
                   <>
                     <div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-white">{current}h</span><span className="text-sm font-medium" style={{color:s.color}}>{Math.round(percent)}%</span></div>
                     <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000 ease-out" style={{width:`${percent}%`, backgroundColor:s.color}}></div></div>
-                    <p className="text-xs text-zinc-500 mt-4 text-center">Clique para ver conteúdo</p>
+                    <p className="text-xs text-zinc-500 mt-4 text-center">Clique para ver conteúdo programático</p>
                   </>
                 )}
               </div>
               <div className="absolute top-4 right-4 flex gap-2">
                  {editId===s.id ? (
-                   <div className="flex gap-2 items-center bg-black/80 p-1 rounded"><input type="number" className="w-16 bg-[#0F0F12] border border-gray-600 rounded px-1 text-sm text-white" value={editGoalVal} onChange={e=>setEditGoalVal(e.target.value)} autoFocus/><button onClick={()=>{updateSubject(s.id,editGoalVal);setEditId(null)}} className="text-green-400 text-xs font-bold">OK</button></div>
+                   <div className="flex gap-2 items-center bg-black/80 p-1 rounded">
+                     <input type="number" className="w-16 bg-[#0F0F12] border border-gray-600 rounded px-1 text-sm text-white" value={editGoalVal} onChange={e=>setEditGoalVal(e.target.value)} autoFocus/>
+                     <button onClick={()=>{updateSubject(s.id,editGoalVal);setEditId(null)}} className="text-green-400 text-xs font-bold">OK</button>
+                   </div>
                  ) : (
                    <>
                      <button onClick={(e)=>{e.stopPropagation();setEditId(s.id);setEditGoalVal(s.goalHours)}} className="p-2 rounded bg-[#27272A] hover:bg-[#323236] z-10"><Settings size={16} className="text-gray-400"/></button>
