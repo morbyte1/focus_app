@@ -52,10 +52,10 @@ import { CalendarTab } from './components/CalendarTab';
  */
 
 // CONSTANTES DE TEMPO (Centralizadas para evitar erros de duplicidade)
-const POMODORO_WORK = 25 * 60; 
-const POMODORO_SHORT_BREAK = 5 * 60; // 5 minutos
-const POMODORO_LONG_BREAK = 15 * 60; // 15 minutos
-const POMODORO_BREAK = 5 * 60; // Usado no reset padrão
+const POMODORO_WORK = 5;          // 5 segundos de foco
+const POMODORO_SHORT_BREAK = 3;   // 3 segundos de pausa
+const POMODORO_LONG_BREAK = 6;    // 6 segundos de pausa longa
+const POMODORO_BREAK = 3;
 
 const QUOTES = [
   "A persistência é o caminho do êxito.",
