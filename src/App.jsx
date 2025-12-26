@@ -124,31 +124,10 @@ const FocusProvider = ({ children }) => {
   const [cycles, setCycles] = useState(0);
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   
-  // Estado para memorizar o tempo do Flow durante a pausa
   const [flowStoredTime, setFlowStoredTime] = useState(0);
 
-// COLOQUE ISSO DENTRO DO FocusProvider
-  useEffect(() => {
-    // Essa função percorre seus temas e garante que cada item tenha um ID ÚNICO
-    const healData = () => {
-      let changed = false;
-      const healedThemes = themes.map(theme => {
-        const uniqueItems = theme.items.map((item, index) => {
-          // Se o ID for repetido ou muito curto, geramos um novo baseado na posição
-          // Usamos o index para garantir que mesmo criados no mesmo milissegundo, sejam diferentes
-          return { ...item, id: item.id + (Math.random() * index) };
-        });
-        return { ...theme, items: uniqueItems };
-      });
-      
-      // Só atualiza se realmente houver dados para evitar loops
-      if (themes.length > 0 && JSON.stringify(themes) !== JSON.stringify(healedThemes)) {
-        setThemes(healedThemes);
-      }
-    };
-
-    healData();
-  }, []); // Roda apenas uma vez quando o app abre
+  // NOVO: Acumulador de tempo real (resolve o erro de não somar os ciclos)
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   useEffect(() => {
     if (subjects.length > 0) {
@@ -158,7 +137,6 @@ const FocusProvider = ({ children }) => {
     }
   }, [subjects, selectedSubjectId]);
 
-  // Função para tocar som
   const playNotificationSound = () => {
     try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(() => {}); } catch(e){}
   };
@@ -168,63 +146,68 @@ const FocusProvider = ({ children }) => {
     let interval = null;
 
     if (isActive) {
-      // 1. MODO FLOW - TRABALHO (Conta pra cima)
+      // Contador de Tempo Total (Soma apenas quando está trabalhando)
+      if (timerMode === 'WORK') {
+        setElapsedTime(prev => prev + 1);
+      }
+
+      // 1. MODO FLOW
       if (timerType === 'FLOW' && timerMode === 'WORK') {
         interval = setInterval(() => setTimeLeft((t) => t + 1), 1000);
       } 
-      // 2. CONTAGEM REGRESSIVA (Todo o resto)
+      // 2. CONTAGEM REGRESSIVA
       else if (timeLeft > 0) {
         interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
       } 
       // 3. TEMPO ACABOU
       else if (timeLeft === 0 && !(timerType === 'FLOW' && timerMode === 'WORK')) {
         clearInterval(interval);
-        playNotificationSound(); // Toca som ao fim de qualquer ciclo
+        playNotificationSound();
 
         // --- LÓGICA POMODORO ---
         if (timerType === 'POMODORO') {
           if (timerMode === 'WORK') {
+            // FIM DO TRABALHO -> INÍCIO DO DESCANSO
             const newCycleCount = cycles + 1;
-            setCycles(c => c + 1); // Atualização funcional para evitar dependência direta
+            setCycles(c => c + 1);
             setTimerMode('BREAK');
-            // Ciclo 3, 6, 9... = Pausa Longa (15min), Outros = Pausa Curta (5min)
             setTimeLeft(newCycleCount % 3 === 0 ? POMODORO_LONG_BREAK : POMODORO_SHORT_BREAK);
+            setIsActive(true); // <--- CORREÇÃO 1: Mantém ativo para iniciar o descanso sozinho
           } else {
+            // FIM DO DESCANSO -> INÍCIO DO TRABALHO
             setTimerMode('WORK');
             setTimeLeft(POMODORO_WORK);
-            setIsActive(false); // Pausa para o usuário iniciar manualmente
+            setIsActive(true); // <--- CORREÇÃO 1: Mantém ativo para iniciar o trabalho sozinho
           }
         } 
         // --- LÓGICA FLOW ---
         else if (timerType === 'FLOW') {
           if (timerMode === 'BREAK') {
-            // Fim da pausa Flow -> Restaura o tempo de onde parou e volta a contar
             setTimerMode('WORK');
-            setTimeLeft(flowStoredTime); // <--- RESTAURA O TEMPO ANTIGO
-            setIsActive(true); // Continua contando sozinho
+            setTimeLeft(flowStoredTime);
+            setIsActive(true);
           }
         }
       }
     }
     return () => clearInterval(interval);
-    
-    // IMPORTANTE: Removido 'cycles' da dependência para evitar loop infinito
-  }, [isActive, timeLeft, timerMode, timerType, flowStoredTime]);
+  }, [isActive, timeLeft, timerMode, timerType, flowStoredTime]); // Cycles removido para evitar loop
 
   // Título da aba
   useEffect(() => {
     if (isActive) {
       const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0');
       const secs = (timeLeft % 60).toString().padStart(2, '0');
-      const mode = timerMode === 'WORK' ? 'Foco' : 'Pausa';
-      document.title = `${mins}:${secs} - ${mode}`;
+      document.title = `${mins}:${secs} - ${timerMode === 'WORK' ? 'Foco' : 'Pausa'}`;
     } else {
       document.title = "Focus App";
     }
   }, [isActive, timeLeft, timerMode]);
 
   // Ações
+  // AQUI ESTÁ A SUA FUNÇÃO ADDSESSION ORIGINAL
   const addSession = (minutes, notes) => setSessions(prev => [...prev, { id: Date.now(), date: new Date().toISOString(), minutes, subjectId: selectedSubjectId, notes }]);
+  
   const addMistake = (subjectId, description, reason, solution) => setMistakes(prev => [{ id: Date.now(), date: new Date().toISOString(), subjectId: Number(subjectId), description, reason, solution }, ...prev]);
   const deleteMistake = (id) => { if (window.confirm("Apagar erro?")) setMistakes(prev => prev.filter(m => m.id !== id)); };
   const addSubject = (name, color, goalHours) => setSubjects(prev => [...prev, { id: Date.now(), name, color, goalHours: Number(goalHours) }]);
@@ -235,26 +218,13 @@ const FocusProvider = ({ children }) => {
   const deleteTask = (id) => { if (window.confirm("Excluir tarefa?")) setTasks(prev => prev.filter(t => t.id !== id)); };
   const deleteDayHistory = (dateStr) => { if (window.confirm(`Apagar histórico de ${dateStr}?`)) setSessions(prev => prev.filter(s => new Date(s.date).toDateString() !== dateStr)); };
   const resetAllData = () => { if (window.confirm("Resetar TUDO?")) { localStorage.clear(); window.location.reload(); } };
-  const addTheme = (subjectId, title) => setThemes(prev => [...prev, { id: Date.now(), subjectId, title, items: [] }]);
-  const deleteTheme = (themeId) => { if(window.confirm("Excluir tema?")) setThemes(prev => prev.filter(t => t.id !== themeId)); };
-  // No arquivo src/App.jsx, substitua a função addThemeItem por esta:
-
-  const addThemeItem = (themeId, text) => {
-    setThemes(prev => prev.map(t => 
-      t.id === themeId 
-        ? { 
-            ...t, 
-            items: [
-              ...t.items, 
-              // AQUI ESTÁ A CORREÇÃO: Adicionamos Math.random() para garantir que o ID seja único
-              { id: Date.now() + Math.random(), text, completed: false } 
-            ] 
-          } 
-        : t
-    ));
-  };
-  const toggleThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t));
-  const deleteThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.filter(i => i.id !== itemId) } : t));
+  
+  // Funções de Temas
+  const addTheme = (subjectId, title) => { setThemes(prev => [...prev, { id: Date.now(), subjectId, title, items: [] }]); };
+  const deleteTheme = (themeId) => { if(window.confirm("Excluir este tema?")) setThemes(prev => prev.filter(t => t.id !== themeId)); };
+  const addThemeItem = (themeId, text) => { setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text, completed: false }] } : t)); };
+  const toggleThemeItem = (themeId, itemId) => { setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t)); };
+  const deleteThemeItem = (themeId, itemId) => { setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.filter(i => i.id !== itemId) } : t)); };
 
   const kpiData = useMemo(() => {
     const todayStr = new Date().toDateString();
@@ -292,7 +262,8 @@ const FocusProvider = ({ children }) => {
       timerMode, setTimerMode, timerType, setTimerType,
       timeLeft, setTimeLeft, isActive, setIsActive, cycles, setCycles,
       selectedSubjectId, setSelectedSubjectId,
-      flowStoredTime, setFlowStoredTime, // Exportando o novo estado
+      flowStoredTime, setFlowStoredTime,
+      elapsedTime, setElapsedTime, // <--- EXPORTANDO O CONTADOR REAL
       resetAllData, kpiData, weeklyChartData
     }}>
       {children}
@@ -387,9 +358,10 @@ const FocusView = () => {
     timerType, setTimerType,
     subjects, selectedSubjectId, setSelectedSubjectId,
     timerMode, setTimerMode, timeLeft, setTimeLeft, 
-    isActive, setIsActive, cycles, 
+    isActive, setIsActive, cycles, setCycles, // Precisa do setCycles para zerar
     tasks, addTask, toggleTask, deleteTask, addSession,
-    flowStoredTime, setFlowStoredTime // Pegando do contexto
+    flowStoredTime, setFlowStoredTime,
+    elapsedTime, setElapsedTime // <--- Pegando o tempo real do contexto
   } = useContext(FocusContext);
 
   const [notes, setNotes] = useState("");
@@ -400,11 +372,13 @@ const FocusView = () => {
     setTimerType(type);
     setTimerMode('WORK');
     setTimeLeft(type === 'FLOW' ? 0 : POMODORO_WORK);
+    setElapsedTime(0); // Reseta contador ao mudar de modo
   };
 
   const handleReset = () => {
     setIsActive(false);
     setTimeLeft(timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? POMODORO_WORK : POMODORO_BREAK));
+    setElapsedTime(0); // Reseta contador ao resetar
   };
 
   // --- BOTÃO DE PAUSA DO FLOW (CAFÉ) ---
@@ -414,16 +388,12 @@ const FocusView = () => {
       const minutesStudied = Math.round(currentWorkTime / 60);
 
       if (minutesStudied > 0) {
-        // NÃO SALVA SESSÃO AINDA, APENAS MEMORIZA O TEMPO
         setFlowStoredTime(currentWorkTime); 
-        
-        // Cálculo 20%
         const calculatedBreakSeconds = Math.floor(currentWorkTime * 0.20); 
         const breakMinutes = Math.ceil(calculatedBreakSeconds / 60);
         
         alert(`Pausa no Flow! Trabalho até agora: ${minutesStudied} min.\nIniciando pausa de ${breakMinutes} min.`);
         
-        // Inicia o descanso
         setTimerMode('BREAK');
         setTimeLeft(calculatedBreakSeconds);
         setIsActive(true); 
@@ -433,36 +403,27 @@ const FocusView = () => {
     }
   };
 
-  // --- BOTÃO DE ENCERRAR/SALVAR (VERMELHO) ---
+  // --- BOTÃO DE ENCERRAR/SALVAR (CORRIGIDO) ---
   const handleFinish = () => {
-    let timeSpentSeconds = 0;
-    
-    if (timerType === 'FLOW') {
-      // Se estiver no meio do descanso, o tempo trabalhado é o que estava memorizado
-      if (timerMode === 'BREAK') {
-        timeSpentSeconds = flowStoredTime;
-      } else {
-        timeSpentSeconds = timeLeft;
-      }
-    } else {
-      // Lógica Pomodoro
-      const totalDuration = timerMode === 'WORK' ? POMODORO_WORK : POMODORO_BREAK;
-      timeSpentSeconds = totalDuration - timeLeft;
-    }
-
-    const minutesStudied = Math.round(timeSpentSeconds / 60);
+    // CORREÇÃO 2: Usa o elapsedTime (acumulado) em vez do timeLeft
+    // Isso garante que todo o tempo de todos os ciclos seja contado
+    const minutesStudied = Math.round(elapsedTime / 60);
 
     if (minutesStudied > 0) {
       addSession(minutesStudied, notes);
       setNotes("");
       alert(`Sessão finalizada e salva: ${minutesStudied} min.`);
+    } else {
+      alert("Tempo insuficiente para salvar (menos de 1 minuto).");
     }
 
-    // Reseta tudo
+    // CORREÇÃO 3: Reseta tudo, incluindo ciclos
     setIsActive(false);
     setTimerMode('WORK');
     setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO_WORK);
-    setFlowStoredTime(0); // Limpa a memória
+    setFlowStoredTime(0);
+    setElapsedTime(0); // Zera o contador real
+    setCycles(0); // Zera os ciclos visuais
   };
 
   const handleTaskSubmit = (e) => {
@@ -478,13 +439,11 @@ const FocusView = () => {
         <Card className="flex flex-col items-center justify-center min-h-[450px] relative overflow-hidden">
           <div className={`absolute w-96 h-96 rounded-full blur-[120px] opacity-20 pointer-events-none transition-colors duration-1000 ${isActive ? (timerMode==='WORK'?'bg-violet-600 animate-pulse':'bg-emerald-500 animate-pulse'):'bg-gray-700'}`}></div>
           
-          {/* Switch */}
           <div className="flex bg-[#0F0F12] p-1 rounded-lg border border-gray-800 mb-6 z-10">
             <button onClick={() => toggleTimerType('POMODORO')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-zinc-800 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}>Pomodoro</button>
             <button onClick={() => toggleTimerType('FLOW')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${timerType === 'FLOW' ? 'bg-violet-600 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}><InfinityIcon size={12}/> Flow</button>
           </div>
 
-          {/* Matéria */}
           <div className="w-full max-w-xs mb-8 z-10">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Matéria</label>
             <div className="relative">
@@ -495,13 +454,11 @@ const FocusView = () => {
             </div>
           </div>
 
-          {/* Relógio */}
           <div className="z-10 text-center">
             <div className="mb-6"><span className={`px-4 py-1.5 rounded-full text-sm font-bold tracking-widest uppercase border ${timerMode==='WORK'?'bg-violet-500/10 text-violet-400 border-violet-500/20':'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>{timerMode==='WORK'?'Foco Total':'Pausa'}</span></div>
             <div className="text-8xl md:text-9xl font-mono font-bold text-white tracking-tighter mb-4 tabular-nums drop-shadow-2xl">{formatTime(timeLeft)}</div>
             <div className="text-gray-400 mb-8 font-medium">Ciclos: <span className="text-white font-bold ml-2">{cycles}</span></div>
             
-            {/* Botões */}
             <div className="flex gap-4 justify-center items-center mt-8">
               <button onClick={()=>setIsActive(!isActive)} className={`px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive?'bg-zinc-800 text-white border border-zinc-700':(timerMode==='WORK'?'bg-violet-600 hover:bg-violet-700 text-white shadow-violet-600/30':'bg-emerald-500 hover:bg-emerald-600 text-white')}`}>
                 {isActive ? <Pause size={24} fill="currentColor"/> : <Play size={24} fill="currentColor"/>}
@@ -509,14 +466,12 @@ const FocusView = () => {
               </button>
               <button onClick={handleReset} className="p-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white border border-zinc-700 transition-colors" title="Resetar"><RotateCcw size={24}/></button>
               
-              {/* Botão Café (Flow) */}
               {timerType === 'FLOW' && timerMode === 'WORK' && (
                 <button onClick={handleFlowBreak} className="p-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 transition-colors" title="Pausa (20%)">
                   <Coffee size={24}/>
                 </button>
               )}
 
-              {/* Botão Salvar */}
               <button onClick={handleFinish} className="p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-colors" title="Encerrar Sessão"><CheckCircle size={24}/></button>
             </div>
             {timerType === 'FLOW' && timerMode === 'WORK' && <p className="text-xs text-zinc-500 mt-4">Clique no <Coffee size={12} className="inline"/> para calcular pausa.</p>}
