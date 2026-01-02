@@ -77,7 +77,7 @@ const FocusProvider = ({ children }) => {
     }
   }, [subjects, selectedSubjectId]);
 
-  // CORREÇÃO DOS IDs DUPLICADOS (Cura automática ao iniciar)
+  // CORREÇÃO DOS IDs DUPLICADOS
   useEffect(() => {
     const healData = () => {
       const healedThemes = themes.map(theme => {
@@ -93,7 +93,7 @@ const FocusProvider = ({ children }) => {
     if (themes.length > 0) healData();
   }, []);
 
-  // --- CORREÇÃO DO TÍTULO DA ABA ---
+  // TÍTULO DA ABA
   useEffect(() => {
     if (isActive) {
       const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0');
@@ -105,7 +105,7 @@ const FocusProvider = ({ children }) => {
     }
   }, [isActive, timeLeft, timerMode]);
 
-  // Lógica do Timer
+  // Lógica do Timer (MODIFICADA: Parar automático)
   useEffect(() => {
     let interval = null;
     if (isActive) {
@@ -117,7 +117,12 @@ const FocusProvider = ({ children }) => {
         interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
       } else if (timeLeft === 0 && !(timerType === 'FLOW' && timerMode === 'WORK')) {
         clearInterval(interval);
+        
+        // TOCA O SOM
         try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(() => {}); } catch(e){}
+
+        // PAUSA O RELÓGIO (Modificação solicitada)
+        setIsActive(false);
 
         if (timerType === 'POMODORO') {
           if (timerMode === 'WORK') {
@@ -125,16 +130,16 @@ const FocusProvider = ({ children }) => {
             setCycles(nextCycle);
             setTimerMode('BREAK');
             setTimeLeft(nextCycle % 3 === 0 ? POMODORO_LONG_BREAK : POMODORO_SHORT_BREAK);
-            setIsActive(true);
+            // Removido: setIsActive(true);
           } else {
             setTimerMode('WORK');
             setTimeLeft(POMODORO_WORK);
-            setIsActive(true);
+            // Removido: setIsActive(true);
           }
         } else if (timerType === 'FLOW' && timerMode === 'BREAK') {
           setTimerMode('WORK');
           setTimeLeft(flowStoredTime);
-          setIsActive(true);
+          // Removido: setIsActive(true);
         }
       }
     }
@@ -229,7 +234,6 @@ const Button = ({ children, onClick, variant = 'primary', className = "" }) => {
   return <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 active:scale-95 ${variants[variant]} ${className}`}>{children}</button>;
 };
 
-// --- MODAL CORRIGIDO COM PORTAL ---
 const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
@@ -259,7 +263,7 @@ const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo a melhor plataforma de estudos!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
+      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo a melhor plataforma de estudos!</h1><p className="text-gray-400">Visão geral do seu progresso.</p></header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-violet-500"><div className="p-3 bg-violet-500/20 rounded-full text-violet-500"><Clock size={24}/></div><div><p className="text-sm text-gray-400">Total</p><p className="text-2xl font-bold text-white">{kpiData.totalHours} h</p></div></Card>
@@ -271,7 +275,6 @@ const DashboardView = () => {
           <div className="h-[250px] w-full"><ResponsiveContainer><LineChart data={weeklyChartData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#71717a" tick={{fill:'#a1a1aa',fontSize:12}} axisLine={false}/><YAxis stroke="#71717a" tick={{fill:'#a1a1aa'}} axisLine={false}/><Tooltip contentStyle={{backgroundColor:'#18181B',borderColor:'#3f3f46',color:'#fff'}}/><Line type="monotone" dataKey="minutos" stroke="#8b5cf6" strokeWidth={3} dot={{r:4,fill:'#8b5cf6'}}/></LineChart></ResponsiveContainer></div>
         </Card>
         
-        {/* CARD COM FRASE ATUALIZADA (OPÇÃO "DEEP WORK") */}
         <Card className="bg-gradient-to-br from-violet-900/40 to-[#18181B] border-violet-500/30 flex flex-col justify-between relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 blur-[50px] group-hover:bg-violet-500/20 transition-all duration-500"></div>
           <div>
@@ -295,8 +298,6 @@ const FocusView = () => {
   const { timerType, setTimerType, subjects, selectedSubjectId, setSelectedSubjectId, timerMode, setTimerMode, timeLeft, setTimeLeft, isActive, setIsActive, cycles, setCycles, tasks, addTask, toggleTask, deleteTask, addSession, elapsedTime, setElapsedTime, flowStoredTime, setFlowStoredTime } = useContext(FocusContext);
   const [notes, setNotes] = useState("");
   const [newTaskText, setNewTaskText] = useState("");
-  
-  // Estados para Registro Manual
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualMinutes, setManualMinutes] = useState("");
   const [manualNotes, setManualNotes] = useState("");
@@ -360,7 +361,6 @@ const FocusView = () => {
         </Card>
       </div>
 
-      {/* --- BOTÃO DE REGISTRO MANUAL COM VISUAL MELHORADO --- */}
       <div className="lg:col-span-3 mt-12 mb-8 flex flex-col items-center justify-center border-t border-zinc-800/50 pt-10">
         <div className="bg-zinc-900/30 p-6 rounded-2xl border border-zinc-800/50 max-w-md w-full text-center backdrop-blur-sm">
           <Clock size={24} className="mx-auto mb-3 text-zinc-500 opacity-50" />
@@ -370,7 +370,7 @@ const FocusView = () => {
             className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-violet-600/10 hover:bg-violet-600 text-violet-400 hover:text-white rounded-xl border border-violet-500/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-violet-500/5"
           >
             <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            Enviar estudo manualmente
+            Lançar Estudo Manual
           </button>
         </div>
       </div>
@@ -431,7 +431,25 @@ const GoalsView = () => {
   const [edit, setEdit] = useState({ id:null, val:"" });
   const [newTheme, setNewTheme] = useState("");
 
-  const prog = (sId, g) => { const m = sessions.filter(s=>s.subjectId===sId).reduce((a,b)=>a+b.minutes,0); return { c:(m/60).toFixed(1), p:Math.min(100,(m/(g*60))*100) }; };
+  const getProgress = (subjId, goalH) => {
+    // 1. Determinar início da semana (Domingo)
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // 2. Filtrar sessões DA SEMANA
+    const currentWeekMinutes = sessions.filter(s => {
+      const sessionDate = new Date(s.date);
+      return s.subjectId === subjId && sessionDate >= startOfWeek;
+    }).reduce((acc, curr) => acc + curr.minutes, 0);
+
+    return {
+      current: (currentWeekMinutes / 60).toFixed(1),
+      percent: Math.min(100, (currentWeekMinutes / (goalH * 60)) * 100)
+    };
+  };
+
   const addS = (e) => { e.preventDefault(); if(f.name){ addSubject(f.name,f.color,f.goal); setModal(false); setF({name:"",goal:10,color:"#8b5cf6"}); }};
   const addT = () => { if(newTheme&&viewSub){ addTheme(viewSub,newTheme); setNewTheme(""); }};
   const addI = (e, tId) => { e.preventDefault(); const v=e.target.item.value; if(v){ addThemeItem(tId,v); e.target.reset(); }};
@@ -459,7 +477,7 @@ const GoalsView = () => {
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-white">Metas</h1><Button onClick={()=>setModal(true)}><Plus size={18}/> Nova</Button></header>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{subjects.map(s=>{ const {c,p}=prog(s.id,s.goalHours); return (<Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-violet-500/50"><div onClick={()=>setViewSub(s.id)}><div className="absolute top-0 left-0 w-full h-1" style={{backgroundColor:s.color}}/><div className="mb-4"><h3 className="text-xl font-bold text-white">{s.name}</h3>{edit.id!==s.id&&<p className="text-sm text-gray-400">Meta: {s.goalHours}h</p>}</div>{edit.id!==s.id&&(<> <div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-white">{c}h</span><span className="text-sm font-medium" style={{color:s.color}}>{Math.round(p)}%</span></div><div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{width:`${p}%`,backgroundColor:s.color}}/></div></>)}</div><div className="absolute top-4 right-4 flex gap-2">{edit.id===s.id?(<div className="flex gap-2 bg-black/80 p-1 rounded"><input type="number" className="w-16 bg-[#0F0F12] border border-gray-600 rounded px-1 text-sm text-white" value={edit.val} onChange={e=>setEdit({...edit,val:e.target.value})} autoFocus/><button onClick={()=>{updateSubject(s.id,edit.val);setEdit({id:null,val:""})}} className="text-green-400 text-xs font-bold">OK</button></div>):(<> <button onClick={e=>{e.stopPropagation();setEdit({id:s.id,val:s.goalHours})}} className="p-2 rounded bg-[#27272A]"><Settings size={16} className="text-gray-400"/></button><button onClick={e=>{e.stopPropagation();deleteSubject(s.id)}} className="p-2 rounded bg-[#27272A]"><Trash2 size={16} className="text-gray-400 hover:text-red-500"/></button></>)}</div></Card>)})}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{subjects.map(s=>{ const {c,p}=getProgress(s.id,s.goalHours); return (<Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-violet-500/50"><div onClick={()=>setViewSub(s.id)}><div className="absolute top-0 left-0 w-full h-1" style={{backgroundColor:s.color}}/><div className="mb-4"><h3 className="text-xl font-bold text-white">{s.name}</h3>{edit.id!==s.id&&<p className="text-sm text-gray-400">Meta: {s.goalHours}h</p>}</div>{edit.id!==s.id&&(<> <div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-white">{c}h</span><span className="text-sm font-medium" style={{color:s.color}}>{Math.round(p)}%</span></div><div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{width:`${p}%`,backgroundColor:s.color}}/></div></>)}</div><div className="absolute top-4 right-4 flex gap-2">{edit.id===s.id?(<div className="flex gap-2 bg-black/80 p-1 rounded"><input type="number" className="w-16 bg-[#0F0F12] border border-gray-600 rounded px-1 text-sm text-white" value={edit.val} onChange={e=>setEdit({...edit,val:e.target.value})} autoFocus/><button onClick={()=>{updateSubject(s.id,edit.val);setEdit({id:null,val:""})}} className="text-green-400 text-xs font-bold">OK</button></div>):(<> <button onClick={e=>{e.stopPropagation();setEdit({id:s.id,val:s.goalHours})}} className="p-2 rounded bg-[#27272A]"><Settings size={16} className="text-gray-400"/></button><button onClick={e=>{e.stopPropagation();deleteSubject(s.id)}} className="p-2 rounded bg-[#27272A]"><Trash2 size={16} className="text-gray-400 hover:text-red-500"/></button></>)}</div></Card>)})}</div>
       <Modal isOpen={modal} onClose={()=>setModal(false)} title="Nova Matéria"><form onSubmit={addS} className="space-y-4"><div><label className="text-sm text-gray-400">Nome</label><input required className="w-full bg-[#0F0F12] border border-gray-700 rounded p-2 text-white" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/></div><div><label className="text-sm text-gray-400">Meta (h)</label><input required type="number" className="w-full bg-[#0F0F12] border border-gray-700 rounded p-2 text-white" value={f.goal} onChange={e=>setF({...f,goal:e.target.value})}/></div><div><label className="text-sm text-gray-400">Cor</label><div className="flex gap-2 mt-2">{['#8b5cf6','#10b981','#f59e0b','#ec4899','#3b82f6','#ef4444'].map(c=><div key={c} onClick={()=>setF({...f,color:c})} className={`w-8 h-8 rounded-full cursor-pointer border-2 ${f.color===c?'border-white':'border-transparent'}`} style={{backgroundColor:c}}/>)}</div></div><Button type="submit" className="w-full mt-4">Criar</Button></form></Modal>
     </div>
   );
@@ -507,7 +525,7 @@ const AppLayout = () => {
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0F0F12] border-r border-gray-800 flex flex-col transition-transform duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'}`}>
         <div className="p-8 flex items-center gap-3"><div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">F</div><span className="text-xl font-bold text-white tracking-tight">Focus</span></div>
         <nav className="flex-1 px-4 space-y-2">{nav.map(i=><button key={i.id} onClick={()=>{setCurrentView(i.id);setMenu(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView===i.id?'bg-violet-600/10 text-violet-400 font-medium':'hover:bg-[#18181B] hover:text-white'}`}><i.i size={20}/>{i.l}</button>)}</nav>
-        <div className="p-4 border-t border-gray-800 space-y-2"><div className="grid grid-cols-2 gap-2"><button onClick={handleExp} className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white"><Download size={16} className="mb-1 text-violet-500"/> Exportar</button><label className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white cursor-pointer"><Upload size={16} className="mb-1 text-emerald-500"/> Importar<input type="file" className="hidden" onChange={handleImp}/></label></div><button onClick={resetAllData} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-500 hover:bg-red-900/10 rounded-lg text-xs transition-colors"><Trash2 size={14}/> Reset</button></div>
+        <div className="p-4 border-t border-gray-800 space-y-2"><div className="grid grid-cols-2 gap-2"><button onClick={handleExp} className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white"><Download size={16} className="mb-1 text-violet-500"/> Exp.</button><label className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white cursor-pointer"><Upload size={16} className="mb-1 text-emerald-500"/> Imp.<input type="file" className="hidden" onChange={handleImp}/></label></div><button onClick={resetAllData} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-500 hover:bg-red-900/10 rounded-lg text-xs transition-colors"><Trash2 size={14}/> Reset</button></div>
       </aside>
       <main className="flex-1 overflow-y-auto h-full p-4 md:p-8 md:ml-64 bg-[#0F0F12]">
         <div className="max-w-6xl mx-auto h-full">
