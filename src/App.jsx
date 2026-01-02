@@ -105,7 +105,7 @@ const FocusProvider = ({ children }) => {
     }
   }, [isActive, timeLeft, timerMode]);
 
-  // Lógica do Timer (MODIFICADA: Parar automático)
+  // Lógica do Timer (CORRIGIDA: Parar e Tocar Som Forte)
   useEffect(() => {
     let interval = null;
     if (isActive) {
@@ -118,10 +118,17 @@ const FocusProvider = ({ children }) => {
       } else if (timeLeft === 0 && !(timerType === 'FLOW' && timerMode === 'WORK')) {
         clearInterval(interval);
         
-        // TOCA O SOM
-        try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(() => {}); } catch(e){}
+        // TOCA O SOM (Tenta tocar despertador mais longo se possível, ou beep padrão)
+        try { 
+          const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
+          audio.volume = 1.0;
+          audio.play().catch(() => {
+             // Fallback para beep curto se o navegador bloquear
+             new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
+          }); 
+        } catch(e){}
 
-        // PAUSA O RELÓGIO (Modificação solicitada)
+        // PAUSA O RELÓGIO (Não inicia automático)
         setIsActive(false);
 
         if (timerType === 'POMODORO') {
@@ -130,16 +137,13 @@ const FocusProvider = ({ children }) => {
             setCycles(nextCycle);
             setTimerMode('BREAK');
             setTimeLeft(nextCycle % 3 === 0 ? POMODORO_LONG_BREAK : POMODORO_SHORT_BREAK);
-            // Removido: setIsActive(true);
           } else {
             setTimerMode('WORK');
             setTimeLeft(POMODORO_WORK);
-            // Removido: setIsActive(true);
           }
         } else if (timerType === 'FLOW' && timerMode === 'BREAK') {
           setTimerMode('WORK');
           setTimeLeft(flowStoredTime);
-          // Removido: setIsActive(true);
         }
       }
     }
@@ -234,6 +238,7 @@ const Button = ({ children, onClick, variant = 'primary', className = "" }) => {
   return <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 active:scale-95 ${variants[variant]} ${className}`}>{children}</button>;
 };
 
+// --- MODAL CORRIGIDO COM PORTAL (FIXO NA TELA) ---
 const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
@@ -263,7 +268,7 @@ const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo a melhor plataforma de estudos!</h1><p className="text-gray-400">Visão geral do seu progresso.</p></header>
+      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo de volta!</h1><p className="text-gray-400">Visão geral do seu progresso.</p></header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-violet-500"><div className="p-3 bg-violet-500/20 rounded-full text-violet-500"><Clock size={24}/></div><div><p className="text-sm text-gray-400">Total</p><p className="text-2xl font-bold text-white">{kpiData.totalHours} h</p></div></Card>
@@ -298,6 +303,7 @@ const FocusView = () => {
   const { timerType, setTimerType, subjects, selectedSubjectId, setSelectedSubjectId, timerMode, setTimerMode, timeLeft, setTimeLeft, isActive, setIsActive, cycles, setCycles, tasks, addTask, toggleTask, deleteTask, addSession, elapsedTime, setElapsedTime, flowStoredTime, setFlowStoredTime } = useContext(FocusContext);
   const [notes, setNotes] = useState("");
   const [newTaskText, setNewTaskText] = useState("");
+  
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualMinutes, setManualMinutes] = useState("");
   const [manualNotes, setManualNotes] = useState("");
@@ -431,22 +437,34 @@ const GoalsView = () => {
   const [edit, setEdit] = useState({ id:null, val:"" });
   const [newTheme, setNewTheme] = useState("");
 
+  // --- CORREÇÃO DA LÓGICA DE METAS SEMANAIS (COM PROTEÇÃO) ---
   const getProgress = (subjId, goalH) => {
-    // 1. Determinar início da semana (Domingo)
+    // Evita divisão por zero ou nulo
+    const safeGoal = Number(goalH) || 1;
+
+    // Define o início da semana (Domingo)
     const now = new Date();
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
 
-    // 2. Filtrar sessões DA SEMANA
-    const currentWeekMinutes = sessions.filter(s => {
-      const sessionDate = new Date(s.date);
-      return s.subjectId === subjId && sessionDate >= startOfWeek;
-    }).reduce((acc, curr) => acc + curr.minutes, 0);
+    // Filtra sessões da semana e calcula minutos
+    const weeklyMins = sessions.reduce((acc, s) => {
+      const sDate = new Date(s.date);
+      // Verifica se a sessão é da matéria E se é desta semana
+      if (s.subjectId === subjId && sDate >= startOfWeek) {
+        return acc + (Number(s.minutes) || 0);
+      }
+      return acc;
+    }, 0);
+
+    const percent = Math.round((weeklyMins / (safeGoal * 60)) * 100);
 
     return {
-      current: (currentWeekMinutes / 60).toFixed(1),
-      percent: Math.min(100, (currentWeekMinutes / (goalH * 60)) * 100)
+      // Garante que retorne string "0.0" se for zero ou NaN
+      hours: (weeklyMins / 60).toFixed(1) || "0.0",
+      // Garante que retorne 0 se for NaN
+      percent: isNaN(percent) ? 0 : Math.min(100, percent)
     };
   };
 
@@ -476,8 +494,32 @@ const GoalsView = () => {
   }
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-white">Metas</h1><Button onClick={()=>setModal(true)}><Plus size={18}/> Nova</Button></header>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{subjects.map(s=>{ const {c,p}=getProgress(s.id,s.goalHours); return (<Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-violet-500/50"><div onClick={()=>setViewSub(s.id)}><div className="absolute top-0 left-0 w-full h-1" style={{backgroundColor:s.color}}/><div className="mb-4"><h3 className="text-xl font-bold text-white">{s.name}</h3>{edit.id!==s.id&&<p className="text-sm text-gray-400">Meta: {s.goalHours}h</p>}</div>{edit.id!==s.id&&(<> <div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-white">{c}h</span><span className="text-sm font-medium" style={{color:s.color}}>{Math.round(p)}%</span></div><div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{width:`${p}%`,backgroundColor:s.color}}/></div></>)}</div><div className="absolute top-4 right-4 flex gap-2">{edit.id===s.id?(<div className="flex gap-2 bg-black/80 p-1 rounded"><input type="number" className="w-16 bg-[#0F0F12] border border-gray-600 rounded px-1 text-sm text-white" value={edit.val} onChange={e=>setEdit({...edit,val:e.target.value})} autoFocus/><button onClick={()=>{updateSubject(s.id,edit.val);setEdit({id:null,val:""})}} className="text-green-400 text-xs font-bold">OK</button></div>):(<> <button onClick={e=>{e.stopPropagation();setEdit({id:s.id,val:s.goalHours})}} className="p-2 rounded bg-[#27272A]"><Settings size={16} className="text-gray-400"/></button><button onClick={e=>{e.stopPropagation();deleteSubject(s.id)}} className="p-2 rounded bg-[#27272A]"><Trash2 size={16} className="text-gray-400 hover:text-red-500"/></button></>)}</div></Card>)})}</div>
+      <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-white">Metas Semanais</h1><Button onClick={()=>setModal(true)}><Plus size={18}/> Nova</Button></header>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{subjects.map(s=>{ 
+        // Chama a função protegida
+        const {hours, percent} = getProgress(s.id, s.goalHours); 
+        return (
+          <Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-violet-500/50">
+            <div onClick={()=>setViewSub(s.id)}>
+              <div className="absolute top-0 left-0 w-full h-1" style={{backgroundColor:s.color}}/>
+              <div className="mb-4"><h3 className="text-xl font-bold text-white">{s.name}</h3>{edit.id!==s.id&&<p className="text-sm text-gray-400">Meta: {s.goalHours}h</p>}</div>
+              {edit.id!==s.id&&(<> 
+                <div className="mb-2 flex justify-between items-end">
+                  {/* Exibe 0.0h se vazio */}
+                  <span className="text-3xl font-bold text-white">{hours}h</span>
+                  <span className="text-sm font-medium" style={{color:s.color}}>{percent}%</span>
+                </div>
+                <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-1000" style={{width:`${percent}%`,backgroundColor:s.color}}/>
+                </div>
+              </>)}
+            </div>
+            <div className="absolute top-4 right-4 flex gap-2">
+              {edit.id===s.id?(<div className="flex gap-2 bg-black/80 p-1 rounded"><input type="number" className="w-16 bg-[#0F0F12] border border-gray-600 rounded px-1 text-sm text-white" value={edit.val} onChange={e=>setEdit({...edit,val:e.target.value})} autoFocus/><button onClick={()=>{updateSubject(s.id,edit.val);setEdit({id:null,val:""})}} className="text-green-400 text-xs font-bold">OK</button></div>):(<> <button onClick={e=>{e.stopPropagation();setEdit({id:s.id,val:s.goalHours})}} className="p-2 rounded bg-[#27272A]"><Settings size={16} className="text-gray-400"/></button><button onClick={e=>{e.stopPropagation();deleteSubject(s.id)}} className="p-2 rounded bg-[#27272A]"><Trash2 size={16} className="text-gray-400 hover:text-red-500"/></button></>)}
+            </div>
+          </Card>
+        )
+      })}</div>
       <Modal isOpen={modal} onClose={()=>setModal(false)} title="Nova Matéria"><form onSubmit={addS} className="space-y-4"><div><label className="text-sm text-gray-400">Nome</label><input required className="w-full bg-[#0F0F12] border border-gray-700 rounded p-2 text-white" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/></div><div><label className="text-sm text-gray-400">Meta (h)</label><input required type="number" className="w-full bg-[#0F0F12] border border-gray-700 rounded p-2 text-white" value={f.goal} onChange={e=>setF({...f,goal:e.target.value})}/></div><div><label className="text-sm text-gray-400">Cor</label><div className="flex gap-2 mt-2">{['#8b5cf6','#10b981','#f59e0b','#ec4899','#3b82f6','#ef4444'].map(c=><div key={c} onClick={()=>setF({...f,color:c})} className={`w-8 h-8 rounded-full cursor-pointer border-2 ${f.color===c?'border-white':'border-transparent'}`} style={{backgroundColor:c}}/>)}</div></div><Button type="submit" className="w-full mt-4">Criar</Button></form></Modal>
     </div>
   );
