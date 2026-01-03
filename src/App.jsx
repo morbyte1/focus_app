@@ -180,12 +180,39 @@ const FocusProvider = ({ children }) => {
   const kpiData = useMemo(() => {
     const dates = new Set(sessions.map(s => new Date(s.date).toDateString()));
     let streak = 0;
-    let curr = new Date();
+    let curr = new Date(); // Começa hoje
     const hasToday = dates.has(curr.toDateString());
+
     while (true) {
-      if (dates.has(curr.toDateString())) { streak++; curr.setDate(curr.getDate() - 1); }
-      else { if (curr.toDateString() === new Date().toDateString() && !hasToday) { curr.setDate(curr.getDate() - 1); continue; } break; }
+      const dateStr = curr.toDateString();
+      const dayOfWeek = curr.getDay(); // 0 = Domingo, 6 = Sábado
+
+      // CENÁRIO 1: Você estudou neste dia
+      if (dates.has(dateStr)) {
+        streak++;
+        curr.setDate(curr.getDate() - 1); // Volta para o dia anterior
+      } 
+      // CENÁRIO 2: Você NÃO estudou neste dia
+      else {
+        // Se for Hoje e você ainda não estudou, não quebra a sequência (dá chance de estudar)
+        if (dateStr === new Date().toDateString() && !hasToday) {
+           curr.setDate(curr.getDate() - 1);
+           continue;
+        }
+
+        // --- NOVA REGRA: PULAR FIM DE SEMANA ---
+        // Se for Sábado (6) ou Domingo (0), ignora a falha e volta mais um dia
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+           curr.setDate(curr.getDate() - 1);
+           continue; // Força o loop a rodar de novo sem quebrar (break)
+        }
+        
+        // Se chegou aqui, é um dia de semana (seg-sex) sem estudo. A sequência acabou.
+        break; 
+      }
     }
+    
+    // ... resto do código (cálculo de minutos) ...
     const todayMins = sessions.filter(s => new Date(s.date).toDateString() === new Date().toDateString()).reduce((a, c) => a + c.minutes, 0);
     return { todayMinutes: todayMins, totalHours: (sessions.reduce((a,c)=>a+c.minutes,0)/60).toFixed(1), streak };
   }, [sessions]);
