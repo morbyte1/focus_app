@@ -16,12 +16,6 @@ const POMODORO_WORK = 25 * 60;
 const POMODORO_SHORT_BREAK = 5 * 60; 
 const POMODORO_LONG_BREAK = 15 * 60; 
 
-const QUOTES = [
-  "A persistência é o caminho do êxito.", "Foco é dizer não.",
-  "O sucesso é a soma de pequenos esforços.", "Feito é melhor que perfeito.",
-  "A disciplina é a mãe do sucesso.",
-];
-
 const DEFAULT_SUBJECTS = [
   { id: 1, name: 'Programação', color: '#8b5cf6', goalHours: 20 },
   { id: 2, name: 'Matemática', color: '#10b981', goalHours: 10 },
@@ -105,7 +99,7 @@ const FocusProvider = ({ children }) => {
     }
   }, [isActive, timeLeft, timerMode]);
 
-  // Lógica do Timer (CORRIGIDA: Parar e Tocar Som Forte)
+  // Lógica do Timer
   useEffect(() => {
     let interval = null;
     if (isActive) {
@@ -118,17 +112,14 @@ const FocusProvider = ({ children }) => {
       } else if (timeLeft === 0 && !(timerType === 'FLOW' && timerMode === 'WORK')) {
         clearInterval(interval);
         
-        // TOCA O SOM (Tenta tocar despertador mais longo se possível, ou beep padrão)
         try { 
           const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
           audio.volume = 1.0;
           audio.play().catch(() => {
-             // Fallback para beep curto se o navegador bloquear
              new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
           }); 
         } catch(e){}
 
-        // PAUSA O RELÓGIO (Não inicia automático)
         setIsActive(false);
 
         if (timerType === 'POMODORO') {
@@ -185,6 +176,7 @@ const FocusProvider = ({ children }) => {
   const toggleThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t));
   const deleteThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.filter(i => i.id !== itemId) } : t));
 
+  // --- CÁLCULOS GERAIS (KPIs) ---
   const kpiData = useMemo(() => {
     const dates = new Set(sessions.map(s => new Date(s.date).toDateString()));
     let streak = 0;
@@ -198,6 +190,7 @@ const FocusProvider = ({ children }) => {
     return { todayMinutes: todayMins, totalHours: (sessions.reduce((a,c)=>a+c.minutes,0)/60).toFixed(1), streak };
   }, [sessions]);
 
+  // --- GRÁFICO SEMANAL ---
   const weeklyChartData = useMemo(() => {
     const start = new Date(); start.setDate(start.getDate() - start.getDay()); start.setHours(0,0,0,0);
     return Array.from({length: 7}).map((_, i) => {
@@ -207,6 +200,56 @@ const FocusProvider = ({ children }) => {
     });
   }, [sessions]);
 
+  // --- ESTATÍSTICAS AVANÇADAS (NOVO) ---
+  const advancedStats = useMemo(() => {
+    // 1. Dados Mensais
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    const monthlyData = Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      const dateStr = new Date(currentYear, currentMonth, day).toDateString();
+      const mins = sessions
+        .filter(s => new Date(s.date).toDateString() === dateStr)
+        .reduce((acc, curr) => acc + curr.minutes, 0);
+      return { name: day.toString(), minutes: mins };
+    });
+
+    // 2. Melhor e Pior Matéria
+    const subjectRanking = subjects.map(s => {
+      const totalMins = sessions
+        .filter(session => session.subjectId === s.id)
+        .reduce((acc, curr) => acc + curr.minutes, 0);
+      return { ...s, totalMins };
+    });
+    subjectRanking.sort((a, b) => b.totalMins - a.totalMins);
+    const bestSubject = subjectRanking[0] || null;
+    const worstSubject = subjectRanking.length > 0 ? subjectRanking[subjectRanking.length - 1] : null;
+
+    // 3. Maior Sequência Histórica
+    const datesStudied = [...new Set(sessions.map(s => new Date(s.date).toDateString()))]
+      .map(dateStr => new Date(dateStr))
+      .sort((a, b) => a - b);
+
+    let maxStreak = 0;
+    let currentStreak = 0;
+    for (let i = 0; i < datesStudied.length; i++) {
+      if (i === 0) {
+        currentStreak = 1;
+      } else {
+        const diffTime = Math.abs(datesStudied[i] - datesStudied[i - 1]);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays === 1) currentStreak++;
+        else currentStreak = 1;
+      }
+      if (currentStreak > maxStreak) maxStreak = currentStreak;
+    }
+
+    return { monthlyData, bestSubject, worstSubject, maxStreak };
+  }, [sessions, subjects]);
+
   return (
     <FocusContext.Provider value={{
       currentView, setCurrentView, selectedHistoryDate, setSelectedHistoryDate,
@@ -215,7 +258,7 @@ const FocusProvider = ({ children }) => {
       themes, addTheme, deleteTheme, addThemeItem, toggleThemeItem, deleteThemeItem, 
       timerMode, setTimerMode, timerType, setTimerType, timeLeft, setTimeLeft, isActive, setIsActive, 
       cycles, setCycles, selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime,
-      elapsedTime, setElapsedTime, kpiData, weeklyChartData,
+      elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats,
       resetAllData: () => { if(window.confirm("Resetar TUDO?")) { localStorage.clear(); window.location.reload(); } },
       deleteDayHistory: (d) => { if(window.confirm(`Apagar ${d}?`)) setSessions(prev => prev.filter(s => new Date(s.date).toDateString() !== d)); }
     }}>
@@ -238,7 +281,6 @@ const Button = ({ children, onClick, variant = 'primary', className = "" }) => {
   return <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 active:scale-95 ${variants[variant]} ${className}`}>{children}</button>;
 };
 
-// --- MODAL CORRIGIDO COM PORTAL (FIXO NA TELA) ---
 const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
@@ -268,7 +310,7 @@ const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo a melhor plataforma de estudos!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
+      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo de volta!</h1><p className="text-gray-400">Visão geral do seu progresso.</p></header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-violet-500"><div className="p-3 bg-violet-500/20 rounded-full text-violet-500"><Clock size={24}/></div><div><p className="text-sm text-gray-400">Total</p><p className="text-2xl font-bold text-white">{kpiData.totalHours} h</p></div></Card>
@@ -437,21 +479,15 @@ const GoalsView = () => {
   const [edit, setEdit] = useState({ id:null, val:"" });
   const [newTheme, setNewTheme] = useState("");
 
-  // --- CORREÇÃO DA LÓGICA DE METAS SEMANAIS (COM PROTEÇÃO) ---
   const getProgress = (subjId, goalH) => {
-    // Evita divisão por zero ou nulo
     const safeGoal = Number(goalH) || 1;
-
-    // Define o início da semana (Domingo)
     const now = new Date();
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
 
-    // Filtra sessões da semana e calcula minutos
     const weeklyMins = sessions.reduce((acc, s) => {
       const sDate = new Date(s.date);
-      // Verifica se a sessão é da matéria E se é desta semana
       if (s.subjectId === subjId && sDate >= startOfWeek) {
         return acc + (Number(s.minutes) || 0);
       }
@@ -461,9 +497,7 @@ const GoalsView = () => {
     const percent = Math.round((weeklyMins / (safeGoal * 60)) * 100);
 
     return {
-      // Garante que retorne string "0.0" se for zero ou NaN
       hours: (weeklyMins / 60).toFixed(1) || "0.0",
-      // Garante que retorne 0 se for NaN
       percent: isNaN(percent) ? 0 : Math.min(100, percent)
     };
   };
@@ -496,7 +530,6 @@ const GoalsView = () => {
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-white">Metas Semanais</h1><Button onClick={()=>setModal(true)}><Plus size={18}/> Nova</Button></header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{subjects.map(s=>{ 
-        // Chama a função protegida
         const {hours, percent} = getProgress(s.id, s.goalHours); 
         return (
           <Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-violet-500/50">
@@ -505,7 +538,6 @@ const GoalsView = () => {
               <div className="mb-4"><h3 className="text-xl font-bold text-white">{s.name}</h3>{edit.id!==s.id&&<p className="text-sm text-gray-400">Meta: {s.goalHours}h</p>}</div>
               {edit.id!==s.id&&(<> 
                 <div className="mb-2 flex justify-between items-end">
-                  {/* Exibe 0.0h se vazio */}
                   <span className="text-3xl font-bold text-white">{hours}h</span>
                   <span className="text-sm font-medium" style={{color:s.color}}>{percent}%</span>
                 </div>
@@ -526,10 +558,82 @@ const GoalsView = () => {
 };
 
 const StatsView = () => {
-  const { sessions, subjects, weeklyChartData } = useContext(FocusContext);
-  const ranking = useMemo(()=>subjects.map(s=>({ ...s, total:(sessions.filter(x=>x.subjectId===s.id).reduce((a,b)=>a+b.minutes,0)/60).toFixed(1) })).sort((a,b)=>b.total-a.total),[subjects,sessions]);
+  const { sessions, weeklyChartData, advancedStats } = useContext(FocusContext);
+  const { monthlyData, bestSubject, worstSubject, maxStreak } = advancedStats;
+
+  const heatmapData = useMemo(() => {
+    const today = new Date();
+    const days = [];
+    for (let i = 149; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toDateString();
+      const hasStudy = sessions.some(s => new Date(s.date).toDateString() === dateStr);
+      days.push({ date: d, hasStudy });
+    }
+    return days;
+  }, [sessions]);
+
   return (
-    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0"><h1 className="text-2xl font-bold text-white mb-6">Estatísticas</h1><div className="grid grid-cols-1 lg:grid-cols-3 gap-6"><Card className="lg:col-span-2 min-h-[300px]"><h3 className="text-white font-semibold mb-6">Semanal</h3><div className="h-[250px]"><ResponsiveContainer><BarChart data={weeklyChartData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#555" axisLine={false} tickLine={false}/><YAxis stroke="#555" axisLine={false} tickLine={false}/><Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#18181B',borderColor:'#333'}}/><Bar dataKey="minutos" fill="#8b5cf6" radius={[4,4,0,0]}><Cell fill="#8b5cf6"/></Bar></BarChart></ResponsiveContainer></div></Card><Card className="overflow-y-auto max-h-[350px] custom-scrollbar"><h3 className="text-white font-semibold mb-4">Ranking</h3>{ranking.map((r,i)=>(<div key={r.id} className="flex justify-between mb-3 border-b border-gray-800 pb-2"><div className="flex items-center gap-3"><div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${i===0?'bg-yellow-500 text-black':'bg-gray-800 text-gray-400'}`}>{i+1}</div><span className="text-white text-sm">{r.name}</span></div><span className="text-violet-400 font-bold text-sm">{r.total}h</span></div>))}</Card></div></div>
+    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
+      <h1 className="text-2xl font-bold text-white mb-6">Central de Dados</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-gradient-to-br from-orange-500/10 to-[#18181B] border-orange-500/20">
+          <div className="flex items-center gap-3 mb-2"><Flame className="text-orange-500" size={20} /><h3 className="text-gray-400 text-xs font-bold uppercase">Recorde Histórico</h3></div>
+          <p className="text-3xl font-bold text-white">{maxStreak} <span className="text-sm font-normal text-gray-500">dias seguidos</span></p>
+        </Card>
+        <Card className="bg-gradient-to-br from-emerald-500/10 to-[#18181B] border-emerald-500/20">
+          <div className="flex items-center gap-3 mb-2"><Target className="text-emerald-500" size={20} /><h3 className="text-gray-400 text-xs font-bold uppercase">Mais Estudada</h3></div>
+          <p className="text-xl font-bold text-white truncate">{bestSubject ? bestSubject.name : "---"}</p>
+          <p className="text-xs text-emerald-400">{bestSubject ? (bestSubject.totalMins / 60).toFixed(1) : 0} horas totais</p>
+        </Card>
+        <Card className="bg-gradient-to-br from-red-500/10 to-[#18181B] border-red-500/20">
+          <div className="flex items-center gap-3 mb-2"><AlertTriangle className="text-red-500" size={20} /><h3 className="text-gray-400 text-xs font-bold uppercase">Atenção Necessária</h3></div>
+          <p className="text-xl font-bold text-white truncate">{worstSubject ? worstSubject.name : "---"}</p>
+          <p className="text-xs text-red-400">{worstSubject ? (worstSubject.totalMins / 60).toFixed(1) : 0} horas totais</p>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="min-h-[300px]">
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><BarChart2 size={18} className="text-violet-500"/> Performance Semanal</h3>
+          <div className="h-[200px] w-full">
+            <ResponsiveContainer>
+              <BarChart data={weeklyChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/>
+                <XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} axisLine={false} tickLine={false}/>
+                <Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#18181B',borderColor:'#333', color:'#fff'}}/>
+                <Bar dataKey="minutos" fill="#8b5cf6" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+        <Card className="min-h-[300px]">
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Calendar size={18} className="text-blue-500"/> Visão Mensal</h3>
+          <div className="h-[200px] w-full">
+            <ResponsiveContainer>
+              <BarChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/>
+                <XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} interval={2} axisLine={false} tickLine={false}/>
+                <Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#18181B',borderColor:'#333', color:'#fff'}}/>
+                <Bar dataKey="minutos" fill="#3b82f6" radius={[2,2,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência</h3>
+        <div className="flex flex-wrap gap-1">
+          {heatmapData.map((day, index) => (
+            <div key={index} title={`${day.date.toLocaleDateString()}: ${day.hasStudy ? 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${day.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-[#27272A]'}`}></div>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-3">Cada quadrado representa um dia. Quadrados acesos indicam dias com estudo registrado.</p>
+      </Card>
+    </div>
   );
 };
 
@@ -567,7 +671,7 @@ const AppLayout = () => {
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0F0F12] border-r border-gray-800 flex flex-col transition-transform duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'}`}>
         <div className="p-8 flex items-center gap-3"><div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">F</div><span className="text-xl font-bold text-white tracking-tight">Focus</span></div>
         <nav className="flex-1 px-4 space-y-2">{nav.map(i=><button key={i.id} onClick={()=>{setCurrentView(i.id);setMenu(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView===i.id?'bg-violet-600/10 text-violet-400 font-medium':'hover:bg-[#18181B] hover:text-white'}`}><i.i size={20}/>{i.l}</button>)}</nav>
-        <div className="p-4 border-t border-gray-800 space-y-2"><div className="grid grid-cols-2 gap-2"><button onClick={handleExp} className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white"><Download size={16} className="mb-1 text-violet-500"/> Exportar</button><label className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white cursor-pointer"><Upload size={16} className="mb-1 text-emerald-500"/> Importar<input type="file" className="hidden" onChange={handleImp}/></label></div><button onClick={resetAllData} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-500 hover:bg-red-900/10 rounded-lg text-xs transition-colors"><Trash2 size={14}/> Resetar App</button></div>
+        <div className="p-4 border-t border-gray-800 space-y-2"><div className="grid grid-cols-2 gap-2"><button onClick={handleExp} className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white"><Download size={16} className="mb-1 text-violet-500"/> Exp.</button><label className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white cursor-pointer"><Upload size={16} className="mb-1 text-emerald-500"/> Imp.<input type="file" className="hidden" onChange={handleImp}/></label></div><button onClick={resetAllData} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-500 hover:bg-red-900/10 rounded-lg text-xs transition-colors"><Trash2 size={14}/> Reset</button></div>
       </aside>
       <main className="flex-1 overflow-y-auto h-full p-4 md:p-8 md:ml-64 bg-[#0F0F12]">
         <div className="max-w-6xl mx-auto h-full">
