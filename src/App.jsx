@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, createContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, createContext, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   LayoutDashboard, Zap, Target, BarChart2, Play, Pause, Coffee, RotateCcw, 
@@ -65,6 +65,11 @@ const FocusProvider = ({ children }) => {
   const [flowStoredTime, setFlowStoredTime] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
 
+  // REFS PARA O TIMER (Correção de precisão em segundo plano)
+  const timerEndRef = useRef(null);
+  const timerStartRef = useRef(null);
+  const lastTickRef = useRef(0);
+
   useEffect(() => {
     if (subjects.length > 0 && (!selectedSubjectId || !subjects.find(s => s.id === selectedSubjectId))) {
       setSelectedSubjectId(subjects[0].id);
@@ -99,47 +104,77 @@ const FocusProvider = ({ children }) => {
     }
   }, [isActive, timeLeft, timerMode]);
 
-  // Lógica do Timer
+  // --- LÓGICA DO TIMER (CORRIGIDA COM DATE.NOW) ---
   useEffect(() => {
     let interval = null;
+
     if (isActive) {
-      if (timerMode === 'WORK') setElapsedTime(prev => prev + 1);
-      
+      // Configura os pontos de referência temporal
       if (timerType === 'FLOW' && timerMode === 'WORK') {
-        interval = setInterval(() => setTimeLeft(t => t + 1), 1000);
-      } else if (timeLeft > 0) {
-        interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
-      } else if (timeLeft === 0 && !(timerType === 'FLOW' && timerMode === 'WORK')) {
-        clearInterval(interval);
-        
-        try { 
-          const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
-          audio.volume = 1.0;
-          audio.play().catch(() => {
-             new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
-          }); 
-        } catch(e){}
-
-        setIsActive(false);
-
-        if (timerType === 'POMODORO') {
-          if (timerMode === 'WORK') {
-            const nextCycle = cycles + 1;
-            setCycles(nextCycle);
-            setTimerMode('BREAK');
-            setTimeLeft(nextCycle % 3 === 0 ? POMODORO_LONG_BREAK : POMODORO_SHORT_BREAK);
-          } else {
-            setTimerMode('WORK');
-            setTimeLeft(POMODORO_WORK);
-          }
-        } else if (timerType === 'FLOW' && timerMode === 'BREAK') {
-          setTimerMode('WORK');
-          setTimeLeft(flowStoredTime);
-        }
+        // Modo Flow: Define quando "começou" virtualmente
+        timerStartRef.current = Date.now() - (timeLeft * 1000);
+      } else {
+        // Modo Pomodoro: Define quando "deve acabar"
+        timerEndRef.current = Date.now() + (timeLeft * 1000);
       }
+      lastTickRef.current = Date.now();
+
+      interval = setInterval(() => {
+        const now = Date.now();
+        // Calcula quanto tempo passou desde o último tick (para estatísticas)
+        const deltaSeconds = Math.round((now - lastTickRef.current) / 1000);
+        lastTickRef.current = now;
+
+        // Atualiza estatísticas de tempo decorrido (apenas em modo Foco)
+        if (timerMode === 'WORK' && deltaSeconds > 0) {
+           setElapsedTime(prev => prev + deltaSeconds);
+        }
+
+        if (timerType === 'FLOW' && timerMode === 'WORK') {
+           // Flow: Apenas conta para cima baseado no timestamp inicial
+           const secondsPassed = Math.floor((now - timerStartRef.current) / 1000);
+           setTimeLeft(secondsPassed);
+        } else {
+           // Pomodoro: Calcula tempo restante baseado no alvo
+           const remaining = Math.ceil((timerEndRef.current - now) / 1000);
+           
+           if (remaining <= 0) {
+             // --- TEMPO ACABOU ---
+             setTimeLeft(0);
+             clearInterval(interval);
+             setIsActive(false); // Pausa automática
+             
+             // Toca o som "clique" (beep_short)
+             try { 
+               new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
+             } catch(e){}
+
+             // Prepara o próximo estágio
+             if (timerType === 'POMODORO') {
+                if (timerMode === 'WORK') {
+                   const nextCycle = cycles + 1;
+                   setCycles(nextCycle);
+                   setTimerMode('BREAK');
+                   setTimeLeft(nextCycle % 3 === 0 ? POMODORO_LONG_BREAK : POMODORO_SHORT_BREAK);
+                } else {
+                   setTimerMode('WORK');
+                   setTimeLeft(POMODORO_WORK);
+                }
+             } else if (timerType === 'FLOW' && timerMode === 'BREAK') {
+                setTimerMode('WORK');
+                setTimeLeft(flowStoredTime);
+             }
+
+           } else {
+             setTimeLeft(remaining);
+           }
+        }
+      }, 1000);
     }
+
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, timerMode, timerType, flowStoredTime, cycles]);
+  }, [isActive, timerMode, timerType, cycles, flowStoredTime]); 
+  // Nota: timeLeft removido das dependências para evitar recriação do intervalo a cada segundo
 
   // Ações
   const addSession = (minutes, notes, manualSubId = null) => {
@@ -180,39 +215,28 @@ const FocusProvider = ({ children }) => {
   const kpiData = useMemo(() => {
     const dates = new Set(sessions.map(s => new Date(s.date).toDateString()));
     let streak = 0;
-    let curr = new Date(); // Começa hoje
+    let curr = new Date();
     const hasToday = dates.has(curr.toDateString());
-
     while (true) {
       const dateStr = curr.toDateString();
       const dayOfWeek = curr.getDay(); // 0 = Domingo, 6 = Sábado
 
-      // CENÁRIO 1: Você estudou neste dia
       if (dates.has(dateStr)) {
         streak++;
-        curr.setDate(curr.getDate() - 1); // Volta para o dia anterior
-      } 
-      // CENÁRIO 2: Você NÃO estudou neste dia
-      else {
-        // Se for Hoje e você ainda não estudou, não quebra a sequência (dá chance de estudar)
+        curr.setDate(curr.getDate() - 1);
+      } else {
         if (dateStr === new Date().toDateString() && !hasToday) {
            curr.setDate(curr.getDate() - 1);
            continue;
         }
-
-        // --- NOVA REGRA: PULAR FIM DE SEMANA ---
-        // Se for Sábado (6) ou Domingo (0), ignora a falha e volta mais um dia
+        // Pular fim de semana na quebra de sequência
         if (dayOfWeek === 0 || dayOfWeek === 6) {
            curr.setDate(curr.getDate() - 1);
-           continue; // Força o loop a rodar de novo sem quebrar (break)
+           continue; 
         }
-        
-        // Se chegou aqui, é um dia de semana (seg-sex) sem estudo. A sequência acabou.
         break; 
       }
     }
-    
-    // ... resto do código (cálculo de minutos) ...
     const todayMins = sessions.filter(s => new Date(s.date).toDateString() === new Date().toDateString()).reduce((a, c) => a + c.minutes, 0);
     return { todayMinutes: todayMins, totalHours: (sessions.reduce((a,c)=>a+c.minutes,0)/60).toFixed(1), streak };
   }, [sessions]);
@@ -227,14 +251,15 @@ const FocusProvider = ({ children }) => {
     });
   }, [sessions]);
 
-  // --- ESTATÍSTICAS AVANÇADAS (NOVO) ---
+  // --- ESTATÍSTICAS AVANÇADAS ---
   const advancedStats = useMemo(() => {
-    // 1. Dados Mensais
+    // 1. Dados Mensais (DIAS DO MÊS ATUAL)
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     
+    // Gera array do dia 1 até o último dia do mês ATUAL
     const monthlyData = Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1;
       const dateStr = new Date(currentYear, currentMonth, day).toDateString();
@@ -337,7 +362,7 @@ const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo a melhor plataforma de estudos!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
+      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo de volta!</h1><p className="text-gray-400">Visão geral do seu progresso.</p></header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-violet-500"><div className="p-3 bg-violet-500/20 rounded-full text-violet-500"><Clock size={24}/></div><div><p className="text-sm text-gray-400">Total</p><p className="text-2xl font-bold text-white">{kpiData.totalHours} h</p></div></Card>
@@ -590,13 +615,15 @@ const StatsView = () => {
 
   const heatmapData = useMemo(() => {
     const today = new Date();
+    const currentYear = today.getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
     const days = [];
-    for (let i = 149; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toDateString();
-      const hasStudy = sessions.some(s => new Date(s.date).toDateString() === dateStr);
-      days.push({ date: d, hasStudy });
+    
+    // Loop de 01/01/ANO_ATUAL até HOJE
+    for (let d = new Date(startOfYear); d <= today; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toDateString();
+        const hasStudy = sessions.some(s => new Date(s.date).toDateString() === dateStr);
+        days.push({ date: new Date(d), hasStudy });
     }
     return days;
   }, [sessions]);
@@ -652,13 +679,13 @@ const StatsView = () => {
       </div>
 
       <Card>
-        <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência</h3>
+        <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência (Ano Atual)</h3>
         <div className="flex flex-wrap gap-1">
           {heatmapData.map((day, index) => (
             <div key={index} title={`${day.date.toLocaleDateString()}: ${day.hasStudy ? 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${day.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-[#27272A]'}`}></div>
           ))}
         </div>
-        <p className="text-xs text-gray-500 mt-3">Cada quadrado representa um dia. Quadrados acesos indicam dias com estudo registrado.</p>
+        <p className="text-xs text-gray-500 mt-3">Cada quadrado representa um dia deste ano. Quadrados acesos indicam dias com estudo registrado.</p>
       </Card>
     </div>
   );
