@@ -252,6 +252,7 @@ const FocusProvider = ({ children }) => {
   }, [sessions]);
 
   // --- ESTATÍSTICAS AVANÇADAS ---
+// --- ESTATÍSTICAS AVANÇADAS (CORRIGIDO) ---
   const advancedStats = useMemo(() => {
     // 1. Dados Mensais (DIAS DO MÊS ATUAL)
     const now = new Date();
@@ -262,14 +263,22 @@ const FocusProvider = ({ children }) => {
     // Gera array do dia 1 até o último dia do mês ATUAL
     const monthlyData = Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1;
-      const dateStr = new Date(currentYear, currentMonth, day).toDateString();
-      const mins = sessions
-        .filter(s => new Date(s.date).toDateString() === dateStr)
-        .reduce((acc, curr) => acc + curr.minutes, 0);
+      
+      // Soma minutos comparando Dia, Mês e Ano exatos
+      const mins = sessions.reduce((acc, s) => {
+        const sDate = new Date(s.date);
+        if (sDate.getDate() === day && 
+            sDate.getMonth() === currentMonth && 
+            sDate.getFullYear() === currentYear) {
+          return acc + s.minutes;
+        }
+        return acc;
+      }, 0);
+
       return { name: day.toString(), minutes: mins };
     });
 
-    // 2. Melhor e Pior Matéria
+    // 2. Melhor e Pior Matéria (Mantido igual)
     const subjectRanking = subjects.map(s => {
       const totalMins = sessions
         .filter(session => session.subjectId === s.id)
@@ -280,7 +289,7 @@ const FocusProvider = ({ children }) => {
     const bestSubject = subjectRanking[0] || null;
     const worstSubject = subjectRanking.length > 0 ? subjectRanking[subjectRanking.length - 1] : null;
 
-    // 3. Maior Sequência Histórica
+    // 3. Maior Sequência Histórica (Mantido igual)
     const datesStudied = [...new Set(sessions.map(s => new Date(s.date).toDateString()))]
       .map(dateStr => new Date(dateStr))
       .sort((a, b) => a - b);
@@ -362,7 +371,7 @@ const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo a Focus App, a melhor plataforma de estudos!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
+      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo ao Focus App, a melhor plataforma de estudos!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Tempo estudado hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-violet-500"><div className="p-3 bg-violet-500/20 rounded-full text-violet-500"><Clock size={24}/></div><div><p className="text-sm text-gray-400">Total</p><p className="text-2xl font-bold text-white">{kpiData.totalHours} h</p></div></Card>
