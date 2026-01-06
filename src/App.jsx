@@ -247,7 +247,7 @@ const FocusProvider = ({ children }) => {
     return Array.from({length: 7}).map((_, i) => {
       const d = new Date(start); d.setDate(start.getDate() + i);
       const mins = sessions.filter(s => new Date(s.date).toDateString() === d.toDateString()).reduce((a, c) => a + c.minutes, 0);
-      return { name: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][i], minutos: mins };
+      return { name: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][i], minutos: mins };
     });
   }, [sessions]);
 
@@ -362,11 +362,11 @@ const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo de volta!</h1><p className="text-gray-400">Visão geral do seu progresso.</p></header>
+      <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo a Focus App, a melhor plataforma de estudos!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
+        <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Tempo estudado hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-violet-500"><div className="p-3 bg-violet-500/20 rounded-full text-violet-500"><Clock size={24}/></div><div><p className="text-sm text-gray-400">Total</p><p className="text-2xl font-bold text-white">{kpiData.totalHours} h</p></div></Card>
-        <Card className="flex items-center gap-4 border-l-4 border-l-orange-500"><div className="p-3 bg-orange-500/20 rounded-full text-orange-500"><Flame size={24}/></div><div><p className="text-sm text-gray-400">Sequência</p><p className="text-2xl font-bold text-white">{kpiData.streak} dias</p></div></Card>
+        <Card className="flex items-center gap-4 border-l-4 border-l-orange-500"><div className="p-3 bg-orange-500/20 rounded-full text-orange-500"><Flame size={24}/></div><div><p className="text-sm text-gray-400">Sequência de estudo</p><p className="text-2xl font-bold text-white">{kpiData.streak} dias</p></div></Card>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 min-h-[300px]">
@@ -679,7 +679,7 @@ const StatsView = () => {
       </div>
 
       <Card>
-        <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência (Ano Atual)</h3>
+        <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência</h3>
         <div className="flex flex-wrap gap-1">
           {heatmapData.map((day, index) => (
             <div key={index} title={`${day.date.toLocaleDateString()}: ${day.hasStudy ? 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${day.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-[#27272A]'}`}></div>
@@ -725,7 +725,7 @@ const AppLayout = () => {
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0F0F12] border-r border-gray-800 flex flex-col transition-transform duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'}`}>
         <div className="p-8 flex items-center gap-3"><div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">F</div><span className="text-xl font-bold text-white tracking-tight">Focus</span></div>
         <nav className="flex-1 px-4 space-y-2">{nav.map(i=><button key={i.id} onClick={()=>{setCurrentView(i.id);setMenu(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView===i.id?'bg-violet-600/10 text-violet-400 font-medium':'hover:bg-[#18181B] hover:text-white'}`}><i.i size={20}/>{i.l}</button>)}</nav>
-        <div className="p-4 border-t border-gray-800 space-y-2"><div className="grid grid-cols-2 gap-2"><button onClick={handleExp} className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white"><Download size={16} className="mb-1 text-violet-500"/> Exp.</button><label className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white cursor-pointer"><Upload size={16} className="mb-1 text-emerald-500"/> Imp.<input type="file" className="hidden" onChange={handleImp}/></label></div><button onClick={resetAllData} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-500 hover:bg-red-900/10 rounded-lg text-xs transition-colors"><Trash2 size={14}/> Reset</button></div>
+        <div className="p-4 border-t border-gray-800 space-y-2"><div className="grid grid-cols-2 gap-2"><button onClick={handleExp} className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white"><Download size={16} className="mb-1 text-violet-500"/> Exportar dados</button><label className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white cursor-pointer"><Upload size={16} className="mb-1 text-emerald-500"/> Importar dados<input type="file" className="hidden" onChange={handleImp}/></label></div><button onClick={resetAllData} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-500 hover:bg-red-900/10 rounded-lg text-xs transition-colors"><Trash2 size={14}/> Resetar dados</button></div>
       </aside>
       <main className="flex-1 overflow-y-auto h-full p-4 md:p-8 md:ml-64 bg-[#0F0F12]">
         <div className="max-w-6xl mx-auto h-full">
