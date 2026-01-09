@@ -742,5 +742,5 @@ const AppLayout = () => {
   );
 };
 
-const App = () => ( <FocusProvider><AppLayout /><style>{`.custom-scrollbar::-webkit-scrollbar{width:6px}.custom-scrollbar::-webkit-scrollbar-thumb{background-color:#222;border-radius:20px}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fadeIn{animation:fadeIn 0.4s ease-out forwards}::selection{background-color:#fff;color:#fff}`}</style></FocusProvider> );
+const App = () => ( <FocusProvider><AppLayout /><style>{`.custom-scrollbar::-webkit-scrollbar{width:6px}.custom-scrollbar::-webkit-scrollbar-thumb{background-color:#222;border-radius:20px}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fadeIn{animation:fadeIn 0.4s ease-out forwards}::selection{background-color:#fff;color:#000000}`}</style></FocusProvider> );
 export default App;
