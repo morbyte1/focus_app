@@ -722,7 +722,7 @@ const AppLayout = () => {
   const rankStyle = getRankStyle(userLevel.level);
 
   return (
-    <div className="flex h-screen bg-[#000000] text-zinc-300 font-sans overflow-hidden">
+    <div className="flex h-screen bg-[#000000] text-zinc-300 font-sans font-medium overflow-hidden">
       <button className="md:hidden fixed top-4 right-4 z-50 p-2 bg-[#09090b] border border-zinc-800 rounded-2xl" onClick={()=>setMenu(!menu)}>{menu?<X/>:<Menu/>}</button>
       {menu&&<div className="fixed inset-0 bg-black/90 z-40 md:hidden" onClick={()=>setMenu(false)}/>}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000000] border-r border-zinc-900 flex flex-col transition-transform duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'}`}>
@@ -742,5 +742,5 @@ const AppLayout = () => {
   );
 };
 
-const App = () => ( <FocusProvider><AppLayout /><style>{`.custom-scrollbar::-webkit-scrollbar{width:6px}.custom-scrollbar::-webkit-scrollbar-thumb{background-color:#222;border-radius:20px}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fadeIn{animation:fadeIn 0.4s ease-out forwards}::selection{background-color:#1100ab;color:#fff}`}</style></FocusProvider> );
+const App = () => ( <FocusProvider><AppLayout /><style>{`.custom-scrollbar::-webkit-scrollbar{width:6px}.custom-scrollbar::-webkit-scrollbar-thumb{background-color:#222;border-radius:20px}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fadeIn{animation:fadeIn 0.4s ease-out forwards}::selection{background-color:#fff;color:#fff}`}</style></FocusProvider> );
 export default App;
