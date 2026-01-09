@@ -6,9 +6,9 @@ import {
   History, ArrowLeft, Calendar, AlertTriangle, Infinity as InfinityIcon, List, 
   CheckSquare, Download, Upload, ChevronDown, ChevronRight, ChevronLeft, Brain, Flag,
   FileText, Activity, Percent, Trophy, Star, Crown, Award, HardDrive,
-  Sprout, Feather, Compass, Shield, Scroll, Layers, PieChart as PieChartIcon
+  Sprout, Feather, Compass, Shield, Scroll, Layers, PieChart as PieChartIcon, 
+  TrendingUp, TrendingDown, Check
 } from 'lucide-react';
-// IMPORTAÇÃO CORRIGIDA: Adicionei PieChart, Pie, Legend que faltavam
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
 
@@ -581,12 +581,16 @@ const FocusView = () => {
   const [manualMinutes, setManualMinutes] = useState("");
   const [manualNotes, setManualNotes] = useState("");
   const [manualSubId, setManualSubId] = useState("");
+  // NOVOS ESTADOS PARA MODAL MANUAL
+  const [manualQuestions, setManualQuestions] = useState("");
+  const [manualErrors, setManualErrors] = useState("");
 
   const handleManualSubmit = (e) => {
     e.preventDefault();
     if (!manualMinutes || !manualSubId) return alert("Preencha o tempo e a matéria.");
-    addSession(parseInt(manualMinutes), manualNotes, manualSubId, 0, 0);
-    setManualMinutes(""); setManualNotes(""); setIsManualOpen(false);
+    // AGORA PASSA QUESTÕES E ERROS
+    addSession(parseInt(manualMinutes), manualNotes, manualSubId, parseInt(manualQuestions) || 0, parseInt(manualErrors) || 0);
+    setManualMinutes(""); setManualNotes(""); setManualQuestions(""); setManualErrors(""); setIsManualOpen(false);
     alert("Estudo registrado manualmente!");
   };
 
@@ -667,6 +671,13 @@ const FocusView = () => {
           <div className="space-y-2"><label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Matéria</label><select required className="w-full bg-black border border-zinc-800 rounded-2xl p-3 text-white outline-none focus:border-[#1100ab] transition-colors" value={manualSubId} onChange={e => setManualSubId(e.target.value)}>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
           <div className="space-y-2"><label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Tempo (minutos)</label><input required type="number" min="1" placeholder="Ex: 60" className="w-full bg-black border border-zinc-800 rounded-2xl p-3 text-white outline-none focus:border-[#1100ab] transition-colors" value={manualMinutes} onChange={e => setManualMinutes(e.target.value)}/></div>
           <div className="space-y-2"><label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Diário da Sessão</label><textarea className="w-full bg-black border border-zinc-800 rounded-2xl p-3 text-white h-28 outline-none focus:border-[#1100ab] transition-colors resize-none text-sm" placeholder="Resumo..." value={manualNotes} onChange={e => setManualNotes(e.target.value)}/></div>
+          
+          {/* NOVOS CAMPOS PARA QUESTÕES E ERROS NO MANUAL */}
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Questões Feitas</label><input type="number" min="0" className="w-full bg-black border border-zinc-800 rounded-2xl p-3 text-white outline-none focus:border-blue-500 transition-colors" value={manualQuestions} onChange={e => setManualQuestions(e.target.value)}/></div>
+            <div><label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Questões Erradas</label><input type="number" min="0" className="w-full bg-black border border-zinc-800 rounded-2xl p-3 text-white outline-none focus:border-red-500 transition-colors" value={manualErrors} onChange={e => setManualErrors(e.target.value)}/></div>
+          </div>
+
           <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-[#1100ab]/20">Confirmar Registro</Button>
         </form>
       </Modal>
@@ -832,21 +843,21 @@ const GoalsView = () => {
 };
 
 const StatsView = () => {
-  const { sessions, subjects, mistakes, themes } = useContext(FocusContext);
+  const { sessions, subjects, mistakes, themes, advancedStats } = useContext(FocusContext);
+  const { monthlyData } = advancedStats;
 
   // 1. Cálculos de KPI (Dados brutos)
   const totalQuestions = useMemo(() => sessions.reduce((acc, s) => acc + (s.questions || 0), 0), [sessions]);
   const totalErrors = useMemo(() => sessions.reduce((acc, s) => acc + (s.errors || 0), 0), [sessions]);
   const totalTime = useMemo(() => (sessions.reduce((acc, s) => acc + s.minutes, 0) / 60).toFixed(1), [sessions]);
   
-  // Taxa de acerto global (evitar divisão por zero)
   const accuracy = useMemo(() => {
     return totalQuestions > 0 ? Math.round(((totalQuestions - totalErrors) / totalQuestions) * 100) : 0;
   }, [totalQuestions, totalErrors]);
 
   const completedTopics = useMemo(() => themes.reduce((acc, t) => acc + t.items.filter(i => i.completed).length, 0), [themes]);
 
-  // 2. Gráfico 1: Volume e Erros por Matéria
+  // 2. Gráfico 1: Volume e Erros por Matéria (Para Barras)
   const performanceData = useMemo(() => {
     return subjects.map(sub => {
       const subSessions = sessions.filter(s => s.subjectId === sub.id);
@@ -856,9 +867,10 @@ const StatsView = () => {
         name: sub.name,
         Questões: questions,
         Erros: errors,
-        Acerto: questions > 0 ? Math.round(((questions - errors) / questions) * 100) : 0
+        Acerto: questions > 0 ? Math.round(((questions - errors) / questions) * 100) : 0,
+        color: sub.color
       };
-    }).filter(d => d.Questões > 0); // Mostra só quem tem dados
+    }).filter(d => d.Questões > 0);
   }, [subjects, sessions]);
 
   // 3. Gráfico 2: Motivos de Erro
@@ -870,8 +882,8 @@ const StatsView = () => {
     return Object.keys(counts).map(k => ({ name: k, quantidade: counts[k] }));
   }, [mistakes]);
 
-  // 4. Gráfico 3: Pizza de Temas Concluídos
-  const themesData = useMemo(() => {
+  // 4. Gráfico 3: Pizza de Tópicos Finalizados (Matérias com mais tópicos feitos)
+  const completedTopicsData = useMemo(() => {
     return subjects.map(sub => {
       const subThemes = themes.filter(t => t.subjectId === sub.id);
       const completed = subThemes.reduce((acc, t) => acc + t.items.filter(i => i.completed).length, 0);
@@ -879,16 +891,52 @@ const StatsView = () => {
     }).filter(d => d.value > 0);
   }, [subjects, themes]);
 
-  // 5. Gráfico 4: Rosca de Tempo de Estudo (NOVO)
-  const timeData = useMemo(() => {
+  // 5. Gráfico 4: Pizza de Questões Erradas (Por Matéria) - NOVO
+  const wrongQuestionsData = useMemo(() => {
     return subjects.map(sub => {
         const subSessions = sessions.filter(s => s.subjectId === sub.id);
-        const mins = subSessions.reduce((acc, s) => acc + s.minutes, 0);
-        return { name: sub.name, value: mins, color: sub.color };
+        const errs = subSessions.reduce((acc, s) => acc + (s.errors || 0), 0);
+        return { name: sub.name, value: errs, color: sub.color };
     }).filter(d => d.value > 0);
   }, [subjects, sessions]);
 
-  // 6. Heatmap (Mantido)
+  // 6. Dados para Painel de Destaques (Super Panel)
+  const highlights = useMemo(() => {
+    if (subjects.length === 0) return null;
+    
+    // Preparar dados agregados
+    const agg = subjects.map(sub => {
+        const subSessions = sessions.filter(s => s.subjectId === sub.id);
+        const subThemes = themes.filter(t => t.subjectId === sub.id);
+        
+        const minutes = subSessions.reduce((a, c) => a + c.minutes, 0);
+        const questions = subSessions.reduce((a, c) => a + (c.questions || 0), 0);
+        const errors = subSessions.reduce((a, c) => a + (c.errors || 0), 0);
+        const correct = questions - errors;
+        const topics = subThemes.reduce((a, t) => a + t.items.filter(i => i.completed).length, 0);
+        
+        return { name: sub.name, minutes, questions, errors, correct, topics, color: sub.color };
+    });
+
+    // Ordenações
+    const byTime = [...agg].sort((a,b) => b.minutes - a.minutes);
+    const byTopics = [...agg].sort((a,b) => b.topics - a.topics);
+    const byQuestions = [...agg].sort((a,b) => b.questions - a.questions);
+    const byErrors = [...agg].sort((a,b) => b.errors - a.errors);
+    const byCorrect = [...agg].sort((a,b) => b.correct - a.correct);
+
+    return {
+        mostStudied: byTime[0],
+        leastStudied: byTime[byTime.length - 1],
+        mostTopics: byTopics[0],
+        leastTopics: byTopics[byTopics.length - 1],
+        mostQuestions: byQuestions[0],
+        mostErrors: byErrors[0],
+        mostCorrect: byCorrect[0]
+    };
+  }, [subjects, sessions, themes]);
+
+  // 7. Heatmap (Mantido)
   const heatmapData = useMemo(() => { const today = new Date(); const currentYear = today.getFullYear(); const startOfYear = new Date(currentYear, 0, 1); const days = []; for (let d = new Date(startOfYear); d <= today; d.setDate(d.getDate() + 1)) { const dateStr = d.toDateString(); const hasStudy = sessions.some(s => new Date(s.date).toDateString() === dateStr); days.push({ date: new Date(d), hasStudy }); } return days; }, [sessions]);
 
   return (
@@ -915,6 +963,59 @@ const StatsView = () => {
         </Card>
       </div>
 
+      {/* PAINEL DE DESTAQUES (NOVO) */}
+      <Card>
+        <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><Trophy size={18} className="text-yellow-500"/> Destaques de Performance</h3>
+        {highlights ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
+                <div className="space-y-3">
+                    <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
+                        <p className="text-xs text-zinc-500 uppercase font-bold flex items-center gap-1"><Clock size={12}/> Mais Estudada</p>
+                        <p className="text-white font-bold truncate">{highlights.mostStudied.name}</p>
+                        <p className="text-xs text-[#1100ab]">{Math.round(highlights.mostStudied.minutes/60)}h</p>
+                    </div>
+                    <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
+                        <p className="text-xs text-zinc-500 uppercase font-bold flex items-center gap-1"><Clock size={12}/> Menos Estudada</p>
+                        <p className="text-white font-bold truncate">{highlights.leastStudied.name}</p>
+                        <p className="text-xs text-zinc-400">{Math.round(highlights.leastStudied.minutes/60)}h</p>
+                    </div>
+                </div>
+                <div className="space-y-3">
+                    <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
+                        <p className="text-xs text-zinc-500 uppercase font-bold flex items-center gap-1"><CheckSquare size={12}/> Mais Tópicos</p>
+                        <p className="text-white font-bold truncate">{highlights.mostTopics.name}</p>
+                        <p className="text-xs text-emerald-500">{highlights.mostTopics.topics} feitos</p>
+                    </div>
+                    <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
+                        <p className="text-xs text-zinc-500 uppercase font-bold flex items-center gap-1"><CheckSquare size={12}/> Menos Tópicos</p>
+                        <p className="text-white font-bold truncate">{highlights.leastTopics.name}</p>
+                        <p className="text-xs text-zinc-400">{highlights.leastTopics.topics} feitos</p>
+                    </div>
+                </div>
+                <div className="space-y-3">
+                    <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
+                        <p className="text-xs text-zinc-500 uppercase font-bold flex items-center gap-1"><Activity size={12}/> Mais Questões</p>
+                        <p className="text-white font-bold truncate">{highlights.mostQuestions.name}</p>
+                        <p className="text-xs text-blue-500">{highlights.mostQuestions.questions} total</p>
+                    </div>
+                    <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800">
+                        <p className="text-xs text-zinc-500 uppercase font-bold flex items-center gap-1"><CheckCircle size={12}/> Mais Acertos</p>
+                        <p className="text-white font-bold truncate">{highlights.mostCorrect.name}</p>
+                        <p className="text-xs text-emerald-500">{highlights.mostCorrect.correct} certas</p>
+                    </div>
+                </div>
+                <div className="space-y-3">
+                    <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800 h-full flex flex-col justify-center">
+                        <p className="text-xs text-zinc-500 uppercase font-bold flex items-center gap-1"><AlertTriangle size={12}/> Mais Erros</p>
+                        <p className="text-white font-bold truncate text-lg mt-1">{highlights.mostErrors.name}</p>
+                        <p className="text-sm text-red-500 font-bold">{highlights.mostErrors.errors} erradas</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">Foque em revisar essa matéria.</p>
+                    </div>
+                </div>
+            </div>
+        ) : <p className="text-zinc-500">Estude mais para gerar destaques.</p>}
+      </Card>
+
       {/* LINHA 2: Gráficos de Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="min-h-[300px]">
@@ -933,35 +1034,30 @@ const StatsView = () => {
         </Card>
 
         <Card className="min-h-[300px]">
-          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Target size={18} className="text-emerald-500"/> Taxa de Acerto (%)</h3>
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Calendar size={18} className="text-blue-500"/> Atividade Mensal</h3>
           <div className="h-[250px] w-full">
             <ResponsiveContainer>
-              <BarChart data={performanceData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false}/>
-                <XAxis type="number" domain={[0, 100]} stroke="#555" tick={{fontSize:10}}/>
-                <YAxis dataKey="name" type="category" stroke="#555" tick={{fontSize:10}} width={80}/>
+              <BarChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/>
+                <XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} interval={2} axisLine={false} tickLine={false}/>
                 <Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/>
-                <Bar dataKey="Acerto" fill="#10b981" radius={[0,4,4,0]} barSize={20}>
-                  {performanceData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.Acerto >= 80 ? '#10b981' : entry.Acerto >= 50 ? '#f59e0b' : '#ef4444'} />
-                  ))}
-                </Bar>
+                <Bar dataKey="minutes" fill="#3b82f6" radius={[2,2,0,0]} name="Minutos" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
       </div>
 
-      {/* LINHA 3: Distribuição e Erros */}
+      {/* LINHA 3: Pizzas de Distribuição */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="min-h-[300px]">
-          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Layers size={18} className="text-purple-500"/> Distribuição de Tópicos</h3>
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Layers size={18} className="text-purple-500"/> Tópicos Finalizados</h3>
           <div className="h-[250px] w-full flex items-center justify-center">
-            {themesData.length > 0 ? (
+            {completedTopicsData.length > 0 ? (
               <ResponsiveContainer>
                 <PieChart>
-                  <Pie data={themesData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {themesData.map((entry, index) => (
+                  <Pie data={completedTopicsData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {completedTopicsData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -974,13 +1070,13 @@ const StatsView = () => {
         </Card>
 
         <Card className="min-h-[300px]">
-          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Clock size={18} className="text-blue-500"/> Tempo de Estudo (Rosca)</h3>
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><AlertTriangle size={18} className="text-red-500"/> Questões Erradas por Matéria</h3>
           <div className="h-[250px] w-full flex items-center justify-center">
-            {timeData.length > 0 ? (
+            {wrongQuestionsData.length > 0 ? (
               <ResponsiveContainer>
                 <PieChart>
-                  <Pie data={timeData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {timeData.map((entry, index) => (
+                  <Pie data={wrongQuestionsData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {wrongQuestionsData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -988,21 +1084,22 @@ const StatsView = () => {
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
-            ) : <p className="text-zinc-500 text-sm">Sem dados de tempo.</p>}
+            ) : <p className="text-zinc-500 text-sm">Sem registros de erros.</p>}
           </div>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
         <Card className="min-h-[300px]">
-          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><AlertTriangle size={18} className="text-orange-500"/> Motivos de Erro</h3>
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><AlertTriangle size={18} className="text-orange-500"/> Ranking de Motivos de Erro</h3>
           <div className="h-[250px] w-full">
              <ResponsiveContainer>
-              <BarChart data={mistakeReasonsData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/>
-                <XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} axisLine={false} tickLine={false}/>
+              <BarChart data={mistakeReasonsData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false}/>
+                <XAxis type="number" stroke="#555" tick={{fontSize:10}}/>
+                <YAxis dataKey="name" type="category" stroke="#555" tick={{fontSize:10}} width={100}/>
                 <Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/>
-                <Bar dataKey="quantidade" fill="#f97316" radius={[4,4,0,0]} />
+                <Bar dataKey="quantidade" fill="#f97316" radius={[0,4,4,0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>
