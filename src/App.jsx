@@ -55,9 +55,8 @@ const TITLES = [
   { level: 1, title: "Novato Curioso" }
 ];
 
-// Configuração Visual dos Ranks (Atualizado para o tema Azul onde apropriado)
 const RANK_STYLES = [
-  { min: 50, icon: Crown, bg: "from-[#1100ab] to-blue-500", color: "text-blue-300" }, // Top Rank agora é Azul Real
+  { min: 50, icon: Crown, bg: "from-[#1100ab] to-blue-500", color: "text-blue-300" },
   { min: 30, icon: Scroll, bg: "from-slate-400 to-gray-200", color: "text-slate-300" },
   { min: 20, icon: Shield, bg: "from-orange-500 to-amber-600", color: "text-amber-400" },
   { min: 10, icon: Compass, bg: "from-blue-500 to-cyan-500", color: "text-cyan-400" },
@@ -272,7 +271,21 @@ const FocusProvider = ({ children }) => {
   const addTheme = (subId, title) => setThemes(prev => [...prev, { id: Date.now(), subjectId: subId, title, items: [] }]);
   const deleteTheme = (id) => { if(window.confirm("Excluir tema?")) setThemes(prev => prev.filter(t => t.id !== id)); };
   const addThemeItem = (themeId, text) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text, completed: false }] } : t));
-  const toggleThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t));
+  
+  // MODIFICADO: Agora dá XP ao concluir um tema
+  const toggleThemeItem = (themeId, itemId) => {
+    setThemes(prev => {
+      // Verificar se vai marcar como completo para dar XP
+      const theme = prev.find(t => t.id === themeId);
+      const item = theme?.items.find(i => i.id === itemId);
+      if (item && !item.completed) {
+         // +20 XP por Tópico Concluído
+         gainXP(20, "Tópico de Estudo Concluído");
+      }
+      return prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t);
+    });
+  };
+
   const deleteThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.filter(i => i.id !== itemId) } : t));
 
   const resetXPOnly = () => {
@@ -663,12 +676,126 @@ const MistakesView = () => {
 
 const GoalsView = () => {
   const { subjects, sessions, addSubject, updateSubject, deleteSubject, themes, addTheme, deleteTheme, addThemeItem, toggleThemeItem, deleteThemeItem } = useContext(FocusContext);
-  const [viewSub, setViewSub] = useState(null); const [col, setCol] = useState({}); const [modal, setModal] = useState(false); const [f, setF] = useState({ name:"", goal:10, color:"#8b5cf6" }); const [edit, setEdit] = useState({ id:null, val:"" }); const [newTheme, setNewTheme] = useState("");
-  const getProgress = (subjId, goalH) => { const safeGoal = Number(goalH) || 1; const now = new Date(); const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0, 0, 0, 0); const weeklyMins = sessions.reduce((acc, s) => { const sDate = new Date(s.date); if (s.subjectId === subjId && sDate >= startOfWeek) { return acc + (Number(s.minutes) || 0); } return acc; }, 0); const percent = Math.round((weeklyMins / (safeGoal * 60)) * 100); return { hours: (weeklyMins / 60).toFixed(1) || "0.0", percent: isNaN(percent) ? 0 : Math.min(100, percent) }; };
-  const addS = (e) => { e.preventDefault(); if(f.name){ addSubject(f.name,f.color,f.goal); setModal(false); setF({name:"",goal:10,color:"#8b5cf6"}); }}; const addT = () => { if(newTheme&&viewSub){ addTheme(viewSub,newTheme); setNewTheme(""); }}; const addI = (e, tId) => { e.preventDefault(); const v=e.target.item.value; if(v){ addThemeItem(tId,v); e.target.reset(); }}; const pasteI = (e, tId) => { const d=e.clipboardData.getData('text'); if(d.includes('\n')){ e.preventDefault(); d.split('\n').map(l=>l.trim()).filter(l=>l).forEach(l=>addThemeItem(tId,l)); }};
+  const [viewSub, setViewSub] = useState(null); 
+  const [col, setCol] = useState({}); 
+  const [modal, setModal] = useState(false); 
+  const [f, setF] = useState({ name:"", goal:60, color:"#8b5cf6" }); // Default 60 min
+  const [edit, setEdit] = useState({ id:null, val:"" }); 
+  const [newTheme, setNewTheme] = useState("");
 
-  if (viewSub) { const s = subjects.find(x => x.id === viewSub); if(!s) return <div onClick={()=>setViewSub(null)}>Erro. Voltar.</div>; return ( <div className="space-y-6 animate-fadeIn pb-24 md:pb-0"><button onClick={()=>setViewSub(null)} className="flex items-center gap-2 text-zinc-400 hover:text-white"><ArrowLeft size={20}/> Voltar</button><header className="flex justify-between items-end border-b border-zinc-800 pb-6"><div><span className="text-xs font-bold uppercase px-2 py-1 rounded text-white mb-2 inline-block" style={{backgroundColor:s.color}}>{s.name}</span><h1 className="text-3xl font-bold text-white">Conteúdo</h1></div><div className="text-right text-2xl font-bold text-white">{s.goalHours}h</div></header><div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex gap-4 items-center"><div className="flex-1"><label className="text-xs text-zinc-500 uppercase font-bold mb-1">Novo Tema</label><input className="w-full bg-black border border-zinc-700 rounded-2xl p-2 text-white" value={newTheme} onChange={e=>setNewTheme(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addT()}/></div><Button onClick={addT}>Adicionar</Button></div><div className="space-y-6">{themes.filter(t=>t.subjectId===s.id).map(t=>{ const p = t.items.length ? Math.round((t.items.filter(i=>i.completed).length/t.items.length)*100) : 0; return ( <Card key={t.id} className="relative group transition-all duration-300"><div className="flex justify-between items-start mb-4"><div className="flex gap-3 w-full"><button onClick={()=>setCol({...col,[t.id]:!col[t.id]})} className="text-zinc-500">{col[t.id]?<ChevronRight/>:<ChevronDown/>}</button><div className="flex-1"><h3 onClick={()=>setCol({...col,[t.id]:!col[t.id]})} className="text-xl font-bold text-white cursor-pointer select-none">{t.title}</h3><div className="flex items-center gap-2 mt-1"><div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-[#1100ab]" style={{width:`${p}%`}}/></div><span className="text-xs text-zinc-500">{p}%</span></div></div></div><button onClick={()=>deleteTheme(t.id)} className="text-zinc-600 hover:text-red-500"><Trash2 size={16}/></button></div>{!col[t.id] && <div className="space-y-2 mb-4 animate-fadeIn pl-8">{(t.items||[]).map(i=><div key={i.id} className="flex gap-3 p-2 hover:bg-zinc-800/50 rounded-2xl group/item"><button onClick={()=>toggleThemeItem(t.id,i.id)} className={`w-5 h-5 rounded border flex items-center justify-center ${i.completed?'bg-[#1100ab] border-[#1100ab]':'border-zinc-600'}`}>{i.completed&&<CheckSquare size={14} className="text-white"/>}</button><span className={`text-sm flex-1 ${i.completed?'text-zinc-500 line-through':'text-zinc-200'}`}>{i.text}</span><button onClick={()=>deleteThemeItem(t.id,i.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-600 hover:text-red-500"><X size={14}/></button></div>)}<form onSubmit={e=>addI(e,t.id)} className="flex gap-2 mt-4 pt-4 border-t border-zinc-800/50"><input name="item" className="flex-1 bg-zinc-900 border border-zinc-700 rounded-2xl px-3 py-1.5 text-sm text-white" placeholder="Tópico (Ctrl+V para lista)..." onPaste={e=>pasteI(e,t.id)}/><button type="submit" className="p-1.5 bg-zinc-800 hover:bg-[#1100ab] text-white rounded"><Plus size={16}/></button></form></div>}</Card> )})}</div></div> ); }
-  return ( <div className="space-y-6 animate-fadeIn pb-24 md:pb-0"><header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-white">Metas Semanais</h1><Button onClick={()=>setModal(true)}><Plus size={18}/> Nova</Button></header><div className="grid grid-cols-1 md:grid-cols-2 gap-6">{subjects.map(s=>{ const {hours, percent} = getProgress(s.id, s.goalHours); return ( <Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-[#1100ab]/50"><div onClick={()=>setViewSub(s.id)}><div className="absolute top-0 left-0 w-full h-1" style={{backgroundColor:s.color}}/><div className="mb-4"><h3 className="text-xl font-bold text-white">{s.name}</h3>{edit.id!==s.id&&<p className="text-sm text-zinc-400">Meta: {s.goalHours}h</p>}</div>{edit.id!==s.id&&(<> <div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-white">{hours}h</span><span className="text-sm font-medium" style={{color:s.color}}>{percent}%</span></div><div className="w-full h-3 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{width:`${percent}%`,backgroundColor:s.color}}/></div></>)}</div><div className="absolute top-4 right-4 flex gap-2">{edit.id===s.id?(<div className="flex gap-2 bg-black/80 p-1 rounded-2xl"><input type="number" className="w-16 bg-black border border-zinc-600 rounded-2xl px-1 text-sm text-white" value={edit.val} onChange={e=>setEdit({...edit,val:e.target.value})} autoFocus/><button onClick={()=>{updateSubject(s.id,edit.val);setEdit({id:null,val:""})}} className="text-green-400 text-xs font-bold">OK</button></div>):(<> <button onClick={e=>{e.stopPropagation();setEdit({id:s.id,val:s.goalHours})}} className="p-2 rounded-2xl bg-[#18181B]"><Settings size={16} className="text-zinc-400"/></button><button onClick={e=>{e.stopPropagation();deleteSubject(s.id)}} className="p-2 rounded-2xl bg-[#18181B]"><Trash2 size={16} className="text-zinc-400 hover:text-red-500"/></button></>)}</div></Card> )})}</div><Modal isOpen={modal} onClose={()=>setModal(false)} title="Nova Matéria"><form onSubmit={addS} className="space-y-4"><div><label className="text-sm text-zinc-400">Nome</label><input required className="w-full bg-black border border-zinc-700 rounded-2xl p-2 text-white" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/></div><div><label className="text-sm text-zinc-400">Meta (h)</label><input required type="number" className="w-full bg-black border border-zinc-700 rounded-2xl p-2 text-white" value={f.goal} onChange={e=>setF({...f,goal:e.target.value})}/></div><div><label className="text-sm text-zinc-400">Cor</label><div className="flex gap-2 mt-2">{['#8b5cf6','#10b981','#f59e0b','#ec4899','#3b82f6','#ef4444'].map(c=><div key={c} onClick={()=>setF({...f,color:c})} className={`w-8 h-8 rounded-full cursor-pointer border-2 ${f.color===c?'border-white':'border-transparent'}`} style={{backgroundColor:c}}/>)}</div></div><Button type="submit" className="w-full mt-4">Criar</Button></form></Modal></div> );
+  const getProgress = (subjId, goalH) => { 
+    const safeGoal = Number(goalH) || 1; 
+    const now = new Date(); 
+    const startOfWeek = new Date(now); 
+    startOfWeek.setDate(now.getDate() - now.getDay()); 
+    startOfWeek.setHours(0, 0, 0, 0); 
+    const weeklyMins = sessions.reduce((acc, s) => { 
+      const sDate = new Date(s.date); 
+      if (s.subjectId === subjId && sDate >= startOfWeek) { return acc + (Number(s.minutes) || 0); } 
+      return acc; 
+    }, 0); 
+    const percent = Math.round((weeklyMins / (safeGoal * 60)) * 100); 
+    return { hours: (weeklyMins / 60).toFixed(1) || "0.0", percent: isNaN(percent) ? 0 : Math.min(100, percent) }; 
+  };
+
+  const addS = (e) => { 
+    e.preventDefault(); 
+    if(f.name){ 
+      // CONVERTE MINUTOS PARA HORAS AO SALVAR
+      addSubject(f.name, f.color, f.goal / 60); 
+      setModal(false); 
+      setF({name:"",goal:60,color:"#8b5cf6"}); 
+    }
+  }; 
+  const addT = () => { if(newTheme&&viewSub){ addTheme(viewSub,newTheme); setNewTheme(""); }}; 
+  const addI = (e, tId) => { e.preventDefault(); const v=e.target.item.value; if(v){ addThemeItem(tId,v); e.target.reset(); }}; 
+  const pasteI = (e, tId) => { const d=e.clipboardData.getData('text'); if(d.includes('\n')){ e.preventDefault(); d.split('\n').map(l=>l.trim()).filter(l=>l).forEach(l=>addThemeItem(tId,l)); }};
+
+  if (viewSub) { 
+    const s = subjects.find(x => x.id === viewSub); 
+    if(!s) return <div onClick={()=>setViewSub(null)}>Erro. Voltar.</div>; 
+    
+    // CÁLCULO DE PROGRESSO DA MATÉRIA
+    const subjectThemes = themes.filter(t => t.subjectId === s.id);
+    const totalItems = subjectThemes.reduce((acc, t) => acc + t.items.length, 0);
+    const completedItems = subjectThemes.reduce((acc, t) => acc + t.items.filter(i => i.completed).length, 0);
+    const totalPercent = totalItems ? Math.round((completedItems / totalItems) * 100) : 0;
+
+    return ( 
+      <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
+        <button onClick={()=>setViewSub(null)} className="flex items-center gap-2 text-zinc-400 hover:text-white"><ArrowLeft size={20}/> Voltar</button>
+        
+        {/* HEADER DA MATÉRIA COM PROGRESSO GERAL */}
+        <header className="flex justify-between items-end border-b border-zinc-800 pb-6">
+          <div>
+            <span className="text-xs font-bold uppercase px-2 py-1 rounded text-white mb-2 inline-block" style={{backgroundColor:s.color}}>{s.name}</span>
+            <h1 className="text-3xl font-bold text-white">Conteúdo</h1>
+            <div className="flex items-center gap-4 mt-2">
+               <div className="flex items-center gap-2 text-zinc-400 text-sm">
+                 <CheckSquare size={16} className="text-[#1100ab]" />
+                 <span>{completedItems} / {totalItems} Tópicos</span>
+               </div>
+               <div className="flex items-center gap-2 text-zinc-400 text-sm">
+                 <Percent size={16} className="text-[#1100ab]" />
+                 <span>{totalPercent}% Concluído</span>
+               </div>
+            </div>
+          </div>
+          <div className="text-right text-2xl font-bold text-white">{s.goalHours}h <span className="text-xs text-zinc-500 block font-normal">Meta Semanal</span></div>
+        </header>
+
+        <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex gap-4 items-center">
+          <div className="flex-1"><label className="text-xs text-zinc-500 uppercase font-bold mb-1">Novo Tema</label><input className="w-full bg-black border border-zinc-700 rounded-2xl p-2 text-white" value={newTheme} onChange={e=>setNewTheme(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addT()}/></div>
+          <Button onClick={addT}>Adicionar</Button>
+        </div>
+        
+        <div className="space-y-6">
+          {subjectThemes.map(t=>{ 
+            const p = t.items.length ? Math.round((t.items.filter(i=>i.completed).length/t.items.length)*100) : 0; 
+            return ( 
+              <Card key={t.id} className="relative group transition-all duration-300">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex gap-3 w-full">
+                    <button onClick={()=>setCol({...col,[t.id]:!col[t.id]})} className="text-zinc-500">{col[t.id]?<ChevronRight/>:<ChevronDown/>}</button>
+                    <div className="flex-1">
+                      <h3 onClick={()=>setCol({...col,[t.id]:!col[t.id]})} className="text-xl font-bold text-white cursor-pointer select-none">{t.title}</h3>
+                      <div className="flex items-center gap-2 mt-1"><div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-[#1100ab]" style={{width:`${p}%`}}/></div><span className="text-xs text-zinc-500">{p}%</span></div>
+                    </div>
+                  </div>
+                  <button onClick={()=>deleteTheme(t.id)} className="text-zinc-600 hover:text-red-500"><Trash2 size={16}/></button>
+                </div>
+                {!col[t.id] && <div className="space-y-2 mb-4 animate-fadeIn pl-8">
+                  {(t.items||[]).map(i=><div key={i.id} className="flex gap-3 p-2 hover:bg-zinc-800/50 rounded-2xl group/item">
+                    <button onClick={()=>toggleThemeItem(t.id,i.id)} className={`w-5 h-5 rounded border flex items-center justify-center ${i.completed?'bg-[#1100ab] border-[#1100ab]':'border-zinc-600'}`}>{i.completed&&<CheckSquare size={14} className="text-white"/>}</button>
+                    <span className={`text-sm flex-1 ${i.completed?'text-zinc-500 line-through':'text-zinc-200'}`}>{i.text}</span>
+                    <button onClick={()=>deleteThemeItem(t.id,i.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-600 hover:text-red-500"><X size={14}/></button>
+                  </div>)}
+                  <form onSubmit={e=>addI(e,t.id)} className="flex gap-2 mt-4 pt-4 border-t border-zinc-800/50"><input name="item" className="flex-1 bg-zinc-900 border border-zinc-700 rounded-2xl px-3 py-1.5 text-sm text-white" placeholder="Tópico (Ctrl+V para lista)..." onPaste={e=>pasteI(e,t.id)}/><button type="submit" className="p-1.5 bg-zinc-800 hover:bg-[#1100ab] text-white rounded"><Plus size={16}/></button></form>
+                </div>}
+              </Card> 
+            )
+          })}
+        </div>
+      </div> 
+    ); 
+  }
+  
+  return ( 
+    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
+      <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-white">Metas Semanais</h1><Button onClick={()=>setModal(true)}><Plus size={18}/> Nova</Button></header>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{subjects.map(s=>{ const {hours, percent} = getProgress(s.id, s.goalHours); return ( <Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-[#1100ab]/50"><div onClick={()=>setViewSub(s.id)}><div className="absolute top-0 left-0 w-full h-1" style={{backgroundColor:s.color}}/><div className="mb-4"><h3 className="text-xl font-bold text-white">{s.name}</h3>{edit.id!==s.id&&<p className="text-sm text-zinc-400">Meta: {s.goalHours}h</p>}</div>{edit.id!==s.id&&(<> <div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-white">{hours}h</span><span className="text-sm font-medium" style={{color:s.color}}>{percent}%</span></div><div className="w-full h-3 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{width:`${percent}%`,backgroundColor:s.color}}/></div></>)}</div><div className="absolute top-4 right-4 flex gap-2">{edit.id===s.id?(<div className="flex gap-2 bg-black/80 p-1 rounded-2xl"><input type="number" className="w-16 bg-black border border-zinc-600 rounded-2xl px-1 text-sm text-white" value={edit.val} onChange={e=>setEdit({...edit,val:e.target.value})} autoFocus/><button onClick={()=>{updateSubject(s.id, edit.val / 60); setEdit({id:null,val:""})}} className="text-green-400 text-xs font-bold">OK</button></div>):(<> <button onClick={e=>{e.stopPropagation();setEdit({id:s.id,val: Math.round(s.goalHours * 60)})}} className="p-2 rounded-2xl bg-[#18181B]"><Settings size={16} className="text-zinc-400"/></button><button onClick={e=>{e.stopPropagation();deleteSubject(s.id)}} className="p-2 rounded-2xl bg-[#18181B]"><Trash2 size={16} className="text-zinc-400 hover:text-red-500"/></button></>)}</div></Card> )})}</div>
+      
+      {/* MODAL EDITADO: AGORA PEDE MINUTOS */}
+      <Modal isOpen={modal} onClose={()=>setModal(false)} title="Nova Matéria">
+        <form onSubmit={addS} className="space-y-4">
+          <div><label className="text-sm text-zinc-400">Nome</label><input required className="w-full bg-black border border-zinc-700 rounded-2xl p-2 text-white" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/></div>
+          <div><label className="text-sm text-zinc-400">Meta Semanal (minutos)</label><input required type="number" className="w-full bg-black border border-zinc-700 rounded-2xl p-2 text-white" value={f.goal} onChange={e=>setF({...f,goal:e.target.value})}/></div>
+          <div><label className="text-sm text-zinc-400">Cor</label><div className="flex gap-2 mt-2">{['#8b5cf6','#10b981','#f59e0b','#ec4899','#3b82f6','#ef4444'].map(c=><div key={c} onClick={()=>setF({...f,color:c})} className={`w-8 h-8 rounded-full cursor-pointer border-2 ${f.color===c?'border-white':'border-transparent'}`} style={{backgroundColor:c}}/>)}</div></div>
+          <Button type="submit" className="w-full mt-4">Criar</Button>
+        </form>
+      </Modal>
+    </div> 
+  );
 };
 
 const StatsView = () => {
