@@ -4,12 +4,73 @@ import {
   LayoutDashboard, Zap, Target, BarChart2, Play, Pause, Coffee, RotateCcw, 
   CheckCircle, Plus, Clock, Flame, Settings, BookOpen, Quote, Trash2, Menu, X, 
   History, ArrowLeft, Calendar, AlertTriangle, Infinity as InfinityIcon, List, 
-  CheckSquare, Download, Upload, ChevronDown, ChevronRight, Brain, Flag,
+  CheckSquare, Download, Upload, ChevronDown, ChevronRight, ChevronLeft, Brain, Flag, // Adicionado ChevronLeft
   FileText, Activity, Percent, Trophy, Star, Crown, Award, HardDrive,
   Sprout, Feather, Compass, Shield, Scroll
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
+
+/**
+ * --- COMPONENTE MATH RENDERER (LATEX) ---
+ * Carrega o KaTeX via CDN para ser leve e não exigir instalação.
+ */
+const MathRenderer = ({ text, className = "" }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    // Carregar CSS do KaTeX
+    if (!document.getElementById('katex-css')) {
+      const link = document.createElement('link');
+      link.id = 'katex-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
+      document.head.appendChild(link);
+    }
+
+    // Carregar JS do KaTeX
+    if (!window.katex && !document.getElementById('katex-js')) {
+      const script = document.createElement('script');
+      script.id = 'katex-js';
+      script.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';
+      script.onload = () => renderMath();
+      document.head.appendChild(script);
+    } else if (window.katex) {
+      renderMath();
+    }
+  }, [text]);
+
+  const renderMath = () => {
+    if (containerRef.current && window.katex) {
+      // Configuração simples: Procura por delimitadores $...$ ou $$...$$
+      // Para evitar complexidade, vamos fazer um render manual simples ou usar auto-render se disponível.
+      // Aqui faremos uma renderização segura dividindo o texto.
+      
+      const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
+      
+      // Limpa o container
+      containerRef.current.innerHTML = '';
+
+      parts.forEach(part => {
+        const span = document.createElement('span');
+        if (part.startsWith('$$') && part.endsWith('$$')) {
+          try {
+            window.katex.render(part.slice(2, -2), span, { displayMode: true, throwOnError: false });
+          } catch (e) { span.innerText = part; }
+        } else if (part.startsWith('$') && part.endsWith('$')) {
+          try {
+            window.katex.render(part.slice(1, -1), span, { displayMode: false, throwOnError: false });
+          } catch (e) { span.innerText = part; }
+        } else {
+          span.innerText = part;
+        }
+        containerRef.current.appendChild(span);
+      });
+    }
+  };
+
+  return <div ref={containerRef} className={className} />;
+};
 
 /**
  * --- CONFIGURAÇÕES ---
@@ -272,14 +333,11 @@ const FocusProvider = ({ children }) => {
   const deleteTheme = (id) => { if(window.confirm("Excluir tema?")) setThemes(prev => prev.filter(t => t.id !== id)); };
   const addThemeItem = (themeId, text) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text, completed: false }] } : t));
   
-  // MODIFICADO: Agora dá XP ao concluir um tema
   const toggleThemeItem = (themeId, itemId) => {
     setThemes(prev => {
-      // Verificar se vai marcar como completo para dar XP
       const theme = prev.find(t => t.id === themeId);
       const item = theme?.items.find(i => i.id === itemId);
       if (item && !item.completed) {
-         // +20 XP por Tópico Concluído
          gainXP(20, "Tópico de Estudo Concluído");
       }
       return prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t);
@@ -373,14 +431,12 @@ const FocusProvider = ({ children }) => {
 /**
  * --- COMPONENTES UI (Visuais Atualizados) ---
  */
-// Card agora é #09090b (Preto suave) e rounded-3xl
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-[#09090b] border border-white/5 rounded-3xl shadow-lg p-6 ${className}`}>
     {children}
   </div>
 );
 
-// Botões agora usam a cor #1100ab e são mais arredondados (rounded-2xl)
 const Button = ({ children, onClick, variant = 'primary', className = "" }) => {
   const variants = {
     primary: "bg-[#1100ab] hover:bg-[#0c007a] text-white shadow-[#1100ab]/30 shadow-md",
@@ -662,12 +718,12 @@ const MistakesView = () => {
           <form onSubmit={sub} className="space-y-4">
             <div><label className="text-xs text-zinc-500 font-bold uppercase">Matéria</label><select required className="w-full mt-1 bg-black border border-zinc-700 rounded-2xl p-2.5 text-white" value={f.sub} onChange={e=>setF({...f,sub:e.target.value})}><option value="">Selecione...</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
             <div><label className="text-xs text-zinc-500 font-bold uppercase">Motivo</label><div className="flex flex-wrap gap-2 mt-2">{["Falta de Atenção","Esqueci Fórmula","Erro Cálculo","Conceito","Tempo"].map(r=><button key={r} type="button" onClick={()=>setF({...f,r})} className={`text-xs px-3 py-1.5 rounded-full border ${f.r===r?'bg-[#1100ab] border-[#1100ab] text-white':'border-zinc-700 text-zinc-400'}`}>{r}</button>)}</div></div>
-            <div><label className="text-xs text-zinc-500 font-bold uppercase">Erro</label><textarea required className="w-full mt-1 bg-black border border-zinc-700 rounded-2xl p-3 text-sm text-white h-20" value={f.desc} onChange={e=>setF({...f,desc:e.target.value})}/></div>
-            <div><label className="text-xs text-zinc-500 font-bold uppercase">Solução</label><textarea required className="w-full mt-1 bg-black border border-zinc-700 rounded-2xl p-3 text-sm text-white h-24" value={f.sol} onChange={e=>setF({...f,sol:e.target.value})}/></div>
+            <div><label className="text-xs text-zinc-500 font-bold uppercase">Erro (LaTeX suportado: $x^2$)</label><textarea required className="w-full mt-1 bg-black border border-zinc-700 rounded-2xl p-3 text-sm text-white h-20" value={f.desc} onChange={e=>setF({...f,desc:e.target.value})}/></div>
+            <div><label className="text-xs text-zinc-500 font-bold uppercase">Solução (LaTeX suportado)</label><textarea required className="w-full mt-1 bg-black border border-zinc-700 rounded-2xl p-3 text-sm text-white h-24" value={f.sol} onChange={e=>setF({...f,sol:e.target.value})}/></div>
             <Button type="submit" className="w-full">Salvar</Button>
           </form>
         </Card>
-        <div className="lg:col-span-2 space-y-4">{mistakes.length === 0 ? (<div className="text-center py-10 opacity-50"><CheckCircle size={40} className="mx-auto mb-2"/><p>Vazio.</p></div>) : (mistakes.map(m => (<div key={m.id} className={`border rounded-3xl p-5 relative group transition-all duration-300 ${m.consolidated ? 'bg-zinc-900/50 border-zinc-800 opacity-75' : 'bg-[#09090b] border-zinc-800 hover:border-zinc-700'}`}>{m.consolidated && (<div className="absolute top-4 right-12 bg-green-500/10 text-green-500 text-[10px] font-bold px-2 py-1 rounded border border-green-500/20 flex items-center gap-1 select-none"><CheckCircle size={10} /> ERRO APRENDIDO</div>)}<div className="absolute top-4 right-4 flex gap-2">{!m.consolidated && (<button onClick={() => openConsolidation(m)} title="Marcar como aprendido" className="text-zinc-600 hover:text-green-500 opacity-0 group-hover:opacity-100 transition-opacity"><CheckCircle size={18}/></button>)}<button onClick={() => deleteMistake(m.id)} className="text-zinc-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button></div><div className="flex items-center gap-3 mb-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase text-white" style={{backgroundColor: subjects.find(s => s.id === m.subjectId)?.color}}>{subjects.find(s => s.id === m.subjectId)?.name}</span><span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">{m.reason}</span></div><div className="grid md:grid-cols-2 gap-6"><div className="space-y-1"><p className="text-xs text-red-400 font-bold uppercase">Erro</p><p className="text-zinc-300 text-sm">{m.description}</p></div><div className="space-y-1 md:border-l md:border-zinc-800 md:pl-6"><p className="text-xs text-green-400 font-bold uppercase">Solução</p><p className="text-zinc-300 text-sm">{m.solution}</p></div></div>{m.consolidated && (<div className="mt-4 pt-4 border-t border-zinc-800/50"><button onClick={() => toggleExpand(m.id)} className="text-xs text-[#4d4dff] hover:text-white flex items-center gap-1 transition-colors">{expandedIds.includes(m.id) ? 'Ocultar reflexão' : 'Ver minha reflexão'} <ChevronDown size={14} className={`transition-transform ${expandedIds.includes(m.id) ? 'rotate-180' : ''}`}/></button>{expandedIds.includes(m.id) && (<div className="mt-3 grid md:grid-cols-2 gap-4 animate-fadeIn"><div className="bg-black/50 p-3 rounded-2xl border border-zinc-800"><p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Diagnóstico</p><p className="text-xs text-zinc-300 italic">"{m.diagnosis}"</p></div><div className="bg-black/50 p-3 rounded-2xl border border-zinc-800"><p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Estratégia</p><p className="text-xs text-zinc-300 italic">"{m.strategy}"</p></div></div>)}</div>)}</div>)))}</div>
+        <div className="lg:col-span-2 space-y-4">{mistakes.length === 0 ? (<div className="text-center py-10 opacity-50"><CheckCircle size={40} className="mx-auto mb-2"/><p>Vazio.</p></div>) : (mistakes.map(m => (<div key={m.id} className={`border rounded-3xl p-5 relative group transition-all duration-300 ${m.consolidated ? 'bg-zinc-900/50 border-zinc-800 opacity-75' : 'bg-[#09090b] border-zinc-800 hover:border-zinc-700'}`}>{m.consolidated && (<div className="absolute top-4 right-12 bg-green-500/10 text-green-500 text-[10px] font-bold px-2 py-1 rounded border border-green-500/20 flex items-center gap-1 select-none"><CheckCircle size={10} /> ERRO APRENDIDO</div>)}<div className="absolute top-4 right-4 flex gap-2">{!m.consolidated && (<button onClick={() => openConsolidation(m)} title="Marcar como aprendido" className="text-zinc-600 hover:text-green-500 opacity-0 group-hover:opacity-100 transition-opacity"><CheckCircle size={18}/></button>)}<button onClick={() => deleteMistake(m.id)} className="text-zinc-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18}/></button></div><div className="flex items-center gap-3 mb-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase text-white" style={{backgroundColor: subjects.find(s => s.id === m.subjectId)?.color}}>{subjects.find(s => s.id === m.subjectId)?.name}</span><span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">{m.reason}</span></div><div className="grid md:grid-cols-2 gap-6"><div className="space-y-1"><p className="text-xs text-red-400 font-bold uppercase">Erro</p><MathRenderer className="text-zinc-300 text-sm" text={m.description}/></div><div className="space-y-1 md:border-l md:border-zinc-800 md:pl-6"><p className="text-xs text-green-400 font-bold uppercase">Solução</p><MathRenderer className="text-zinc-300 text-sm" text={m.solution}/></div></div>{m.consolidated && (<div className="mt-4 pt-4 border-t border-zinc-800/50"><button onClick={() => toggleExpand(m.id)} className="text-xs text-[#4d4dff] hover:text-white flex items-center gap-1 transition-colors">{expandedIds.includes(m.id) ? 'Ocultar reflexão' : 'Ver minha reflexão'} <ChevronDown size={14} className={`transition-transform ${expandedIds.includes(m.id) ? 'rotate-180' : ''}`}/></button>{expandedIds.includes(m.id) && (<div className="mt-3 grid md:grid-cols-2 gap-4 animate-fadeIn"><div className="bg-black/50 p-3 rounded-2xl border border-zinc-800"><p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Diagnóstico</p><p className="text-xs text-zinc-300 italic">"{m.diagnosis}"</p></div><div className="bg-black/50 p-3 rounded-2xl border border-zinc-800"><p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Estratégia</p><p className="text-xs text-zinc-300 italic">"{m.strategy}"</p></div></div>)}</div>)}</div>)))}</div>
       </div>
       <Modal isOpen={consModal.isOpen} onClose={() => setConsModal({...consModal, isOpen: false})} title="Você realmente aprendeu?"><form onSubmit={handleConsolidate} className="space-y-4"><div className="bg-zinc-900/50 p-3 rounded-2xl border border-zinc-800 mb-4"><p className="text-xs text-zinc-500 font-bold uppercase mb-1">Erro original</p><p className="text-sm text-zinc-300 line-clamp-2">{consModal.mDesc}</p></div><div><label className="text-xs text-[#4d4dff] font-bold uppercase">Diagnóstico</label><p className="text-[10px] text-zinc-500 mb-2">Por que eu errei antes? (Ex: Falta de atenção, pegadinha)</p><textarea required className="w-full bg-black border border-zinc-700 rounded-2xl p-3 text-sm text-white h-20 outline-none focus:border-[#1100ab] transition-colors" value={consForm.diag} onChange={e => setConsForm({...consForm, diag: e.target.value})}/></div><div><label className="text-xs text-green-400 font-bold uppercase">Estratégia</label><p className="text-[10px] text-zinc-500 mb-2">Como não vou errar mais? (Ex: Mnemônico, regra)</p><textarea required className="w-full bg-black border border-zinc-700 rounded-2xl p-3 text-sm text-white h-20 outline-none focus:border-green-500 transition-colors" value={consForm.strat} onChange={e => setConsForm({...consForm, strat: e.target.value})}/></div><Button type="submit" className="w-full mt-2">Confirmar Aprendizado</Button></form></Modal>
     </div>
@@ -808,7 +864,7 @@ const StatsView = () => {
       <h1 className="text-2xl font-bold text-white mb-6">Central de Dados</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><Card className="bg-gradient-to-br from-orange-500/10 to-[#0a0a0a] border-orange-500/20"><div className="flex items-center gap-3 mb-2"><Flame className="text-orange-500" size={20} /><h3 className="text-zinc-400 text-xs font-bold uppercase">Recorde Histórico</h3></div><p className="text-3xl font-bold text-white">{maxStreak} <span className="text-sm font-normal text-zinc-500">dias seguidos</span></p></Card><Card className="bg-gradient-to-br from-emerald-500/10 to-[#0a0a0a] border-emerald-500/20"><div className="flex items-center gap-3 mb-2"><Target className="text-emerald-500" size={20} /><h3 className="text-zinc-400 text-xs font-bold uppercase">Mais Estudada</h3></div><p className="text-xl font-bold text-white truncate">{bestSubject ? bestSubject.name : "---"}</p><p className="text-xs text-emerald-400">{bestSubject ? (bestSubject.totalMins / 60).toFixed(1) : 0} horas totais</p></Card><Card className="bg-gradient-to-br from-red-500/10 to-[#0a0a0a] border-red-500/20"><div className="flex items-center gap-3 mb-2"><AlertTriangle className="text-red-500" size={20} /><h3 className="text-zinc-400 text-xs font-bold uppercase">Atenção Necessária</h3></div><p className="text-xl font-bold text-white truncate">{worstSubject ? worstSubject.name : "---"}</p><p className="text-xs text-red-400">{worstSubject ? (worstSubject.totalMins / 60).toFixed(1) : 0} horas totais</p></Card></div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><Card className="min-h-[300px]"><h3 className="text-white font-semibold mb-6 flex items-center gap-2"><BarChart2 size={18} className="text-[#1100ab]"/> Performance Semanal</h3><div className="h-[200px] w-full"><ResponsiveContainer><BarChart data={weeklyChartData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} axisLine={false} tickLine={false}/><Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/><Bar dataKey="minutos" fill="#1100ab" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer></div></Card><Card className="min-h-[300px]"><h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Calendar size={18} className="text-blue-500"/> Visão Mensal</h3><div className="h-[200px] w-full"><ResponsiveContainer><BarChart data={monthlyData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} interval={2} axisLine={false} tickLine={false}/><Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/><Bar dataKey="minutos" fill="#3b82f6" radius={[2,2,0,0]} /></BarChart></ResponsiveContainer></div></Card></div>
-      <Card><h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência</h3><div className="flex flex-wrap gap-1">{heatmapData.map((day, index) => (<div key={index} title={`${day.date.toLocaleDateString()}: ${day.hasStudy ? 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${day.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-zinc-800'}`}></div>))}</div><p className="text-xs text-zinc-500 mt-3">Cada quadrado representa um dia deste ano. Quadrados acesos indicam dias com estudo registrado.</p></Card>
+      <Card><h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência</h3><div className="flex flex-wrap gap-1">{heatmapData.map((day, index) => (<div key={index} title={`${day.date.toLocaleDateString()}: ${day.hasStudy ? 'Estudou' : 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${day.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-zinc-800'}`}></div>))}</div><p className="text-xs text-zinc-500 mt-3">Cada quadrado representa um dia deste ano. Quadrados acesos indicam dias com estudo registrado.</p></Card>
     </div>
   );
 };
@@ -833,6 +889,8 @@ const ReportView = () => {
 const AppLayout = () => {
   const { currentView, setCurrentView, userLevel } = useContext(FocusContext);
   const [menu, setMenu] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Estado da Sidebar minimizada
+
   const nav = [
     {id:'dashboard',l:'Painel',i:LayoutDashboard},
     {id:'focus',l:'Focar',i:Zap},
@@ -852,15 +910,50 @@ const AppLayout = () => {
     <div className="flex h-screen bg-[#000000] text-zinc-300 font-sans font-medium overflow-hidden">
       <button className="md:hidden fixed top-4 right-4 z-50 p-2 bg-[#09090b] border border-zinc-800 rounded-2xl" onClick={()=>setMenu(!menu)}>{menu?<X/>:<Menu/>}</button>
       {menu&&<div className="fixed inset-0 bg-black/90 z-40 md:hidden" onClick={()=>setMenu(false)}/>}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000000] border-r border-zinc-900 flex flex-col transition-transform duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'}`}>
-        <div className="p-8 pb-4 flex items-center gap-3"><div className="w-8 h-8 bg-gradient-to-br from-[#1100ab] to-blue-900 rounded-2xl flex items-center justify-center text-white font-bold">F</div><span className="text-xl font-bold text-white tracking-tight">Focus</span></div>
-        <div className="mx-6 mb-6 p-3 bg-[#09090b] border border-zinc-800 rounded-3xl">
-           <div className="flex items-center gap-3 mb-2"><div className={`w-8 h-8 rounded-full bg-gradient-to-br ${rankStyle.bg} flex items-center justify-center text-xs text-white font-bold`}>{userLevel.level}</div><div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{userLevel.title}</p><p className="text-[10px] text-zinc-500">{userLevel.currentXP}/{xpNext} XP</p></div></div>
-           <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full bg-gradient-to-r ${rankStyle.bg}`} style={{width:`${xpPercent}%`}}/></div>
+      
+      {/* SIDEBAR */}
+      <aside className={`fixed inset-y-0 left-0 z-50 bg-[#000000] border-r border-zinc-900 flex flex-col transition-all duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'} ${sidebarCollapsed ? 'w-20' : 'w-64'}`}>
+        
+        {/* LOGO */}
+        <div className={`p-8 pb-4 flex items-center gap-3 ${sidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 bg-gradient-to-br from-[#1100ab] to-blue-900 rounded-2xl flex items-center justify-center text-white font-bold flex-shrink-0">F</div>
+          {!sidebarCollapsed && <span className="text-xl font-bold text-white tracking-tight">Focus</span>}
         </div>
-        <nav className="flex-1 px-4 space-y-2">{nav.map(i=><button key={i.id} onClick={()=>{setCurrentView(i.id);setMenu(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${currentView===i.id?'bg-[#1100ab]/10 text-[#4d4dff] font-medium':'hover:bg-[#09090b] hover:text-white'}`}><i.i size={20}/>{i.l}</button>)}</nav>
+
+        {/* MINI PERFIL */}
+        <div className={`mx-4 mb-6 p-3 bg-[#09090b] border border-zinc-800 rounded-3xl ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+           <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center' : 'mb-2'}`}>
+             <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${rankStyle.bg} flex items-center justify-center text-xs text-white font-bold`}>{userLevel.level}</div>
+             {!sidebarCollapsed && <div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{userLevel.title}</p><p className="text-[10px] text-zinc-500">{userLevel.currentXP}/{xpNext} XP</p></div>}
+           </div>
+           {!sidebarCollapsed && <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full bg-gradient-to-r ${rankStyle.bg}`} style={{width:`${xpPercent}%`}}/></div>}
+        </div>
+
+        {/* NAVEGAÇÃO */}
+        <nav className="flex-1 px-4 space-y-2">
+          {nav.map(i => (
+            <button 
+              key={i.id} 
+              onClick={()=>{setCurrentView(i.id); setMenu(false)}} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${currentView===i.id?'bg-[#1100ab]/10 text-[#4d4dff] font-medium':'hover:bg-[#09090b] hover:text-white'} ${sidebarCollapsed ? 'justify-center' : ''}`}
+              title={sidebarCollapsed ? i.l : ''}
+            >
+              <i.i size={20}/>
+              {!sidebarCollapsed && i.l}
+            </button>
+          ))}
+        </nav>
+
+        {/* BOTÃO COLAPSAR */}
+        <div className="p-4 border-t border-zinc-900 flex justify-end">
+          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-2 hover:bg-[#09090b] rounded-xl text-zinc-500 hover:text-white transition-colors">
+            {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          </button>
+        </div>
       </aside>
-      <main className="flex-1 overflow-y-auto h-full p-4 md:p-8 md:ml-64 bg-[#000000]">
+
+      {/* MAIN CONTENT - AJUSTA MARGEM DINAMICAMENTE */}
+      <main className={`flex-1 overflow-y-auto h-full p-4 md:p-8 bg-[#000000] transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
         <div className="max-w-6xl mx-auto h-full">
            {currentView==='dashboard'&&<DashboardView/>} {currentView==='focus'&&<FocusView/>} {currentView==='calendar'&&<CalendarTab/>} {currentView==='mistakes'&&<MistakesView/>} {currentView==='goals'&&<GoalsView/>} {currentView==='stats'&&<StatsView/>} {currentView==='history'&&<HistoryView/>} {currentView==='report'&&<ReportView/>} {currentView==='settings'&&<SettingsView/>}
         </div>
