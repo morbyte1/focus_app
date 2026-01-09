@@ -5,7 +5,7 @@ import {
   CheckCircle, Plus, Clock, Flame, Settings, BookOpen, Quote, Trash2, Menu, X, 
   History, ArrowLeft, Calendar, AlertTriangle, Infinity as InfinityIcon, List, 
   CheckSquare, Download, Upload, ChevronDown, ChevronRight, Brain, Flag,
-  FileText, Activity, Percent, Trophy, Star, Crown, Award
+  FileText, Activity, Percent, Trophy, Star, Crown, Award, HardDrive
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
@@ -192,7 +192,7 @@ const FocusProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [isActive, timerMode, timerType, cycles, flowStoredTime]); 
 
-  // --- FUNÇÃO DE GANHAR XP (RPG) ---
+  // --- FUNÇÃO DE GANHAR (OU PERDER) XP ---
   const gainXP = (amount, reason = "") => {
     setUserLevel(prev => {
       let { level, currentXP, totalXP } = prev;
@@ -200,18 +200,23 @@ const FocusProvider = ({ children }) => {
       let newTotalXP = totalXP + amount;
       let newLevel = level;
       
-      let xpNeeded = getXPForNextLevel(newLevel);
-
-      // Loop para subir múltiplos níveis se ganhar muito XP de uma vez
-      while (newCurrentXP >= xpNeeded) {
-        newCurrentXP -= xpNeeded;
-        newLevel++;
-        xpNeeded = getXPForNextLevel(newLevel);
-        // Opcional: Efeito sonoro de Level UP
-        try { new Audio("https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg").play(); } catch(e){}
-        alert(`🎉 LEVEL UP! Você alcançou o nível ${newLevel}: ${getTitleByLevel(newLevel)}`);
-      }
-
+      // Se for ganho de XP (positivo)
+      if (amount > 0) {
+          let xpNeeded = getXPForNextLevel(newLevel);
+          while (newCurrentXP >= xpNeeded) {
+            newCurrentXP -= xpNeeded;
+            newLevel++;
+            xpNeeded = getXPForNextLevel(newLevel);
+            
+            // SOM DESATIVADO (Você pode descomentar ou colocar sua URL abaixo)
+            // try { new Audio("SUA_URL_AQUI.mp3").play(); } catch(e){}
+            
+            alert(`🎉 LEVEL UP! Você alcançou o nível ${newLevel}: ${getTitleByLevel(newLevel)}`);
+          }
+      } 
+      // Se for perda de XP (negativo), apenas subtrai. Não vamos rebaixar nível para simplificar.
+      // O XP atual pode ficar negativo temporariamente, o que incentiva a estudar para recuperar.
+      
       return {
         level: newLevel,
         currentXP: newCurrentXP,
@@ -220,17 +225,14 @@ const FocusProvider = ({ children }) => {
       };
     });
     
-    if(amount > 0 && reason) {
-      // Pequeno feedback visual console (poderia ser um toast)
-      console.log(`+${amount} XP: ${reason}`);
+    if (reason) {
+      console.log(`${amount > 0 ? '+' : ''}${amount} XP: ${reason}`);
     }
   };
 
-  // Ações - ATUALIZADO: Integração com RPG
   const addSession = (minutes, notes, manualSubId = null, questions = 0, errors = 0) => {
     const sId = manualSubId ? Number(manualSubId) : selectedSubjectId;
     
-    // 1. Salvar Sessão
     setSessions(prev => [...prev, { 
       id: Date.now(), 
       date: new Date().toISOString(), 
@@ -241,29 +243,16 @@ const FocusProvider = ({ children }) => {
       errors: Number(errors) || 0
     }]);
 
-    // 2. Calcular XP
     let totalXPGain = 0;
-
-    // A. Chronos XP (Tempo)
     const timeXP = Math.floor(minutes / 10) * 50;
-    if (timeXP > 0) {
-        totalXPGain += timeXP;
-        console.log(`Chronos XP: +${timeXP}`);
-    }
+    if (timeXP > 0) totalXPGain += timeXP;
 
-    // B. Gladiator XP (Questões)
     const questXP = (Number(questions) || 0) * 10;
-    if (questXP > 0) {
-        totalXPGain += questXP;
-        console.log(`Gladiator XP: +${questXP}`);
-    }
+    if (questXP > 0) totalXPGain += questXP;
 
-    // C. Goal Hunter XP (Metas)
-    // Verificar se atingiu a meta da matéria com essa sessão
+    // Goal Hunter Logic (Verificação de Meta)
     const subject = subjects.find(s => s.id === sId);
     if (subject) {
-        // Calcular horas totais ANTES dessa sessão (para saber se já tinha batido)
-        // Precisamos filtrar sessões dessa semana
         const now = new Date();
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay());
@@ -280,7 +269,7 @@ const FocusProvider = ({ children }) => {
         const goalMins = subject.goalHours * 60;
         const currentMins = previousWeeklyMins + minutes;
 
-        // Se antes estava abaixo da meta E agora está igual ou acima
+        // Se antes estava abaixo E agora atingiu/superou
         if (previousWeeklyMins < goalMins && currentMins >= goalMins) {
             totalXPGain += 500;
             alert(`🏆 GOAL HUNTER! Você atingiu a meta semanal de ${subject.name}! +500 XP`);
@@ -307,16 +296,24 @@ const FocusProvider = ({ children }) => {
   
   const addMistake = (subId, desc, reason, sol) => setMistakes(prev => [{ id: Date.now(), date: new Date().toISOString(), subjectId: Number(subId), description: desc, reason, solution: sol, consolidated: false }, ...prev]);
   
-  // Consolidar Erro + Wisdom XP
   const consolidateMistake = (id, diagnosis, strategy) => {
     setMistakes(prev => prev.map(m => 
       m.id === id ? { ...m, consolidated: true, diagnosis, strategy } : m
     ));
-    // D. Wisdom XP
     gainXP(100, "Erro Consolidado");
   };
 
-  const deleteMistake = (id) => { if (window.confirm("Apagar erro?")) setMistakes(prev => prev.filter(m => m.id !== id)); };
+  const deleteMistake = (id) => { 
+    if (window.confirm("Apagar erro?")) {
+        const mistake = mistakes.find(m => m.id === id);
+        // LÓGICA DE CORREÇÃO DE XP
+        if (mistake && mistake.consolidated) {
+            gainXP(-100, "Erro consolidado apagado");
+            alert("Atenção: Você perdeu 100 XP por apagar um erro já aprendido.");
+        }
+        setMistakes(prev => prev.filter(m => m.id !== id)); 
+    }
+  };
 
   const addTheme = (subId, title) => setThemes(prev => [...prev, { id: Date.now(), subjectId: subId, title, items: [] }]);
   const deleteTheme = (id) => { if(window.confirm("Excluir tema?")) setThemes(prev => prev.filter(t => t.id !== id)); };
@@ -324,7 +321,14 @@ const FocusProvider = ({ children }) => {
   const toggleThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.map(i => i.id === itemId ? { ...i, completed: !i.completed } : i) } : t));
   const deleteThemeItem = (themeId, itemId) => setThemes(prev => prev.map(t => t.id === themeId ? { ...t, items: t.items.filter(i => i.id !== itemId) } : t));
 
-  // --- CÁLCULOS GERAIS (KPIs) ---
+  // Função Reset XP separada
+  const resetXPOnly = () => {
+    if(window.confirm("Tem certeza? Seu nível voltará para 1.")) {
+        setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" });
+        alert("Nível resetado.");
+    }
+  };
+
   const kpiData = useMemo(() => {
     const dates = new Set(sessions.map(s => new Date(s.date).toDateString()));
     let streak = 0;
@@ -333,7 +337,6 @@ const FocusProvider = ({ children }) => {
     while (true) {
       const dateStr = curr.toDateString();
       const dayOfWeek = curr.getDay(); 
-
       if (dates.has(dateStr)) {
         streak++;
         curr.setDate(curr.getDate() - 1);
@@ -353,7 +356,6 @@ const FocusProvider = ({ children }) => {
     return { todayMinutes: todayMins, totalHours: (sessions.reduce((a,c)=>a+c.minutes,0)/60).toFixed(1), streak };
   }, [sessions]);
 
-  // --- GRÁFICO SEMANAL ---
   const weeklyChartData = useMemo(() => {
     const start = new Date(); start.setDate(start.getDate() - start.getDay()); start.setHours(0,0,0,0);
     return Array.from({length: 7}).map((_, i) => {
@@ -363,7 +365,6 @@ const FocusProvider = ({ children }) => {
     });
   }, [sessions]);
 
-  // --- ESTATÍSTICAS AVANÇADAS ---
   const advancedStats = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -393,25 +394,18 @@ const FocusProvider = ({ children }) => {
     subjectRanking.sort((a, b) => b.totalMins - a.totalMins);
     const bestSubject = subjectRanking[0] || null;
     const worstSubject = subjectRanking.length > 0 ? subjectRanking[subjectRanking.length - 1] : null;
+    const datesStudied = [...new Set(sessions.map(s => new Date(s.date).toDateString()))].map(dateStr => new Date(dateStr)).sort((a, b) => a - b);
 
-    const datesStudied = [...new Set(sessions.map(s => new Date(s.date).toDateString()))]
-      .map(dateStr => new Date(dateStr))
-      .sort((a, b) => a - b);
-
-    let maxStreak = 0;
-    let currentStreak = 0;
+    let maxStreak = 0; let currentStreak = 0;
     for (let i = 0; i < datesStudied.length; i++) {
-      if (i === 0) {
-        currentStreak = 1;
-      } else {
+      if (i === 0) currentStreak = 1;
+      else {
         const diffTime = Math.abs(datesStudied[i] - datesStudied[i - 1]);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays === 1) currentStreak++;
-        else currentStreak = 1;
+        if (diffDays === 1) currentStreak++; else currentStreak = 1;
       }
       if (currentStreak > maxStreak) maxStreak = currentStreak;
     }
-
     return { monthlyData, bestSubject, worstSubject, maxStreak };
   }, [sessions, subjects]);
 
@@ -424,8 +418,8 @@ const FocusProvider = ({ children }) => {
       timerMode, setTimerMode, timerType, setTimerType, timeLeft, setTimeLeft, isActive, setIsActive, 
       cycles, setCycles, selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime,
       elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats,
-      countdown, setCountdown, userLevel, // Exportando o novo estado RPG
-      resetAllData: () => { if(window.confirm("Resetar TUDO?")) { localStorage.clear(); window.location.reload(); } },
+      countdown, setCountdown, userLevel, resetXPOnly,
+      resetAllData: () => { if(window.confirm("ATENÇÃO: Isso apagará TODOS os seus dados (sessões, metas, histórico). Deseja continuar?")) { localStorage.clear(); window.location.reload(); } },
       deleteDayHistory: (d) => { if(window.confirm(`Apagar ${d}?`)) setSessions(prev => prev.filter(s => new Date(s.date).toDateString() !== d)); }
     }}>
       {children}
@@ -453,9 +447,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
     else document.body.style.overflow = 'unset';
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
-
   if (!isOpen) return null;
-
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
       <div className="absolute inset-0" onClick={onClose}></div>
@@ -464,37 +456,74 @@ const Modal = ({ isOpen, onClose, title, children }) => {
         <h2 className="text-xl font-bold text-white mb-6 pr-8">{title}</h2>
         {children}
       </div>
-    </div>,
-    document.body
+    </div>, document.body
   );
 };
 
 /**
  * --- VIEWS ---
  */
+
+// NOVA VIEW: Configurações
+const SettingsView = () => {
+  const { resetAllData, resetXPOnly } = useContext(FocusContext);
+  
+  const handleExp = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('focus_')).map(k=>[k, localStorage.getItem(k)])))], {type:'application/json'})); a.download = `backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); };
+  const handleImp = (e) => { const f = e.target.files[0]; if(!f)return; const r = new FileReader(); r.onload=x=>{ try{const d=JSON.parse(x.target.result); if(confirm("Isso substituirá seus dados atuais. Continuar?")){ Object.keys(d).forEach(k=>localStorage.setItem(k,d[k])); window.location.reload(); }}catch{alert("Erro ao importar arquivo.");} }; r.readAsText(f); };
+
+  return (
+    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
+      <header className="mb-8"><h1 className="text-2xl font-bold text-white mb-1">Configurações</h1><p className="text-gray-400">Gerencie seus dados e preferências.</p></header>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><HardDrive size={20} className="text-violet-500"/> Dados do Sistema</h3>
+          <div className="space-y-4">
+             <div className="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800">
+                <p className="text-sm text-gray-300 mb-3">Exporte seus dados para backup ou importe de outro dispositivo.</p>
+                <div className="flex gap-3">
+                  <button onClick={handleExp} className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"><Download size={16}/> Exportar</button>
+                  <label className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm flex items-center justify-center gap-2 cursor-pointer transition-colors"><Upload size={16}/> Importar<input type="file" className="hidden" onChange={handleImp}/></label>
+                </div>
+             </div>
+             
+             <div className="bg-red-500/5 p-4 rounded-lg border border-red-500/10">
+                <p className="text-sm text-red-400 mb-3 font-bold">Zona de Perigo</p>
+                <button onClick={resetAllData} className="w-full py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg text-sm flex items-center justify-center gap-2 transition-all"><Trash2 size={16}/> Resetar TUDO (Fábrica)</button>
+             </div>
+          </div>
+        </Card>
+
+        <Card>
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Crown size={20} className="text-yellow-500"/> Gamificação (RPG)</h3>
+          <div className="space-y-4">
+             <div className="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800">
+                <p className="text-sm text-gray-300 mb-3">Reiniciar apenas seu progresso de níveis e XP, mantendo seu histórico de estudos.</p>
+                <button onClick={resetXPOnly} className="w-full py-2 bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-black rounded-lg text-sm flex items-center justify-center gap-2 transition-all"><RotateCcw size={16}/> Resetar Nível e XP</button>
+             </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
 const DashboardView = () => {
   const { kpiData, weeklyChartData, setCurrentView, countdown, setCountdown, userLevel } = useContext(FocusContext);
   const [isCountModalOpen, setIsCountModalOpen] = useState(false);
   const [countForm, setCountForm] = useState({ date: '', title: '' });
 
-  // Lógica RPG
   const xpNext = getXPForNextLevel(userLevel.level);
   const xpProgress = (userLevel.currentXP / xpNext) * 100;
 
-  // Cálculo de dias restantes
   const getDaysLeft = (targetDate) => {
     if (!targetDate) return null;
-    const now = new Date();
-    const target = new Date(targetDate);
-    now.setHours(0,0,0,0);
-    target.setHours(0,0,0,0);
-    const diffTime = target - now;
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    const now = new Date(); const target = new Date(targetDate); now.setHours(0,0,0,0); target.setHours(0,0,0,0);
+    const diffTime = target - now; return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
   };
   const daysLeft = getDaysLeft(countdown.date);
 
-  let countColorClass = "border-l-gray-600 text-gray-500";
-  let countIconBg = "bg-gray-500/20 text-gray-500";
+  let countColorClass = "border-l-gray-600 text-gray-500"; let countIconBg = "bg-gray-500/20 text-gray-500";
   if (daysLeft !== null) {
     if (daysLeft < 0) { countColorClass = "border-l-red-500 text-red-500"; countIconBg = "bg-red-500/20 text-red-500"; }
     else if (daysLeft === 0) { countColorClass = "border-l-red-500 text-red-500"; countIconBg = "bg-red-500/20 text-red-500 animate-pulse"; }
@@ -503,18 +532,11 @@ const DashboardView = () => {
     else { countColorClass = "border-l-emerald-500 text-emerald-500"; countIconBg = "bg-emerald-500/20 text-emerald-500"; }
   }
 
-  const handleSaveCountdown = (e) => {
-    e.preventDefault();
-    setCountdown({ date: countForm.date, title: countForm.title || "Minha Meta" });
-    setIsCountModalOpen(false);
-  };
-
+  const handleSaveCountdown = (e) => { e.preventDefault(); setCountdown({ date: countForm.date, title: countForm.title || "Minha Meta" }); setIsCountModalOpen(false); };
   useEffect(() => { if (isCountModalOpen) setCountForm({ date: countdown.date || '', title: countdown.title || '' }); }, [isCountModalOpen, countdown]);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      
-      {/* CARD DE PERFIL RPG (HERO) */}
       <Card className="bg-gradient-to-r from-violet-900/50 via-[#18181B] to-[#18181B] border-violet-500/30 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/10 blur-[80px] rounded-full pointer-events-none"/>
         <div className="flex flex-col md:flex-row gap-6 items-center relative z-10">
@@ -525,27 +547,17 @@ const DashboardView = () => {
                  <span className="text-2xl font-bold text-white">{userLevel.level}</span>
                </div>
              </div>
-             <div className="absolute -bottom-2 -right-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full border border-yellow-400">
-               Lvl
-             </div>
+             <div className="absolute -bottom-2 -right-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full border border-yellow-400">Lvl</div>
           </div>
           <div className="flex-1 w-full">
             <div className="flex justify-between items-end mb-2">
-               <div>
-                 <h2 className="text-2xl font-bold text-white">{userLevel.title}</h2>
-                 <p className="text-sm text-gray-400">Total acumulado: {userLevel.totalXP.toLocaleString()} XP</p>
-               </div>
-               <div className="text-right hidden sm:block">
-                 <p className="text-violet-400 font-bold">{userLevel.currentXP} <span className="text-gray-500">/ {xpNext} XP</span></p>
-               </div>
+               <div><h2 className="text-2xl font-bold text-white">{userLevel.title}</h2><p className="text-sm text-gray-400">Total acumulado: {userLevel.totalXP.toLocaleString()} XP</p></div>
+               <div className="text-right hidden sm:block"><p className="text-violet-400 font-bold">{userLevel.currentXP} <span className="text-gray-500">/ {xpNext} XP</span></p></div>
             </div>
             <div className="w-full h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 relative">
-               <div className="h-full bg-gradient-to-r from-violet-600 to-blue-500 transition-all duration-1000" style={{width: `${xpProgress}%`}}>
-                 <div className="absolute top-0 right-0 bottom-0 w-[1px] bg-white/50 shadow-[0_0_10px_white]"/>
-               </div>
+               <div className="h-full bg-gradient-to-r from-violet-600 to-blue-500 transition-all duration-1000" style={{width: `${xpProgress}%`}}><div className="absolute top-0 right-0 bottom-0 w-[1px] bg-white/50 shadow-[0_0_10px_white]"/></div>
             </div>
             <p className="text-xs text-gray-500 mt-2 text-right sm:hidden">{userLevel.currentXP} / {xpNext} XP</p>
-            <p className="text-xs text-gray-500 mt-2 italic">Próximo nível em {xpNext - userLevel.currentXP} XP</p>
           </div>
         </div>
       </Card>
@@ -580,12 +592,8 @@ const DashboardView = () => {
 const FocusView = () => {
   const { timerType, setTimerType, subjects, selectedSubjectId, setSelectedSubjectId, timerMode, setTimerMode, timeLeft, setTimeLeft, isActive, setIsActive, cycles, setCycles, tasks, addTask, toggleTask, deleteTask, addSession, elapsedTime, setElapsedTime, flowStoredTime, setFlowStoredTime } = useContext(FocusContext);
   const [newTaskText, setNewTaskText] = useState("");
-  
-  // MODAL RESUMO (Timer)
   const [isFinishModalOpen, setIsFinishModalOpen] = useState(false);
   const [finishForm, setFinishForm] = useState({ notes: "", questions: "", errors: "" });
-
-  // MODAL MANUAL
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualMinutes, setManualMinutes] = useState("");
   const [manualNotes, setManualNotes] = useState("");
@@ -759,13 +767,18 @@ const ReportView = () => {
 };
 
 const AppLayout = () => {
-  const { currentView, setCurrentView, resetAllData, userLevel } = useContext(FocusContext);
+  const { currentView, setCurrentView, userLevel } = useContext(FocusContext);
   const [menu, setMenu] = useState(false);
-  const nav = [{id:'dashboard',l:'Painel',i:LayoutDashboard},{id:'focus',l:'Focar',i:Zap},{id:'mistakes',l:'Erros',i:AlertTriangle},{id:'calendar',l:'Calendário',i:Calendar},{id:'goals',l:'Metas',i:Target},{id:'stats',l:'Estatísticas',i:BarChart2},{id:'history',l:'Histórico',i:History}];
-  const handleExp = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('focus_')).map(k=>[k, localStorage.getItem(k)])))], {type:'application/json'})); a.download = `backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); };
-  const handleImp = (e) => { const f = e.target.files[0]; if(!f)return; const r = new FileReader(); r.onload=x=>{ try{const d=JSON.parse(x.target.result); if(confirm("Substituir dados?")){ Object.keys(d).forEach(k=>localStorage.setItem(k,d[k])); window.location.reload(); }}catch{alert("Erro");} }; r.readAsText(f); };
-
-  // PROGRESSO DO LEVEL (SIDEBAR)
+  const nav = [
+    {id:'dashboard',l:'Painel',i:LayoutDashboard},
+    {id:'focus',l:'Focar',i:Zap},
+    {id:'mistakes',l:'Erros',i:AlertTriangle},
+    {id:'calendar',l:'Calendário',i:Calendar},
+    {id:'goals',l:'Metas',i:Target},
+    {id:'stats',l:'Estatísticas',i:BarChart2},
+    {id:'history',l:'Histórico',i:History},
+    {id:'settings',l:'Configurações',i:Settings} // NOVA ABA
+  ];
   const xpNext = getXPForNextLevel(userLevel.level);
   const xpPercent = Math.min(100, (userLevel.currentXP / xpNext) * 100);
 
@@ -775,22 +788,15 @@ const AppLayout = () => {
       {menu&&<div className="fixed inset-0 bg-black/80 z-40 md:hidden" onClick={()=>setMenu(false)}/>}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0F0F12] border-r border-gray-800 flex flex-col transition-transform duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'}`}>
         <div className="p-8 pb-4 flex items-center gap-3"><div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">F</div><span className="text-xl font-bold text-white tracking-tight">Focus</span></div>
-        
-        {/* MINI PERFIL SIDEBAR */}
         <div className="mx-6 mb-6 p-3 bg-zinc-900/50 border border-zinc-800 rounded-xl">
-           <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-xs text-white font-bold">{userLevel.level}</div>
-              <div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{userLevel.title}</p><p className="text-[10px] text-gray-500">{userLevel.currentXP}/{xpNext} XP</p></div>
-           </div>
+           <div className="flex items-center gap-3 mb-2"><div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-xs text-white font-bold">{userLevel.level}</div><div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{userLevel.title}</p><p className="text-[10px] text-gray-500">{userLevel.currentXP}/{xpNext} XP</p></div></div>
            <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-violet-600 to-blue-500" style={{width:`${xpPercent}%`}}/></div>
         </div>
-
         <nav className="flex-1 px-4 space-y-2">{nav.map(i=><button key={i.id} onClick={()=>{setCurrentView(i.id);setMenu(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView===i.id?'bg-violet-600/10 text-violet-400 font-medium':'hover:bg-[#18181B] hover:text-white'}`}><i.i size={20}/>{i.l}</button>)}</nav>
-        <div className="p-4 border-t border-gray-800 space-y-2"><div className="grid grid-cols-2 gap-2"><button onClick={handleExp} className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white"><Download size={16} className="mb-1 text-violet-500"/> Exportar dados</button><label className="flex flex-col items-center p-2 bg-zinc-900 rounded-lg text-xs hover:text-white cursor-pointer"><Upload size={16} className="mb-1 text-emerald-500"/> Importar dados<input type="file" className="hidden" onChange={handleImp}/></label></div><button onClick={resetAllData} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-500 hover:bg-red-900/10 rounded-lg text-xs transition-colors"><Trash2 size={14}/> Resetar dados</button></div>
       </aside>
       <main className="flex-1 overflow-y-auto h-full p-4 md:p-8 md:ml-64 bg-[#0F0F12]">
         <div className="max-w-6xl mx-auto h-full">
-           {currentView==='dashboard'&&<DashboardView/>} {currentView==='focus'&&<FocusView/>} {currentView==='calendar'&&<CalendarTab/>} {currentView==='mistakes'&&<MistakesView/>} {currentView==='goals'&&<GoalsView/>} {currentView==='stats'&&<StatsView/>} {currentView==='history'&&<HistoryView/>} {currentView==='report'&&<ReportView/>}
+           {currentView==='dashboard'&&<DashboardView/>} {currentView==='focus'&&<FocusView/>} {currentView==='calendar'&&<CalendarTab/>} {currentView==='mistakes'&&<MistakesView/>} {currentView==='goals'&&<GoalsView/>} {currentView==='stats'&&<StatsView/>} {currentView==='history'&&<HistoryView/>} {currentView==='report'&&<ReportView/>} {currentView==='settings'&&<SettingsView/>}
         </div>
       </main>
     </div>
