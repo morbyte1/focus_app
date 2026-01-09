@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Zap, Target, BarChart2, Play, Pause, Coffee, RotateCcw, 
   CheckCircle, Plus, Clock, Flame, Settings, BookOpen, Quote, Trash2, Menu, X, 
   History, ArrowLeft, Calendar, AlertTriangle, Infinity as InfinityIcon, List, 
-  CheckSquare, Download, Upload, ChevronDown, ChevronRight
+  CheckSquare, Download, Upload, ChevronDown, ChevronRight, Brain
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
@@ -65,7 +65,7 @@ const FocusProvider = ({ children }) => {
   const [flowStoredTime, setFlowStoredTime] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
 
-  // REFS PARA O TIMER (Correção de precisão em segundo plano)
+  // REFS PARA O TIMER
   const timerEndRef = useRef(null);
   const timerStartRef = useRef(null);
   const lastTickRef = useRef(0);
@@ -104,52 +104,42 @@ const FocusProvider = ({ children }) => {
     }
   }, [isActive, timeLeft, timerMode]);
 
-  // --- LÓGICA DO TIMER (CORRIGIDA COM DATE.NOW) ---
+  // --- LÓGICA DO TIMER ---
   useEffect(() => {
     let interval = null;
 
     if (isActive) {
-      // Configura os pontos de referência temporal
       if (timerType === 'FLOW' && timerMode === 'WORK') {
-        // Modo Flow: Define quando "começou" virtualmente
         timerStartRef.current = Date.now() - (timeLeft * 1000);
       } else {
-        // Modo Pomodoro: Define quando "deve acabar"
         timerEndRef.current = Date.now() + (timeLeft * 1000);
       }
       lastTickRef.current = Date.now();
 
       interval = setInterval(() => {
         const now = Date.now();
-        // Calcula quanto tempo passou desde o último tick (para estatísticas)
         const deltaSeconds = Math.round((now - lastTickRef.current) / 1000);
         lastTickRef.current = now;
 
-        // Atualiza estatísticas de tempo decorrido (apenas em modo Foco)
         if (timerMode === 'WORK' && deltaSeconds > 0) {
            setElapsedTime(prev => prev + deltaSeconds);
         }
 
         if (timerType === 'FLOW' && timerMode === 'WORK') {
-           // Flow: Apenas conta para cima baseado no timestamp inicial
            const secondsPassed = Math.floor((now - timerStartRef.current) / 1000);
            setTimeLeft(secondsPassed);
         } else {
-           // Pomodoro: Calcula tempo restante baseado no alvo
            const remaining = Math.ceil((timerEndRef.current - now) / 1000);
            
            if (remaining <= 0) {
-             // --- TEMPO ACABOU ---
              setTimeLeft(0);
              clearInterval(interval);
-             setIsActive(false); // Pausa automática
+             setIsActive(false);
              
-             // Toca o som "clique" (beep_short)
              try { 
                new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
              } catch(e){}
 
-             // Prepara o próximo estágio
              if (timerType === 'POMODORO') {
                 if (timerMode === 'WORK') {
                    const nextCycle = cycles + 1;
@@ -174,7 +164,6 @@ const FocusProvider = ({ children }) => {
 
     return () => clearInterval(interval);
   }, [isActive, timerMode, timerType, cycles, flowStoredTime]); 
-  // Nota: timeLeft removido das dependências para evitar recriação do intervalo a cada segundo
 
   // Ações
   const addSession = (minutes, notes, manualSubId = null) => {
@@ -202,7 +191,15 @@ const FocusProvider = ({ children }) => {
   const toggleTask = (id) => setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   const deleteTask = (id) => { if (window.confirm("Excluir tarefa?")) setTasks(prev => prev.filter(t => t.id !== id)); };
   
-  const addMistake = (subId, desc, reason, sol) => setMistakes(prev => [{ id: Date.now(), date: new Date().toISOString(), subjectId: Number(subId), description: desc, reason, solution: sol }, ...prev]);
+  const addMistake = (subId, desc, reason, sol) => setMistakes(prev => [{ id: Date.now(), date: new Date().toISOString(), subjectId: Number(subId), description: desc, reason, solution: sol, consolidated: false }, ...prev]);
+  
+  // NOVA FUNÇÃO: Consolidar Erro
+  const consolidateMistake = (id, diagnosis, strategy) => {
+    setMistakes(prev => prev.map(m => 
+      m.id === id ? { ...m, consolidated: true, diagnosis, strategy } : m
+    ));
+  };
+
   const deleteMistake = (id) => { if (window.confirm("Apagar erro?")) setMistakes(prev => prev.filter(m => m.id !== id)); };
 
   const addTheme = (subId, title) => setThemes(prev => [...prev, { id: Date.now(), subjectId: subId, title, items: [] }]);
@@ -219,7 +216,7 @@ const FocusProvider = ({ children }) => {
     const hasToday = dates.has(curr.toDateString());
     while (true) {
       const dateStr = curr.toDateString();
-      const dayOfWeek = curr.getDay(); // 0 = Domingo, 6 = Sábado
+      const dayOfWeek = curr.getDay(); 
 
       if (dates.has(dateStr)) {
         streak++;
@@ -229,7 +226,6 @@ const FocusProvider = ({ children }) => {
            curr.setDate(curr.getDate() - 1);
            continue;
         }
-        // Pular fim de semana na quebra de sequência
         if (dayOfWeek === 0 || dayOfWeek === 6) {
            curr.setDate(curr.getDate() - 1);
            continue; 
@@ -252,19 +248,14 @@ const FocusProvider = ({ children }) => {
   }, [sessions]);
 
   // --- ESTATÍSTICAS AVANÇADAS ---
-// --- ESTATÍSTICAS AVANÇADAS (CORRIGIDO) ---
   const advancedStats = useMemo(() => {
-    // 1. Dados Mensais (DIAS DO MÊS ATUAL)
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     
-    // Gera array do dia 1 até o último dia do mês ATUAL
     const monthlyData = Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1;
-      
-      // Soma minutos comparando Dia, Mês e Ano exatos
       const mins = sessions.reduce((acc, s) => {
         const sDate = new Date(s.date);
         if (sDate.getDate() === day && 
@@ -274,11 +265,9 @@ const FocusProvider = ({ children }) => {
         }
         return acc;
       }, 0);
-
       return { name: day.toString(), minutes: mins };
     });
 
-    // 2. Melhor e Pior Matéria (Mantido igual)
     const subjectRanking = subjects.map(s => {
       const totalMins = sessions
         .filter(session => session.subjectId === s.id)
@@ -289,7 +278,6 @@ const FocusProvider = ({ children }) => {
     const bestSubject = subjectRanking[0] || null;
     const worstSubject = subjectRanking.length > 0 ? subjectRanking[subjectRanking.length - 1] : null;
 
-    // 3. Maior Sequência Histórica (Mantido igual)
     const datesStudied = [...new Set(sessions.map(s => new Date(s.date).toDateString()))]
       .map(dateStr => new Date(dateStr))
       .sort((a, b) => a - b);
@@ -315,7 +303,7 @@ const FocusProvider = ({ children }) => {
     <FocusContext.Provider value={{
       currentView, setCurrentView, selectedHistoryDate, setSelectedHistoryDate,
       subjects, addSubject, updateSubject, deleteSubject, sessions, addSession, 
-      tasks, addTask, toggleTask, deleteTask, mistakes, addMistake, deleteMistake,
+      tasks, addTask, toggleTask, deleteTask, mistakes, addMistake, consolidateMistake, deleteMistake,
       themes, addTheme, deleteTheme, addThemeItem, toggleThemeItem, deleteThemeItem, 
       timerMode, setTimerMode, timerType, setTimerType, timeLeft, setTimeLeft, isActive, setIsActive, 
       cycles, setCycles, selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime,
@@ -508,9 +496,34 @@ const FocusView = () => {
 };
 
 const MistakesView = () => {
-  const { subjects, mistakes, addMistake, deleteMistake } = useContext(FocusContext);
+  const { subjects, mistakes, addMistake, deleteMistake, consolidateMistake } = useContext(FocusContext);
   const [f, setF] = useState({ sub:"", desc:"", r:"Conceito", sol:"" });
+  const [expandedIds, setExpandedIds] = useState([]);
+  
+  // State para o Modal de Consolidação
+  const [consModal, setConsModal] = useState({ isOpen: false, mId: null, mDesc: "" });
+  const [consForm, setConsForm] = useState({ diag: "", strat: "" });
+
   const sub = (e) => { e.preventDefault(); if(f.sub&&f.desc&&f.sol){ addMistake(f.sub,f.desc,f.r,f.sol); setF({ sub:"", desc:"", r:"Conceito", sol:"" }); alert("Salvo!"); }};
+
+  const openConsolidation = (mistake) => {
+    setConsModal({ isOpen: true, mId: mistake.id, mDesc: mistake.description });
+    setConsForm({ diag: "", strat: "" });
+  };
+
+  const handleConsolidate = (e) => {
+    e.preventDefault();
+    if(consForm.diag && consForm.strat) {
+      consolidateMistake(consModal.mId, consForm.diag, consForm.strat);
+      setConsModal({ isOpen: false, mId: null, mDesc: "" });
+      alert("Erro consolidado! Parabéns pelo aprendizado.");
+    }
+  };
+
+  const toggleExpand = (id) => {
+    setExpandedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <header><h1 className="text-2xl font-bold text-white mb-1">Caderno de Erros</h1></header>
@@ -525,8 +538,130 @@ const MistakesView = () => {
             <Button type="submit" className="w-full">Salvar</Button>
           </form>
         </Card>
-        <div className="lg:col-span-2 space-y-4">{mistakes.length===0?<div className="text-center py-10 opacity-50"><CheckCircle size={40} className="mx-auto mb-2"/><p>Vazio.</p></div>:mistakes.map(m=><div key={m.id} className="bg-[#18181B] border border-gray-800 rounded-xl p-5 relative group hover:border-gray-700"><button onClick={()=>deleteMistake(m.id)} className="absolute top-4 right-4 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button><div className="flex items-center gap-3 mb-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase text-white" style={{backgroundColor:subjects.find(s=>s.id===m.subjectId)?.color}}>{subjects.find(s=>s.id===m.subjectId)?.name}</span><span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">{m.reason}</span></div><div className="grid md:grid-cols-2 gap-6"><div className="space-y-1"><p className="text-xs text-red-400 font-bold uppercase">Erro</p><p className="text-gray-300 text-sm">{m.description}</p></div><div className="space-y-1 md:border-l md:border-gray-800 md:pl-6"><p className="text-xs text-green-400 font-bold uppercase">Solução</p><p className="text-gray-300 text-sm">{m.solution}</p></div></div></div>)}</div>
+
+        <div className="lg:col-span-2 space-y-4">
+          {mistakes.length === 0 ? (
+            <div className="text-center py-10 opacity-50"><CheckCircle size={40} className="mx-auto mb-2"/><p>Vazio.</p></div>
+          ) : (
+            mistakes.map(m => (
+              <div 
+                key={m.id} 
+                className={`border rounded-xl p-5 relative group transition-all duration-300 ${
+                  m.consolidated 
+                  ? 'bg-zinc-900/50 border-zinc-800 opacity-75' 
+                  : 'bg-[#18181B] border-gray-800 hover:border-gray-700'
+                }`}
+              >
+                {/* Badge de Consolidado */}
+                {m.consolidated && (
+                  <div className="absolute top-4 right-12 bg-green-500/10 text-green-500 text-[10px] font-bold px-2 py-1 rounded border border-green-500/20 flex items-center gap-1 select-none">
+                    <CheckCircle size={10} /> ERRO APRENDIDO
+                  </div>
+                )}
+
+                {/* Ações */}
+                <div className="absolute top-4 right-4 flex gap-2">
+                  {!m.consolidated && (
+                    <button 
+                      onClick={() => openConsolidation(m)} 
+                      title="Marcar como aprendido" 
+                      className="text-gray-600 hover:text-green-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <CheckCircle size={18}/>
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => deleteMistake(m.id)} 
+                    className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={18}/>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase text-white" style={{backgroundColor: subjects.find(s => s.id === m.subjectId)?.color}}>
+                    {subjects.find(s => s.id === m.subjectId)?.name}
+                  </span>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
+                    {m.reason}
+                  </span>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <p className="text-xs text-red-400 font-bold uppercase">Erro</p>
+                    <p className="text-gray-300 text-sm">{m.description}</p>
+                  </div>
+                  <div className="space-y-1 md:border-l md:border-gray-800 md:pl-6">
+                    <p className="text-xs text-green-400 font-bold uppercase">Solução</p>
+                    <p className="text-gray-300 text-sm">{m.solution}</p>
+                  </div>
+                </div>
+
+                {/* Área de Reflexão (Accordion) */}
+                {m.consolidated && (
+                  <div className="mt-4 pt-4 border-t border-gray-800/50">
+                    <button 
+                      onClick={() => toggleExpand(m.id)} 
+                      className="text-xs text-violet-400 hover:text-white flex items-center gap-1 transition-colors"
+                    >
+                      {expandedIds.includes(m.id) ? 'Ocultar reflexão' : 'Ver minha reflexão'} 
+                      <ChevronDown size={14} className={`transition-transform ${expandedIds.includes(m.id) ? 'rotate-180' : ''}`}/>
+                    </button>
+
+                    {expandedIds.includes(m.id) && (
+                      <div className="mt-3 grid md:grid-cols-2 gap-4 animate-fadeIn">
+                        <div className="bg-zinc-950/50 p-3 rounded border border-zinc-800">
+                          <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Diagnóstico</p>
+                          <p className="text-xs text-gray-300 italic">"{m.diagnosis}"</p>
+                        </div>
+                        <div className="bg-zinc-950/50 p-3 rounded border border-zinc-800">
+                          <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Estratégia</p>
+                          <p className="text-xs text-gray-300 italic">"{m.strategy}"</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
+
+      {/* Modal de Consolidação */}
+      <Modal isOpen={consModal.isOpen} onClose={() => setConsModal({...consModal, isOpen: false})} title="Você realmente aprendeu?">
+        <form onSubmit={handleConsolidate} className="space-y-4">
+          <div className="bg-zinc-900/50 p-3 rounded border border-zinc-800 mb-4">
+            <p className="text-xs text-gray-500 font-bold uppercase mb-1">Erro original</p>
+            <p className="text-sm text-gray-300 line-clamp-2">{consModal.mDesc}</p>
+          </div>
+
+          <div>
+            <label className="text-xs text-violet-400 font-bold uppercase">Diagnóstico</label>
+            <p className="text-[10px] text-gray-500 mb-2">Por que eu errei antes? (Ex: Falta de atenção, pegadinha)</p>
+            <textarea 
+              required 
+              className="w-full bg-[#0F0F12] border border-gray-700 rounded-lg p-3 text-sm text-white h-20 outline-none focus:border-violet-500 transition-colors"
+              value={consForm.diag}
+              onChange={e => setConsForm({...consForm, diag: e.target.value})}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-green-400 font-bold uppercase">Estratégia</label>
+            <p className="text-[10px] text-gray-500 mb-2">Como não vou errar mais? (Ex: Mnemônico, regra)</p>
+            <textarea 
+              required 
+              className="w-full bg-[#0F0F12] border border-gray-700 rounded-lg p-3 text-sm text-white h-20 outline-none focus:border-green-500 transition-colors"
+              value={consForm.strat}
+              onChange={e => setConsForm({...consForm, strat: e.target.value})}
+            />
+          </div>
+
+          <Button type="submit" className="w-full mt-2">Confirmar Aprendizado</Button>
+        </form>
+      </Modal>
     </div>
   );
 };
@@ -628,7 +763,6 @@ const StatsView = () => {
     const startOfYear = new Date(currentYear, 0, 1);
     const days = [];
     
-    // Loop de 01/01/ANO_ATUAL até HOJE
     for (let d = new Date(startOfYear); d <= today; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toDateString();
         const hasStudy = sessions.some(s => new Date(s.date).toDateString() === dateStr);
