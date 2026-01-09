@@ -5,7 +5,8 @@ import {
   CheckCircle, Plus, Clock, Flame, Settings, BookOpen, Quote, Trash2, Menu, X, 
   History, ArrowLeft, Calendar, AlertTriangle, Infinity as InfinityIcon, List, 
   CheckSquare, Download, Upload, ChevronDown, ChevronRight, Brain, Flag,
-  FileText, Activity, Percent, Trophy, Star, Crown, Award, HardDrive
+  FileText, Activity, Percent, Trophy, Star, Crown, Award, HardDrive,
+  Sprout, Feather, Compass, Shield, Scroll // Novos ícones de Rank
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
@@ -54,7 +55,18 @@ const TITLES = [
   { level: 1, title: "Novato Curioso" }
 ];
 
+// Configuração Visual dos Ranks
+const RANK_STYLES = [
+  { min: 50, icon: Crown, bg: "from-violet-600 to-fuchsia-600", color: "text-fuchsia-400" },
+  { min: 30, icon: Scroll, bg: "from-slate-400 to-gray-200", color: "text-slate-300" },
+  { min: 20, icon: Shield, bg: "from-orange-500 to-amber-600", color: "text-amber-400" },
+  { min: 10, icon: Compass, bg: "from-blue-500 to-cyan-500", color: "text-cyan-400" },
+  { min: 5, icon: Feather, bg: "from-emerald-500 to-green-600", color: "text-emerald-400" },
+  { min: 1, icon: Sprout, bg: "from-gray-500 to-slate-600", color: "text-gray-400" }
+];
+
 const getTitleByLevel = (level) => TITLES.find(t => level >= t.level)?.title || "Novato Curioso";
+const getRankStyle = (level) => RANK_STYLES.find(s => level >= s.min) || RANK_STYLES[RANK_STYLES.length - 1];
 
 // Fórmula: Base 500 * (Nível ^ 1.5)
 const getXPForNextLevel = (level) => Math.floor(500 * Math.pow(level, 1.5));
@@ -163,6 +175,7 @@ const FocusProvider = ({ children }) => {
              clearInterval(interval);
              setIsActive(false);
              
+             // SOM DO TIMER (Mantido original)
              try { 
                new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play();
              } catch(e){}
@@ -214,8 +227,7 @@ const FocusProvider = ({ children }) => {
             alert(`🎉 LEVEL UP! Você alcançou o nível ${newLevel}: ${getTitleByLevel(newLevel)}`);
           }
       } 
-      // Se for perda de XP (negativo), apenas subtrai. Não vamos rebaixar nível para simplificar.
-      // O XP atual pode ficar negativo temporariamente, o que incentiva a estudar para recuperar.
+      // Se for perda de XP (negativo), apenas subtrai.
       
       return {
         level: newLevel,
@@ -250,7 +262,7 @@ const FocusProvider = ({ children }) => {
     const questXP = (Number(questions) || 0) * 10;
     if (questXP > 0) totalXPGain += questXP;
 
-    // Goal Hunter Logic (Verificação de Meta)
+    // Goal Hunter Logic
     const subject = subjects.find(s => s.id === sId);
     if (subject) {
         const now = new Date();
@@ -269,7 +281,6 @@ const FocusProvider = ({ children }) => {
         const goalMins = subject.goalHours * 60;
         const currentMins = previousWeeklyMins + minutes;
 
-        // Se antes estava abaixo E agora atingiu/superou
         if (previousWeeklyMins < goalMins && currentMins >= goalMins) {
             totalXPGain += 500;
             alert(`🏆 GOAL HUNTER! Você atingiu a meta semanal de ${subject.name}! +500 XP`);
@@ -515,6 +526,9 @@ const DashboardView = () => {
 
   const xpNext = getXPForNextLevel(userLevel.level);
   const xpProgress = (userLevel.currentXP / xpNext) * 100;
+  
+  // VISUAL RPG DINÂMICO
+  const rankStyle = getRankStyle(userLevel.level);
 
   const getDaysLeft = (targetDate) => {
     if (!targetDate) return null;
@@ -541,9 +555,9 @@ const DashboardView = () => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/10 blur-[80px] rounded-full pointer-events-none"/>
         <div className="flex flex-col md:flex-row gap-6 items-center relative z-10">
           <div className="flex-shrink-0 relative">
-             <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 p-[2px]">
+             <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${rankStyle.bg} p-[2px]`}>
                <div className="w-full h-full rounded-full bg-[#18181B] flex items-center justify-center flex-col">
-                 <Crown className="text-yellow-400 mb-1" size={28}/>
+                 <rankStyle.icon className={`${rankStyle.color} mb-1`} size={28}/>
                  <span className="text-2xl font-bold text-white">{userLevel.level}</span>
                </div>
              </div>
@@ -555,7 +569,7 @@ const DashboardView = () => {
                <div className="text-right hidden sm:block"><p className="text-violet-400 font-bold">{userLevel.currentXP} <span className="text-gray-500">/ {xpNext} XP</span></p></div>
             </div>
             <div className="w-full h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700 relative">
-               <div className="h-full bg-gradient-to-r from-violet-600 to-blue-500 transition-all duration-1000" style={{width: `${xpProgress}%`}}><div className="absolute top-0 right-0 bottom-0 w-[1px] bg-white/50 shadow-[0_0_10px_white]"/></div>
+               <div className={`h-full bg-gradient-to-r ${rankStyle.bg} transition-all duration-1000`} style={{width: `${xpProgress}%`}}><div className="absolute top-0 right-0 bottom-0 w-[1px] bg-white/50 shadow-[0_0_10px_white]"/></div>
             </div>
             <p className="text-xs text-gray-500 mt-2 text-right sm:hidden">{userLevel.currentXP} / {xpNext} XP</p>
           </div>
@@ -781,6 +795,9 @@ const AppLayout = () => {
   ];
   const xpNext = getXPForNextLevel(userLevel.level);
   const xpPercent = Math.min(100, (userLevel.currentXP / xpNext) * 100);
+  
+  // VISUAL RPG (Sidebar)
+  const rankStyle = getRankStyle(userLevel.level);
 
   return (
     <div className="flex h-screen bg-[#0F0F12] text-gray-300 font-sans overflow-hidden">
@@ -789,8 +806,8 @@ const AppLayout = () => {
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0F0F12] border-r border-gray-800 flex flex-col transition-transform duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'}`}>
         <div className="p-8 pb-4 flex items-center gap-3"><div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">F</div><span className="text-xl font-bold text-white tracking-tight">Focus</span></div>
         <div className="mx-6 mb-6 p-3 bg-zinc-900/50 border border-zinc-800 rounded-xl">
-           <div className="flex items-center gap-3 mb-2"><div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-xs text-white font-bold">{userLevel.level}</div><div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{userLevel.title}</p><p className="text-[10px] text-gray-500">{userLevel.currentXP}/{xpNext} XP</p></div></div>
-           <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-violet-600 to-blue-500" style={{width:`${xpPercent}%`}}/></div>
+           <div className="flex items-center gap-3 mb-2"><div className={`w-8 h-8 rounded-full bg-gradient-to-br ${rankStyle.bg} flex items-center justify-center text-xs text-white font-bold`}>{userLevel.level}</div><div className="flex-1 min-w-0"><p className="text-xs font-bold text-white truncate">{userLevel.title}</p><p className="text-[10px] text-gray-500">{userLevel.currentXP}/{xpNext} XP</p></div></div>
+           <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full bg-gradient-to-r ${rankStyle.bg}`} style={{width:`${xpPercent}%`}}/></div>
         </div>
         <nav className="flex-1 px-4 space-y-2">{nav.map(i=><button key={i.id} onClick={()=>{setCurrentView(i.id);setMenu(false)}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${currentView===i.id?'bg-violet-600/10 text-violet-400 font-medium':'hover:bg-[#18181B] hover:text-white'}`}><i.i size={20}/>{i.l}</button>)}</nav>
       </aside>
