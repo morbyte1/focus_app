@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Zap, Target, BarChart2, Play, Pause, Coffee, RotateCcw, 
   CheckCircle, Plus, Clock, Flame, Settings, BookOpen, Quote, Trash2, Menu, X, 
   History, ArrowLeft, Calendar, AlertTriangle, Infinity as InfinityIcon, List, 
-  CheckSquare, Download, Upload, ChevronDown, ChevronRight, Brain
+  CheckSquare, Download, Upload, ChevronDown, ChevronRight, Brain, Flag
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
@@ -55,6 +55,9 @@ const FocusProvider = ({ children }) => {
   const [tasks, setTasks] = useStickyState([], 'focus_tasks');
   const [mistakes, setMistakes] = useStickyState([], 'focus_mistakes');
   const [themes, setThemes] = useStickyState([], 'focus_themes'); 
+  
+  // NOVO ESTADO: Contagem Regressiva
+  const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
 
   const [timerMode, setTimerMode] = useState('WORK'); 
   const [timerType, setTimerType] = useState('POMODORO'); 
@@ -308,6 +311,7 @@ const FocusProvider = ({ children }) => {
       timerMode, setTimerMode, timerType, setTimerType, timeLeft, setTimeLeft, isActive, setIsActive, 
       cycles, setCycles, selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime,
       elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats,
+      countdown, setCountdown, // Exportando o novo estado
       resetAllData: () => { if(window.confirm("Resetar TUDO?")) { localStorage.clear(); window.location.reload(); } },
       deleteDayHistory: (d) => { if(window.confirm(`Apagar ${d}?`)) setSessions(prev => prev.filter(s => new Date(s.date).toDateString() !== d)); }
     }}>
@@ -319,7 +323,7 @@ const FocusProvider = ({ children }) => {
 /**
  * --- COMPONENTES UI ---
  */
-const Card = ({ children, className = "" }) => <div className={`bg-[#18181B] border border-gray-800 rounded-xl shadow-lg p-5 ${className}`}>{children}</div>;
+const Card = ({ children, className = "", onClick }) => <div onClick={onClick} className={`bg-[#18181B] border border-gray-800 rounded-xl shadow-lg p-5 ${className}`}>{children}</div>;
 
 const Button = ({ children, onClick, variant = 'primary', className = "" }) => {
   const variants = {
@@ -356,15 +360,94 @@ const Modal = ({ isOpen, onClose, title, children }) => {
  * --- VIEWS ---
  */
 const DashboardView = () => {
-  const { kpiData, weeklyChartData, setCurrentView } = useContext(FocusContext);
+  const { kpiData, weeklyChartData, setCurrentView, countdown, setCountdown } = useContext(FocusContext);
+  const [isCountModalOpen, setIsCountModalOpen] = useState(false);
+  const [countForm, setCountForm] = useState({ date: '', title: '' });
+
+  // Cálculo de dias restantes
+  const getDaysLeft = (targetDate) => {
+    if (!targetDate) return null;
+    const now = new Date();
+    const target = new Date(targetDate);
+    
+    // Normalizar para meia-noite para comparar datas
+    now.setHours(0,0,0,0);
+    target.setHours(0,0,0,0);
+    
+    const diffTime = target - now;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  };
+
+  const daysLeft = getDaysLeft(countdown.date);
+
+  // Lógica de Cores do Card
+  let countColorClass = "border-l-gray-600 text-gray-500";
+  let countIconBg = "bg-gray-500/20 text-gray-500";
+  
+  if (daysLeft !== null) {
+    if (daysLeft < 0) {
+      countColorClass = "border-l-red-500 text-red-500";
+      countIconBg = "bg-red-500/20 text-red-500";
+    } else if (daysLeft === 0) {
+      countColorClass = "border-l-red-500 text-red-500";
+      countIconBg = "bg-red-500/20 text-red-500 animate-pulse";
+    } else if (daysLeft < 7) {
+      countColorClass = "border-l-orange-500 text-orange-500";
+      countIconBg = "bg-orange-500/20 text-orange-500";
+    } else if (daysLeft < 30) {
+      countColorClass = "border-l-blue-500 text-blue-500";
+      countIconBg = "bg-blue-500/20 text-blue-500";
+    } else {
+      countColorClass = "border-l-emerald-500 text-emerald-500";
+      countIconBg = "bg-emerald-500/20 text-emerald-500";
+    }
+  }
+
+  const handleSaveCountdown = (e) => {
+    e.preventDefault();
+    setCountdown({ date: countForm.date, title: countForm.title || "Minha Meta" });
+    setIsCountModalOpen(false);
+  };
+
+  useEffect(() => {
+    if (isCountModalOpen) {
+      setCountForm({ date: countdown.date || '', title: countdown.title || '' });
+    }
+  }, [isCountModalOpen, countdown]);
+
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <header className="mb-8"><h1 className="text-3xl font-bold text-white mb-1">Seja bem-vindo ao Focus App!</h1><p className="text-gray-400">Visão geral e detalhada do seu progresso.</p></header>
+      
+      {/* Grade atualizada para incluir o Card de Contagem */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex items-center gap-4 border-l-4 border-l-yellow-500"><div className="p-3 bg-yellow-500/20 rounded-full text-yellow-500"><Zap size={24}/></div><div><p className="text-sm text-gray-400">Hoje</p><p className="text-2xl font-bold text-white">{kpiData.todayMinutes} min</p></div></Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-violet-500"><div className="p-3 bg-violet-500/20 rounded-full text-violet-500"><Clock size={24}/></div><div><p className="text-sm text-gray-400">Total</p><p className="text-2xl font-bold text-white">{kpiData.totalHours} h</p></div></Card>
         <Card className="flex items-center gap-4 border-l-4 border-l-orange-500"><div className="p-3 bg-orange-500/20 rounded-full text-orange-500"><Flame size={24}/></div><div><p className="text-sm text-gray-400">Sequência</p><p className="text-2xl font-bold text-white">{kpiData.streak} dias</p></div></Card>
+        
+        {/* NOVO: Card de Contagem Regressiva */}
+        <Card 
+          onClick={() => setIsCountModalOpen(true)} 
+          className={`flex items-center gap-4 border-l-4 cursor-pointer hover:bg-zinc-800/80 transition-all group ${countColorClass}`}
+        >
+          <div className={`p-3 rounded-full transition-colors ${countIconBg}`}>
+            <Flag size={24}/>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400 group-hover:text-white transition-colors">
+              {daysLeft !== null ? (countdown.title || "Meta") : "Próxima Meta"}
+            </p>
+            {daysLeft !== null ? (
+              <p className={`text-2xl font-bold ${daysLeft <= 7 ? 'scale-105 origin-left' : ''} transition-transform`}>
+                {daysLeft === 0 ? "É HOJE!" : daysLeft < 0 ? "Concluído" : `${daysLeft} dias`}
+              </p>
+            ) : (
+              <p className="text-sm font-bold text-gray-500 italic">Definir data...</p>
+            )}
+          </div>
+        </Card>
       </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 min-h-[300px]">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-violet-500"/> Atividade Semanal</h3>
@@ -386,6 +469,40 @@ const DashboardView = () => {
           </Button>
         </Card>
       </div>
+
+      {/* Modal de Configuração da Contagem */}
+      <Modal isOpen={isCountModalOpen} onClose={() => setIsCountModalOpen(false)} title="Configurar Meta">
+        <form onSubmit={handleSaveCountdown} className="space-y-4">
+          <div>
+            <label className="text-xs text-gray-500 font-bold uppercase">Nome da Meta</label>
+            <input 
+              type="text" 
+              placeholder="Ex: ENEM, Prova de Inglês..." 
+              className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-violet-500"
+              value={countForm.title}
+              onChange={e => setCountForm({...countForm, title: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 font-bold uppercase">Data Alvo</label>
+            <input 
+              type="date" 
+              required
+              className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-violet-500"
+              value={countForm.date}
+              onChange={e => setCountForm({...countForm, date: e.target.value})}
+            />
+          </div>
+          <div className="pt-2 flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => { setCountdown({date: null, title: ''}); setIsCountModalOpen(false); }} className="flex-1">
+              Limpar
+            </Button>
+            <Button type="submit" className="flex-[2]">
+              Salvar Data
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };
