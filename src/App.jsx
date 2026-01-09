@@ -6,9 +6,10 @@ import {
   History, ArrowLeft, Calendar, AlertTriangle, Infinity as InfinityIcon, List, 
   CheckSquare, Download, Upload, ChevronDown, ChevronRight, ChevronLeft, Brain, Flag,
   FileText, Activity, Percent, Trophy, Star, Crown, Award, HardDrive,
-  Sprout, Feather, Compass, Shield, Scroll
+  Sprout, Feather, Compass, Shield, Scroll, Layers, PieChart as PieChartIcon
 } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+// IMPORTAÇÃO CORRIGIDA: Adicionei PieChart, Pie, Legend que faltavam
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
 
 /**
@@ -16,14 +17,10 @@ import { CalendarTab } from './components/CalendarTab';
  */
 const MathRenderer = ({ text, className = "" }) => {
   const containerRef = useRef(null);
-  // Garante que text seja sempre uma string para evitar crash
   const safeText = text || ""; 
 
   useEffect(() => {
-    // Se não tiver texto, não faz nada
     if (!safeText) return;
-
-    // Carregar CSS do KaTeX
     if (!document.getElementById('katex-css')) {
       const link = document.createElement('link');
       link.id = 'katex-css';
@@ -31,8 +28,6 @@ const MathRenderer = ({ text, className = "" }) => {
       link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
       document.head.appendChild(link);
     }
-
-    // Carregar JS do KaTeX com verificação de segurança
     if (!window.katex && !document.getElementById('katex-js')) {
       const script = document.createElement('script');
       script.id = 'katex-js';
@@ -49,32 +44,20 @@ const MathRenderer = ({ text, className = "" }) => {
       try {
         const parts = safeText.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
         containerRef.current.innerHTML = '';
-
         parts.forEach(part => {
           const span = document.createElement('span');
           if (part.startsWith('$$') && part.endsWith('$$')) {
-            try {
-              window.katex.render(part.slice(2, -2), span, { displayMode: true, throwOnError: false });
-            } catch (e) { span.innerText = part; }
+            try { window.katex.render(part.slice(2, -2), span, { displayMode: true, throwOnError: false }); } catch (e) { span.innerText = part; }
           } else if (part.startsWith('$') && part.endsWith('$')) {
-            try {
-              window.katex.render(part.slice(1, -1), span, { displayMode: false, throwOnError: false });
-            } catch (e) { span.innerText = part; }
-          } else {
-            span.innerText = part;
-          }
+            try { window.katex.render(part.slice(1, -1), span, { displayMode: false, throwOnError: false }); } catch (e) { span.innerText = part; }
+          } else { span.innerText = part; }
           containerRef.current.appendChild(span);
         });
-      } catch (e) {
-        console.error("Erro ao renderizar matemática:", e);
-        if (containerRef.current) containerRef.current.innerText = safeText;
-      }
-    } else if (containerRef.current) {
-        containerRef.current.innerText = safeText;
-    }
+      } catch (e) { if (containerRef.current) containerRef.current.innerText = safeText; }
+    } else if (containerRef.current) { containerRef.current.innerText = safeText; }
   };
 
-  return <div ref={containerRef} className={className} >{/* Render inicial seguro */}{!window.katex && safeText}</div>;
+  return <div ref={containerRef} className={className} >{!window.katex && safeText}</div>;
 };
 
 /**
@@ -110,17 +93,12 @@ function useStickyState(defaultValue, key) {
 }
 
 /**
- * --- LÓGICA RPG (GAMIFICAÇÃO) ---
+ * --- LÓGICA RPG ---
  */
 const TITLES = [
-  { level: 50, title: "Sábio do Fluxo" },
-  { level: 30, title: "Arquivista Mestre" },
-  { level: 20, title: "Guardião da Disciplina" },
-  { level: 10, title: "Explorador do Conhecimento" },
-  { level: 5, title: "Aprendiz Focado" },
-  { level: 1, title: "Novato Curioso" }
+  { level: 50, title: "Sábio do Fluxo" }, { level: 30, title: "Arquivista Mestre" }, { level: 20, title: "Guardião da Disciplina" },
+  { level: 10, title: "Explorador do Conhecimento" }, { level: 5, title: "Aprendiz Focado" }, { level: 1, title: "Novato Curioso" }
 ];
-
 const RANK_STYLES = [
   { min: 50, icon: Crown, bg: "from-[#1100ab] to-blue-500", color: "text-blue-300" },
   { min: 30, icon: Scroll, bg: "from-slate-400 to-gray-200", color: "text-slate-300" },
@@ -129,31 +107,25 @@ const RANK_STYLES = [
   { min: 5, icon: Feather, bg: "from-emerald-500 to-green-600", color: "text-emerald-400" },
   { min: 1, icon: Sprout, bg: "from-gray-500 to-slate-600", color: "text-gray-400" }
 ];
-
 const getTitleByLevel = (level) => TITLES.find(t => level >= t.level)?.title || "Novato Curioso";
 const getRankStyle = (level) => RANK_STYLES.find(s => level >= s.min) || RANK_STYLES[RANK_STYLES.length - 1];
-
 const getXPForNextLevel = (level) => Math.floor(500 * Math.pow(level, 1.5));
 
 /**
- * --- CONTEXTO GLOBAL ---
+ * --- CONTEXTO ---
  */
 export const FocusContext = createContext();
 
 const FocusProvider = ({ children }) => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
-
   const [subjects, setSubjects] = useStickyState(DEFAULT_SUBJECTS, 'focus_subjects');
   const [sessions, setSessions] = useStickyState([], 'focus_sessions');
   const [tasks, setTasks] = useStickyState([], 'focus_tasks');
   const [mistakes, setMistakes] = useStickyState([], 'focus_mistakes');
   const [themes, setThemes] = useStickyState([], 'focus_themes'); 
   const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
-
-  const [userLevel, setUserLevel] = useStickyState({
-    level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso"
-  }, 'focus_rpg');
+  const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
 
   const [timerMode, setTimerMode] = useState('WORK'); 
   const [timerType, setTimerType] = useState('POMODORO'); 
@@ -436,14 +408,12 @@ const FocusProvider = ({ children }) => {
 /**
  * --- COMPONENTES UI (Visuais Atualizados) ---
  */
-// Card agora é #09090b (Preto suave) e rounded-3xl
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-[#09090b] border border-white/5 rounded-3xl shadow-lg p-6 ${className}`}>
     {children}
   </div>
 );
 
-// Botões agora usam a cor #1100ab e são mais arredondados (rounded-2xl)
 const Button = ({ children, onClick, variant = 'primary', className = "" }) => {
   const variants = {
     primary: "bg-[#1100ab] hover:bg-[#0c007a] text-white shadow-[#1100ab]/30 shadow-md",
@@ -862,33 +832,188 @@ const GoalsView = () => {
 };
 
 const StatsView = () => {
-  const { sessions, weeklyChartData, advancedStats } = useContext(FocusContext);
-  const { monthlyData, bestSubject, worstSubject, maxStreak } = advancedStats;
+  const { sessions, subjects, mistakes, themes } = useContext(FocusContext);
+
+  // 1. Cálculos de KPI (Dados brutos)
+  const totalQuestions = useMemo(() => sessions.reduce((acc, s) => acc + (s.questions || 0), 0), [sessions]);
+  const totalErrors = useMemo(() => sessions.reduce((acc, s) => acc + (s.errors || 0), 0), [sessions]);
+  const totalTime = useMemo(() => (sessions.reduce((acc, s) => acc + s.minutes, 0) / 60).toFixed(1), [sessions]);
+  
+  // Taxa de acerto global (evitar divisão por zero)
+  const accuracy = useMemo(() => {
+    return totalQuestions > 0 ? Math.round(((totalQuestions - totalErrors) / totalQuestions) * 100) : 0;
+  }, [totalQuestions, totalErrors]);
+
+  const completedTopics = useMemo(() => themes.reduce((acc, t) => acc + t.items.filter(i => i.completed).length, 0), [themes]);
+
+  // 2. Gráfico 1: Volume e Erros por Matéria
+  const performanceData = useMemo(() => {
+    return subjects.map(sub => {
+      const subSessions = sessions.filter(s => s.subjectId === sub.id);
+      const questions = subSessions.reduce((acc, s) => acc + (s.questions || 0), 0);
+      const errors = subSessions.reduce((acc, s) => acc + (s.errors || 0), 0);
+      return {
+        name: sub.name,
+        Questões: questions,
+        Erros: errors,
+        Acerto: questions > 0 ? Math.round(((questions - errors) / questions) * 100) : 0
+      };
+    }).filter(d => d.Questões > 0); // Mostra só quem tem dados
+  }, [subjects, sessions]);
+
+  // 3. Gráfico 2: Motivos de Erro
+  const mistakeReasonsData = useMemo(() => {
+    const counts = {};
+    mistakes.forEach(m => {
+      counts[m.reason] = (counts[m.reason] || 0) + 1;
+    });
+    return Object.keys(counts).map(k => ({ name: k, quantidade: counts[k] }));
+  }, [mistakes]);
+
+  // 4. Gráfico 3: Pizza de Temas Concluídos
+  const themesData = useMemo(() => {
+    return subjects.map(sub => {
+      const subThemes = themes.filter(t => t.subjectId === sub.id);
+      const completed = subThemes.reduce((acc, t) => acc + t.items.filter(i => i.completed).length, 0);
+      return { name: sub.name, value: completed, color: sub.color };
+    }).filter(d => d.value > 0);
+  }, [subjects, themes]);
+
+  // 5. Gráfico 4: Rosca de Tempo de Estudo (NOVO)
+  const timeData = useMemo(() => {
+    return subjects.map(sub => {
+        const subSessions = sessions.filter(s => s.subjectId === sub.id);
+        const mins = subSessions.reduce((acc, s) => acc + s.minutes, 0);
+        return { name: sub.name, value: mins, color: sub.color };
+    }).filter(d => d.value > 0);
+  }, [subjects, sessions]);
+
+  // 6. Heatmap (Mantido)
   const heatmapData = useMemo(() => { const today = new Date(); const currentYear = today.getFullYear(); const startOfYear = new Date(currentYear, 0, 1); const days = []; for (let d = new Date(startOfYear); d <= today; d.setDate(d.getDate() + 1)) { const dateStr = d.toDateString(); const hasStudy = sessions.some(s => new Date(s.date).toDateString() === dateStr); days.push({ date: new Date(d), hasStudy }); } return days; }, [sessions]);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <h1 className="text-2xl font-bold text-white mb-6">Central de Dados</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><Card className="bg-gradient-to-br from-orange-500/10 to-[#0a0a0a] border-orange-500/20"><div className="flex items-center gap-3 mb-2"><Flame className="text-orange-500" size={20} /><h3 className="text-zinc-400 text-xs font-bold uppercase">Recorde Histórico</h3></div><p className="text-3xl font-bold text-white">{maxStreak} <span className="text-sm font-normal text-zinc-500">dias seguidos</span></p></Card><Card className="bg-gradient-to-br from-emerald-500/10 to-[#0a0a0a] border-emerald-500/20"><div className="flex items-center gap-3 mb-2"><Target className="text-emerald-500" size={20} /><h3 className="text-zinc-400 text-xs font-bold uppercase">Mais Estudada</h3></div><p className="text-xl font-bold text-white truncate">{bestSubject ? bestSubject.name : "---"}</p><p className="text-xs text-emerald-400">{bestSubject ? (bestSubject.totalMins / 60).toFixed(1) : 0} horas totais</p></Card><Card className="bg-gradient-to-br from-red-500/10 to-[#0a0a0a] border-red-500/20"><div className="flex items-center gap-3 mb-2"><AlertTriangle className="text-red-500" size={20} /><h3 className="text-zinc-400 text-xs font-bold uppercase">Atenção Necessária</h3></div><p className="text-xl font-bold text-white truncate">{worstSubject ? worstSubject.name : "---"}</p><p className="text-xs text-red-400">{worstSubject ? (worstSubject.totalMins / 60).toFixed(1) : 0} horas totais</p></Card></div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><Card className="min-h-[300px]"><h3 className="text-white font-semibold mb-6 flex items-center gap-2"><BarChart2 size={18} className="text-[#1100ab]"/> Performance Semanal</h3><div className="h-[200px] w-full"><ResponsiveContainer><BarChart data={weeklyChartData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} axisLine={false} tickLine={false}/><Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/><Bar dataKey="minutos" fill="#1100ab" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer></div></Card><Card className="min-h-[300px]"><h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Calendar size={18} className="text-blue-500"/> Visão Mensal</h3><div className="h-[200px] w-full"><ResponsiveContainer><BarChart data={monthlyData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} interval={2} axisLine={false} tickLine={false}/><Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/><Bar dataKey="minutos" fill="#3b82f6" radius={[2,2,0,0]} /></BarChart></ResponsiveContainer></div></Card></div>
-      <Card><h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência</h3><div className="flex flex-wrap gap-1">{heatmapData.map((day, index) => (<div key={index} title={`${day.date.toLocaleDateString()}: ${day.hasStudy ? 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${day.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-zinc-800'}`}></div>))}</div><p className="text-xs text-zinc-500 mt-3">Cada quadrado representa um dia deste ano. Quadrados acesos indicam dias com estudo registrado.</p></Card>
-    </div>
-  );
-};
 
-const HistoryView = () => {
-  const { sessions, setCurrentView, setSelectedHistoryDate, deleteDayHistory } = useContext(FocusContext);
-  const grouped = useMemo(()=>{ const g={}; sessions.forEach(s=>{ const d=new Date(s.date).toDateString(); if(!g[d])g[d]={d:new Date(s.date),m:0,c:0}; g[d].m+=s.minutes; g[d].c++; }); return Object.values(g).sort((a,b)=>b.d-a.d); },[sessions]);
-  return ( <div className="space-y-6 animate-fadeIn pb-24 md:pb-0"><h1 className="text-2xl font-bold text-white mb-6">Histórico</h1><div className="grid gap-4">{grouped.length===0?<p className="text-center text-zinc-500 py-10">Vazio.</p>:grouped.map((g,i)=>(<Card key={i} className="flex justify-between items-center hover:bg-[#121214] cursor-pointer group"><div className="flex-1 flex gap-4 items-center" onClick={()=>{setSelectedHistoryDate(g.d);setCurrentView('report')}}><div className="w-12 h-12 bg-[#1100ab]/20 rounded-2xl flex flex-col items-center justify-center text-[#4d4dff]"><span className="font-bold text-lg">{g.d.getDate()}</span><span className="text-[10px] uppercase">{g.d.toLocaleString('pt-BR',{month:'short'})}</span></div><div><h3 className="text-white font-medium capitalize">{g.d.toLocaleString('pt-BR',{weekday:'long'})}</h3><p className="text-sm text-zinc-400">{g.c} sessões • {Math.floor(g.m/60)}h {g.m%60}m</p></div></div><button onClick={()=>deleteDayHistory(g.d.toDateString())} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-900/10 rounded-full transition-colors"><Trash2 size={18}/></button></Card>))}</div></div> );
-};
+      {/* LINHA 1: KPIs Principais */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="flex flex-col gap-1 border-l-4 border-l-[#1100ab]">
+          <span className="text-xs text-zinc-500 uppercase font-bold">Tempo Total</span>
+          <span className="text-2xl font-bold text-white">{totalTime}h</span>
+        </Card>
+        <Card className="flex flex-col gap-1 border-l-4 border-l-blue-500">
+          <span className="text-xs text-zinc-500 uppercase font-bold">Questões</span>
+          <span className="text-2xl font-bold text-white">{totalQuestions}</span>
+        </Card>
+        <Card className="flex flex-col gap-1 border-l-4 border-l-emerald-500">
+          <span className="text-xs text-zinc-500 uppercase font-bold">Precisão Global</span>
+          <span className="text-2xl font-bold text-white">{accuracy}%</span>
+        </Card>
+        <Card className="flex flex-col gap-1 border-l-4 border-l-yellow-500">
+          <span className="text-xs text-zinc-500 uppercase font-bold">Tópicos Feitos</span>
+          <span className="text-2xl font-bold text-white">{completedTopics}</span>
+        </Card>
+      </div>
 
-const ReportView = () => {
-  const { sessions, mistakes, selectedHistoryDate, setCurrentView, subjects } = useContext(FocusContext);
-  if(!selectedHistoryDate) return null; const dStr = selectedHistoryDate.toDateString(); const daily = sessions.filter(s=>new Date(s.date).toDateString()===dStr).sort((a,b)=>new Date(b.date)-new Date(a.date)); const dailyM = mistakes.filter(m=>new Date(m.date).toDateString()===dStr); const t = daily.reduce((a,c)=>a+c.minutes,0);
-  return (
-    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0"><button onClick={()=>setCurrentView('history')} className="flex items-center gap-2 text-zinc-400 hover:text-white mb-2"><ArrowLeft size={18}/> Voltar</button><header className="flex flex-col md:flex-row justify-between items-center gap-6"><div><h1 className="text-2xl font-bold text-white capitalize">{selectedHistoryDate.toLocaleDateString()}</h1><p className="text-zinc-400">Relatório</p></div><div className="w-32 h-32 rounded-full border-4 border-[#1100ab]/20 flex flex-col items-center justify-center"><span className="text-2xl font-mono font-bold text-white">{Math.floor(t/60)}h {t%60}m</span><span className="text-xs uppercase text-zinc-500">Total</span></div></header>
-      <div className="space-y-4">{daily.map(s=>{ const sub=subjects.find(x=>x.id===s.subjectId)||{name:'-',color:'#555'}; const accuracy = s.questions > 0 ? Math.round(((s.questions - s.errors) / s.questions) * 100) : 0; return ( <Card key={s.id} className="relative overflow-hidden"><div className="absolute left-0 top-0 bottom-0 w-1" style={{backgroundColor:sub.color}}/><div className="flex justify-between items-start"><div className="flex-1 pl-3"><div className="flex items-center gap-2 mb-1"><span className="text-[10px] font-bold uppercase text-white px-1.5 rounded" style={{backgroundColor:sub.color}}>{sub.name}</span><span className="text-xs text-zinc-500">{new Date(s.date).toLocaleTimeString().slice(0,5)}</span></div><p className="text-sm text-zinc-300">{s.notes||"Sem notas."}</p>{s.questions > 0 && (<div className="mt-3 flex gap-3 text-xs"><span className="flex items-center gap-1 bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20 font-bold"><Activity size={12}/> {s.questions} Questões</span><span className={`flex items-center gap-1 px-2 py-1 rounded border font-bold ${s.errors > 0 ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>{s.errors > 0 ? <AlertTriangle size={12}/> : <CheckCircle size={12}/>} {s.errors} Erros</span><span className="flex items-center gap-1 bg-[#1100ab]/10 text-[#4d4dff] px-2 py-1 rounded border border-[#1100ab]/20 font-bold"><Percent size={12}/> {accuracy}% Acerto</span></div>)}</div><span className="font-bold text-white">{s.minutes}m</span></div></Card> )})}</div>
-      {dailyM.length>0&&(<div className="mt-8"><h3 className="text-red-400 font-bold mb-4 flex items-center gap-2"><AlertTriangle size={18}/> Erros</h3><div className="space-y-4">{dailyM.map(m=><Card key={m.id} className="border-red-500/20 bg-red-500/5"><p className="text-zinc-300 text-sm mb-2"><strong className="text-red-400">Erro:</strong> {m.description}</p><MathRenderer className="bg-zinc-900/50 p-2 rounded text-sm text-green-400 border-l-2 border-green-500" text={m.solution} /></Card>)}</div></div>)}
+      {/* LINHA 2: Gráficos de Performance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="min-h-[300px]">
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Activity size={18} className="text-[#1100ab]"/> Volume de Questões</h3>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer>
+              <BarChart data={performanceData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/>
+                <XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} axisLine={false} tickLine={false}/>
+                <Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/>
+                <Bar dataKey="Questões" fill="#1100ab" radius={[4,4,0,0]} name="Feitas"/>
+                <Bar dataKey="Erros" fill="#ef4444" radius={[4,4,0,0]} name="Erros"/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="min-h-[300px]">
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Target size={18} className="text-emerald-500"/> Taxa de Acerto (%)</h3>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer>
+              <BarChart data={performanceData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false}/>
+                <XAxis type="number" domain={[0, 100]} stroke="#555" tick={{fontSize:10}}/>
+                <YAxis dataKey="name" type="category" stroke="#555" tick={{fontSize:10}} width={80}/>
+                <Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/>
+                <Bar dataKey="Acerto" fill="#10b981" radius={[0,4,4,0]} barSize={20}>
+                  {performanceData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.Acerto >= 80 ? '#10b981' : entry.Acerto >= 50 ? '#f59e0b' : '#ef4444'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      {/* LINHA 3: Distribuição e Erros */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="min-h-[300px]">
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Layers size={18} className="text-purple-500"/> Distribuição de Tópicos</h3>
+          <div className="h-[250px] w-full flex items-center justify-center">
+            {themesData.length > 0 ? (
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={themesData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {themesData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/>
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : <p className="text-zinc-500 text-sm">Nenhum tópico concluído ainda.</p>}
+          </div>
+        </Card>
+
+        <Card className="min-h-[300px]">
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Clock size={18} className="text-blue-500"/> Tempo de Estudo (Rosca)</h3>
+          <div className="h-[250px] w-full flex items-center justify-center">
+            {timeData.length > 0 ? (
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={timeData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {timeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/>
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : <p className="text-zinc-500 text-sm">Sem dados de tempo.</p>}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+        <Card className="min-h-[300px]">
+          <h3 className="text-white font-semibold mb-6 flex items-center gap-2"><AlertTriangle size={18} className="text-orange-500"/> Motivos de Erro</h3>
+          <div className="h-[250px] w-full">
+             <ResponsiveContainer>
+              <BarChart data={mistakeReasonsData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/>
+                <XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} axisLine={false} tickLine={false}/>
+                <Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/>
+                <Bar dataKey="quantidade" fill="#f97316" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência</h3>
+        <div className="flex flex-wrap gap-1">{heatmapData.map((day, index) => (<div key={index} title={`${day.date.toLocaleDateString()}: ${day.hasStudy ? 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${day.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-zinc-800'}`}></div>))}</div>
+        <p className="text-xs text-zinc-500 mt-3">Cada quadrado representa um dia deste ano.</p>
+      </Card>
     </div>
   );
 };
@@ -918,13 +1043,19 @@ const AppLayout = () => {
       <button className="md:hidden fixed top-4 right-4 z-50 p-2 bg-[#09090b] border border-zinc-800 rounded-2xl" onClick={()=>setMenu(!menu)}>{menu?<X/>:<Menu/>}</button>
       {menu&&<div className="fixed inset-0 bg-black/90 z-40 md:hidden" onClick={()=>setMenu(false)}/>}
       
-      {/* SIDEBAR COM SUPORTE A COLAPSO */}
+      {/* SIDEBAR COM SUPORTE A COLAPSO (Botão movido para o topo) */}
       <aside className={`fixed inset-y-0 left-0 z-50 bg-[#000000] border-r border-zinc-900 flex flex-col transition-all duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'} ${sidebarCollapsed ? 'w-20' : 'w-64'}`}>
         
-        {/* LOGO */}
-        <div className={`p-8 pb-4 flex items-center gap-3 ${sidebarCollapsed ? 'justify-center' : ''}`}>
-          <div className="w-8 h-8 bg-gradient-to-br from-[#1100ab] to-blue-900 rounded-2xl flex items-center justify-center text-white font-bold flex-shrink-0">F</div>
-          {!sidebarCollapsed && <span className="text-xl font-bold text-white tracking-tight">Focus</span>}
+        {/* HEADER DA SIDEBAR: LOGO + BOTÃO MINIMIZAR */}
+        <div className={`p-6 flex items-center ${sidebarCollapsed ? 'justify-center flex-col gap-4' : 'justify-between'}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-[#1100ab] to-blue-900 rounded-2xl flex items-center justify-center text-white font-bold flex-shrink-0">F</div>
+            {!sidebarCollapsed && <span className="text-xl font-bold text-white tracking-tight">Focus</span>}
+          </div>
+          
+          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-2 hover:bg-[#09090b] rounded-xl text-zinc-500 hover:text-white transition-colors">
+            {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          </button>
         </div>
 
         {/* MINI PERFIL */}
@@ -950,13 +1081,6 @@ const AppLayout = () => {
             </button>
           ))}
         </nav>
-
-        {/* BOTÃO COLAPSAR */}
-        <div className="p-4 border-t border-zinc-900 flex justify-end">
-          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-2 hover:bg-[#09090b] rounded-xl text-zinc-500 hover:text-white transition-colors">
-            {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-          </button>
-        </div>
       </aside>
 
       {/* MAIN CONTENT - AJUSTA MARGEM DINAMICAMENTE */}
