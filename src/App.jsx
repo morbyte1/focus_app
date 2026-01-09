@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Zap, Target, BarChart2, Play, Pause, Coffee, RotateCcw, 
   CheckCircle, Plus, Clock, Flame, Settings, BookOpen, Quote, Trash2, Menu, X, 
   History, ArrowLeft, Calendar, AlertTriangle, Infinity as InfinityIcon, List, 
-  CheckSquare, Download, Upload, ChevronDown, ChevronRight, ChevronLeft, Brain, Flag, // Adicionado ChevronLeft
+  CheckSquare, Download, Upload, ChevronDown, ChevronRight, ChevronLeft, Brain, Flag,
   FileText, Activity, Percent, Trophy, Star, Crown, Award, HardDrive,
   Sprout, Feather, Compass, Shield, Scroll
 } from 'lucide-react';
@@ -12,13 +12,17 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { CalendarTab } from './components/CalendarTab';
 
 /**
- * --- COMPONENTE MATH RENDERER (LATEX) ---
- * Carrega o KaTeX via CDN para ser leve e não exigir instalação.
+ * --- COMPONENTE MATH RENDERER (LATEX) - VERSÃO SEGURA ---
  */
 const MathRenderer = ({ text, className = "" }) => {
   const containerRef = useRef(null);
+  // Garante que text seja sempre uma string para evitar crash
+  const safeText = text || ""; 
 
   useEffect(() => {
+    // Se não tiver texto, não faz nada
+    if (!safeText) return;
+
     // Carregar CSS do KaTeX
     if (!document.getElementById('katex-css')) {
       const link = document.createElement('link');
@@ -28,7 +32,7 @@ const MathRenderer = ({ text, className = "" }) => {
       document.head.appendChild(link);
     }
 
-    // Carregar JS do KaTeX
+    // Carregar JS do KaTeX com verificação de segurança
     if (!window.katex && !document.getElementById('katex-js')) {
       const script = document.createElement('script');
       script.id = 'katex-js';
@@ -38,38 +42,39 @@ const MathRenderer = ({ text, className = "" }) => {
     } else if (window.katex) {
       renderMath();
     }
-  }, [text]);
+  }, [safeText]);
 
   const renderMath = () => {
-    if (containerRef.current && window.katex) {
-      // Configuração simples: Procura por delimitadores $...$ ou $$...$$
-      // Para evitar complexidade, vamos fazer um render manual simples ou usar auto-render se disponível.
-      // Aqui faremos uma renderização segura dividindo o texto.
-      
-      const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
-      
-      // Limpa o container
-      containerRef.current.innerHTML = '';
+    if (containerRef.current && window.katex && safeText) {
+      try {
+        const parts = safeText.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
+        containerRef.current.innerHTML = '';
 
-      parts.forEach(part => {
-        const span = document.createElement('span');
-        if (part.startsWith('$$') && part.endsWith('$$')) {
-          try {
-            window.katex.render(part.slice(2, -2), span, { displayMode: true, throwOnError: false });
-          } catch (e) { span.innerText = part; }
-        } else if (part.startsWith('$') && part.endsWith('$')) {
-          try {
-            window.katex.render(part.slice(1, -1), span, { displayMode: false, throwOnError: false });
-          } catch (e) { span.innerText = part; }
-        } else {
-          span.innerText = part;
-        }
-        containerRef.current.appendChild(span);
-      });
+        parts.forEach(part => {
+          const span = document.createElement('span');
+          if (part.startsWith('$$') && part.endsWith('$$')) {
+            try {
+              window.katex.render(part.slice(2, -2), span, { displayMode: true, throwOnError: false });
+            } catch (e) { span.innerText = part; }
+          } else if (part.startsWith('$') && part.endsWith('$')) {
+            try {
+              window.katex.render(part.slice(1, -1), span, { displayMode: false, throwOnError: false });
+            } catch (e) { span.innerText = part; }
+          } else {
+            span.innerText = part;
+          }
+          containerRef.current.appendChild(span);
+        });
+      } catch (e) {
+        console.error("Erro ao renderizar matemática:", e);
+        if (containerRef.current) containerRef.current.innerText = safeText;
+      }
+    } else if (containerRef.current) {
+        containerRef.current.innerText = safeText;
     }
   };
 
-  return <div ref={containerRef} className={className} />;
+  return <div ref={containerRef} className={className} >{/* Render inicial seguro */}{!window.katex && safeText}</div>;
 };
 
 /**
@@ -431,12 +436,14 @@ const FocusProvider = ({ children }) => {
 /**
  * --- COMPONENTES UI (Visuais Atualizados) ---
  */
+// Card agora é #09090b (Preto suave) e rounded-3xl
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-[#09090b] border border-white/5 rounded-3xl shadow-lg p-6 ${className}`}>
     {children}
   </div>
 );
 
+// Botões agora usam a cor #1100ab e são mais arredondados (rounded-2xl)
 const Button = ({ children, onClick, variant = 'primary', className = "" }) => {
   const variants = {
     primary: "bg-[#1100ab] hover:bg-[#0c007a] text-white shadow-[#1100ab]/30 shadow-md",
@@ -864,7 +871,7 @@ const StatsView = () => {
       <h1 className="text-2xl font-bold text-white mb-6">Central de Dados</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><Card className="bg-gradient-to-br from-orange-500/10 to-[#0a0a0a] border-orange-500/20"><div className="flex items-center gap-3 mb-2"><Flame className="text-orange-500" size={20} /><h3 className="text-zinc-400 text-xs font-bold uppercase">Recorde Histórico</h3></div><p className="text-3xl font-bold text-white">{maxStreak} <span className="text-sm font-normal text-zinc-500">dias seguidos</span></p></Card><Card className="bg-gradient-to-br from-emerald-500/10 to-[#0a0a0a] border-emerald-500/20"><div className="flex items-center gap-3 mb-2"><Target className="text-emerald-500" size={20} /><h3 className="text-zinc-400 text-xs font-bold uppercase">Mais Estudada</h3></div><p className="text-xl font-bold text-white truncate">{bestSubject ? bestSubject.name : "---"}</p><p className="text-xs text-emerald-400">{bestSubject ? (bestSubject.totalMins / 60).toFixed(1) : 0} horas totais</p></Card><Card className="bg-gradient-to-br from-red-500/10 to-[#0a0a0a] border-red-500/20"><div className="flex items-center gap-3 mb-2"><AlertTriangle className="text-red-500" size={20} /><h3 className="text-zinc-400 text-xs font-bold uppercase">Atenção Necessária</h3></div><p className="text-xl font-bold text-white truncate">{worstSubject ? worstSubject.name : "---"}</p><p className="text-xs text-red-400">{worstSubject ? (worstSubject.totalMins / 60).toFixed(1) : 0} horas totais</p></Card></div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><Card className="min-h-[300px]"><h3 className="text-white font-semibold mb-6 flex items-center gap-2"><BarChart2 size={18} className="text-[#1100ab]"/> Performance Semanal</h3><div className="h-[200px] w-full"><ResponsiveContainer><BarChart data={weeklyChartData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} axisLine={false} tickLine={false}/><Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/><Bar dataKey="minutos" fill="#1100ab" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer></div></Card><Card className="min-h-[300px]"><h3 className="text-white font-semibold mb-6 flex items-center gap-2"><Calendar size={18} className="text-blue-500"/> Visão Mensal</h3><div className="h-[200px] w-full"><ResponsiveContainer><BarChart data={monthlyData}><CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false}/><XAxis dataKey="name" stroke="#555" tick={{fontSize:10}} interval={2} axisLine={false} tickLine={false}/><Tooltip cursor={{fill:'#222'}} contentStyle={{backgroundColor:'#09090b',borderColor:'#333', color:'#fff'}}/><Bar dataKey="minutos" fill="#3b82f6" radius={[2,2,0,0]} /></BarChart></ResponsiveContainer></div></Card></div>
-      <Card><h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência</h3><div className="flex flex-wrap gap-1">{heatmapData.map((day, index) => (<div key={index} title={`${day.date.toLocaleDateString()}: ${day.hasStudy ? 'Estudou' : 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${day.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-zinc-800'}`}></div>))}</div><p className="text-xs text-zinc-500 mt-3">Cada quadrado representa um dia deste ano. Quadrados acesos indicam dias com estudo registrado.</p></Card>
+      <Card><h3 className="text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500"/> Roadmap de Consistência</h3><div className="flex flex-wrap gap-1">{heatmapData.map((day, index) => (<div key={index} title={`${day.date.toLocaleDateString()}: ${day.hasStudy ? 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${day.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-zinc-800'}`}></div>))}</div><p className="text-xs text-zinc-500 mt-3">Cada quadrado representa um dia deste ano. Quadrados acesos indicam dias com estudo registrado.</p></Card>
     </div>
   );
 };
@@ -881,7 +888,7 @@ const ReportView = () => {
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0"><button onClick={()=>setCurrentView('history')} className="flex items-center gap-2 text-zinc-400 hover:text-white mb-2"><ArrowLeft size={18}/> Voltar</button><header className="flex flex-col md:flex-row justify-between items-center gap-6"><div><h1 className="text-2xl font-bold text-white capitalize">{selectedHistoryDate.toLocaleDateString()}</h1><p className="text-zinc-400">Relatório</p></div><div className="w-32 h-32 rounded-full border-4 border-[#1100ab]/20 flex flex-col items-center justify-center"><span className="text-2xl font-mono font-bold text-white">{Math.floor(t/60)}h {t%60}m</span><span className="text-xs uppercase text-zinc-500">Total</span></div></header>
       <div className="space-y-4">{daily.map(s=>{ const sub=subjects.find(x=>x.id===s.subjectId)||{name:'-',color:'#555'}; const accuracy = s.questions > 0 ? Math.round(((s.questions - s.errors) / s.questions) * 100) : 0; return ( <Card key={s.id} className="relative overflow-hidden"><div className="absolute left-0 top-0 bottom-0 w-1" style={{backgroundColor:sub.color}}/><div className="flex justify-between items-start"><div className="flex-1 pl-3"><div className="flex items-center gap-2 mb-1"><span className="text-[10px] font-bold uppercase text-white px-1.5 rounded" style={{backgroundColor:sub.color}}>{sub.name}</span><span className="text-xs text-zinc-500">{new Date(s.date).toLocaleTimeString().slice(0,5)}</span></div><p className="text-sm text-zinc-300">{s.notes||"Sem notas."}</p>{s.questions > 0 && (<div className="mt-3 flex gap-3 text-xs"><span className="flex items-center gap-1 bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20 font-bold"><Activity size={12}/> {s.questions} Questões</span><span className={`flex items-center gap-1 px-2 py-1 rounded border font-bold ${s.errors > 0 ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>{s.errors > 0 ? <AlertTriangle size={12}/> : <CheckCircle size={12}/>} {s.errors} Erros</span><span className="flex items-center gap-1 bg-[#1100ab]/10 text-[#4d4dff] px-2 py-1 rounded border border-[#1100ab]/20 font-bold"><Percent size={12}/> {accuracy}% Acerto</span></div>)}</div><span className="font-bold text-white">{s.minutes}m</span></div></Card> )})}</div>
-      {dailyM.length>0&&(<div className="mt-8"><h3 className="text-red-400 font-bold mb-4 flex items-center gap-2"><AlertTriangle size={18}/> Erros</h3><div className="space-y-4">{dailyM.map(m=><Card key={m.id} className="border-red-500/20 bg-red-500/5"><p className="text-zinc-300 text-sm mb-2"><strong className="text-red-400">Erro:</strong> {m.description}</p><div className="bg-zinc-900/50 p-2 rounded text-sm text-green-400 border-l-2 border-green-500"><strong className="text-green-500">Solução:</strong> {m.solution}</div></Card>)}</div></div>)}
+      {dailyM.length>0&&(<div className="mt-8"><h3 className="text-red-400 font-bold mb-4 flex items-center gap-2"><AlertTriangle size={18}/> Erros</h3><div className="space-y-4">{dailyM.map(m=><Card key={m.id} className="border-red-500/20 bg-red-500/5"><p className="text-zinc-300 text-sm mb-2"><strong className="text-red-400">Erro:</strong> {m.description}</p><MathRenderer className="bg-zinc-900/50 p-2 rounded text-sm text-green-400 border-l-2 border-green-500" text={m.solution} /></Card>)}</div></div>)}
     </div>
   );
 };
@@ -889,7 +896,7 @@ const ReportView = () => {
 const AppLayout = () => {
   const { currentView, setCurrentView, userLevel } = useContext(FocusContext);
   const [menu, setMenu] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Estado da Sidebar minimizada
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const nav = [
     {id:'dashboard',l:'Painel',i:LayoutDashboard},
@@ -911,7 +918,7 @@ const AppLayout = () => {
       <button className="md:hidden fixed top-4 right-4 z-50 p-2 bg-[#09090b] border border-zinc-800 rounded-2xl" onClick={()=>setMenu(!menu)}>{menu?<X/>:<Menu/>}</button>
       {menu&&<div className="fixed inset-0 bg-black/90 z-40 md:hidden" onClick={()=>setMenu(false)}/>}
       
-      {/* SIDEBAR */}
+      {/* SIDEBAR COM SUPORTE A COLAPSO */}
       <aside className={`fixed inset-y-0 left-0 z-50 bg-[#000000] border-r border-zinc-900 flex flex-col transition-all duration-300 md:translate-x-0 ${menu?'translate-x-0':'-translate-x-full'} ${sidebarCollapsed ? 'w-20' : 'w-64'}`}>
         
         {/* LOGO */}
