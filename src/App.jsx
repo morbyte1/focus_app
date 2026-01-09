@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Zap, Target, BarChart2, Play, Pause, Coffee, RotateCcw, 
   CheckCircle, Plus, Clock, Flame, Settings, BookOpen, Quote, Trash2, Menu, X, 
   History, ArrowLeft, Calendar, AlertTriangle, Infinity as InfinityIcon, List, 
-  CheckSquare, Download, Upload, ChevronDown, ChevronRight, Brain, Flag
+  CheckSquare, Download, Upload, ChevronDown, ChevronRight, Brain, Flag,
+  FileText, Activity, Percent
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CalendarTab } from './components/CalendarTab';
@@ -168,14 +169,16 @@ const FocusProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [isActive, timerMode, timerType, cycles, flowStoredTime]); 
 
-  // Ações
-  const addSession = (minutes, notes, manualSubId = null) => {
+  // Ações - ATUALIZADO: Aceita Questions e Errors
+  const addSession = (minutes, notes, manualSubId = null, questions = 0, errors = 0) => {
     setSessions(prev => [...prev, { 
       id: Date.now(), 
       date: new Date().toISOString(), 
       minutes, 
       subjectId: manualSubId ? Number(manualSubId) : selectedSubjectId, 
-      notes 
+      notes,
+      questions: Number(questions) || 0,
+      errors: Number(errors) || 0
     }]);
   };
 
@@ -509,9 +512,13 @@ const DashboardView = () => {
 
 const FocusView = () => {
   const { timerType, setTimerType, subjects, selectedSubjectId, setSelectedSubjectId, timerMode, setTimerMode, timeLeft, setTimeLeft, isActive, setIsActive, cycles, setCycles, tasks, addTask, toggleTask, deleteTask, addSession, elapsedTime, setElapsedTime, flowStoredTime, setFlowStoredTime } = useContext(FocusContext);
-  const [notes, setNotes] = useState("");
   const [newTaskText, setNewTaskText] = useState("");
   
+  // MODAL RESUMO (Timer)
+  const [isFinishModalOpen, setIsFinishModalOpen] = useState(false);
+  const [finishForm, setFinishForm] = useState({ notes: "", questions: "", errors: "" });
+
+  // MODAL MANUAL
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualMinutes, setManualMinutes] = useState("");
   const [manualNotes, setManualNotes] = useState("");
@@ -520,16 +527,44 @@ const FocusView = () => {
   const handleManualSubmit = (e) => {
     e.preventDefault();
     if (!manualMinutes || !manualSubId) return alert("Preencha o tempo e a matéria.");
-    addSession(parseInt(manualMinutes), manualNotes, manualSubId);
+    // Manual não tem questões/erros no modal simples, enviando 0
+    addSession(parseInt(manualMinutes), manualNotes, manualSubId, 0, 0);
     setManualMinutes(""); setManualNotes(""); setIsManualOpen(false);
     alert("Estudo registrado manualmente!");
   };
 
-  const handleFinish = () => {
+  // Botão "Concluir" no Timer -> Abre Modal
+  const openFinishModal = () => {
+    setIsActive(false); // Pausa o timer
+    setIsFinishModalOpen(true);
+  };
+
+  const handleConfirmSession = (e) => {
+    e.preventDefault();
+    const q = Number(finishForm.questions) || 0;
+    const err = Number(finishForm.errors) || 0;
+
+    if (err > q) {
+      alert("O número de erros não pode ser maior que o de questões feitas!");
+      return;
+    }
+
     const mins = Math.round(elapsedTime / 60);
-    if (mins > 0) { addSession(mins, notes); setNotes(""); alert(`Sessão salva: ${mins} min.`); }
-    else alert("Tempo insuficiente para salvar.");
-    setIsActive(false); setTimerMode('WORK'); setTimeLeft(timerType==='FLOW'?0:POMODORO_WORK); setElapsedTime(0); setCycles(0);
+    if (mins > 0) { 
+      addSession(mins, finishForm.notes, null, q, err); 
+      setFinishForm({ notes: "", questions: "", errors: "" });
+      alert(`Sessão salva: ${mins} min.`); 
+    } else {
+      alert("Tempo insuficiente para salvar.");
+    }
+
+    // Resetar Timer
+    setIsActive(false); 
+    setTimerMode('WORK'); 
+    setTimeLeft(timerType==='FLOW'?0:POMODORO_WORK); 
+    setElapsedTime(0); 
+    setCycles(0);
+    setIsFinishModalOpen(false);
   };
 
   if(!subjects.length) return <div className="text-center mt-20 text-gray-400">Adicione matérias em Metas.</div>;
@@ -559,12 +594,14 @@ const FocusView = () => {
               </button>
               <button onClick={()=> {setIsActive(false); setTimeLeft(timerType==='FLOW'?0:POMODORO_WORK); setElapsedTime(0);}} className="p-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700"><RotateCcw size={24}/></button>
               {timerType==='FLOW' && timerMode==='WORK' && <button onClick={()=> {setFlowStoredTime(timeLeft); setTimerMode('BREAK'); setTimeLeft(Math.floor(timeLeft*0.2)); setIsActive(true);}} className="p-4 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"><Coffee size={24}/></button>}
-              <button onClick={handleFinish} className="p-4 rounded-xl bg-red-500/10 text-red-500 border border-red-500/20"><CheckCircle size={24}/></button>
+              
+              {/* Botão Check agora abre o Modal */}
+              <button onClick={openFinishModal} className="p-4 rounded-xl bg-red-500/10 text-red-500 border border-red-500/20"><CheckCircle size={24}/></button>
             </div>
             {timerType==='FLOW'&&timerMode==='WORK'&&<p className="text-xs text-zinc-500 mt-4">Clique no <Coffee size={12} className="inline"/> para pausa.</p>}
           </div>
         </Card>
-        <Card><h3 className="text-lg font-semibold text-white mb-3">Diário da Sessão</h3><textarea className="w-full bg-[#0F0F12] border border-gray-800 rounded-lg p-3 text-gray-300 outline-none resize-none h-24 text-sm" placeholder="O que estudou?" value={notes} onChange={e=>setNotes(e.target.value)}/></Card>
+        {/* TEXTAREA REMOVIDO DAQUI */}
       </div>
       
       <div className="lg:col-span-1">
@@ -589,6 +626,52 @@ const FocusView = () => {
         </div>
       </div>
 
+      {/* Modal de Conclusão de Sessão (Timer) */}
+      <Modal isOpen={isFinishModalOpen} onClose={() => setIsFinishModalOpen(false)} title="Resumo da Sessão">
+        <form onSubmit={handleConfirmSession} className="space-y-4">
+          <div>
+            <label className="text-xs text-gray-500 font-bold uppercase flex items-center gap-2"><FileText size={14}/> O que você estudou?</label>
+            <textarea 
+              className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded-lg p-3 text-sm text-white h-24 outline-none focus:border-violet-500 transition-colors resize-none"
+              placeholder="Descreva seu estudo..."
+              value={finishForm.notes}
+              onChange={e => setFinishForm({...finishForm, notes: e.target.value})}
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 font-bold uppercase flex items-center gap-2"><Activity size={14}/> Questões Feitas</label>
+              <input 
+                type="number" min="0" 
+                className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-blue-500"
+                value={finishForm.questions}
+                onChange={e => setFinishForm({...finishForm, questions: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 font-bold uppercase flex items-center gap-2"><AlertTriangle size={14}/> Questões Erradas</label>
+              <input 
+                type="number" min="0" 
+                className="w-full mt-1 bg-[#0F0F12] border border-gray-700 rounded-lg p-3 text-white outline-none focus:border-red-500"
+                value={finishForm.errors}
+                onChange={e => setFinishForm({...finishForm, errors: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="pt-2 flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => setIsFinishModalOpen(false)} className="flex-1">
+              Cancelar
+            </Button>
+            <Button type="submit" className="flex-[2]">
+              Salvar Sessão
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Manual (Mantido) */}
       <Modal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} title="Registro Manual">
         <form onSubmit={handleManualSubmit} className="space-y-5">
           <div className="space-y-2">
@@ -967,7 +1050,55 @@ const ReportView = () => {
   const dailyM = mistakes.filter(m=>new Date(m.date).toDateString()===dStr);
   const t = daily.reduce((a,c)=>a+c.minutes,0);
   return (
-    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0"><button onClick={()=>setCurrentView('history')} className="flex items-center gap-2 text-gray-400 hover:text-white mb-2"><ArrowLeft size={18}/> Voltar</button><header className="flex flex-col md:flex-row justify-between items-center gap-6"><div><h1 className="text-2xl font-bold text-white capitalize">{selectedHistoryDate.toLocaleDateString()}</h1><p className="text-gray-400">Relatório</p></div><div className="w-32 h-32 rounded-full border-4 border-violet-500/20 flex flex-col items-center justify-center"><span className="text-2xl font-mono font-bold text-white">{Math.floor(t/60)}h {t%60}m</span><span className="text-xs uppercase text-gray-500">Total</span></div></header><div className="space-y-4">{daily.map(s=>{ const sub=subjects.find(x=>x.id===s.subjectId)||{name:'-',color:'#555'}; return (<Card key={s.id} className="relative overflow-hidden"><div className="absolute left-0 top-0 bottom-0 w-1" style={{backgroundColor:sub.color}}/><div className="flex justify-between items-start"><div className="flex-1 pl-3"><div className="flex items-center gap-2 mb-1"><span className="text-[10px] font-bold uppercase text-white px-1.5 rounded" style={{backgroundColor:sub.color}}>{sub.name}</span><span className="text-xs text-gray-500">{new Date(s.date).toLocaleTimeString().slice(0,5)}</span></div><p className="text-sm text-gray-300">{s.notes||"Sem notas."}</p></div><span className="font-bold text-white">{s.minutes}m</span></div></Card>)})}</div>{dailyM.length>0&&(<div className="mt-8"><h3 className="text-red-400 font-bold mb-4 flex items-center gap-2"><AlertTriangle size={18}/> Erros</h3><div className="space-y-4">{dailyM.map(m=><Card key={m.id} className="border-red-500/20 bg-red-500/5"><p className="text-gray-300 text-sm mb-2"><strong className="text-red-400">Erro:</strong> {m.description}</p><div className="bg-zinc-900/50 p-2 rounded text-sm text-green-400 border-l-2 border-green-500"><strong className="text-green-500">Solução:</strong> {m.solution}</div></Card>)}</div></div>)}</div>
+    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
+      <button onClick={()=>setCurrentView('history')} className="flex items-center gap-2 text-gray-400 hover:text-white mb-2"><ArrowLeft size={18}/> Voltar</button>
+      <header className="flex flex-col md:flex-row justify-between items-center gap-6">
+        <div><h1 className="text-2xl font-bold text-white capitalize">{selectedHistoryDate.toLocaleDateString()}</h1><p className="text-gray-400">Relatório</p></div>
+        <div className="w-32 h-32 rounded-full border-4 border-violet-500/20 flex flex-col items-center justify-center"><span className="text-2xl font-mono font-bold text-white">{Math.floor(t/60)}h {t%60}m</span><span className="text-xs uppercase text-gray-500">Total</span></div>
+      </header>
+      
+      <div className="space-y-4">
+        {daily.map(s=>{ 
+          const sub=subjects.find(x=>x.id===s.subjectId)||{name:'-',color:'#555'}; 
+          // CÁLCULO DE APROVEITAMENTO
+          const accuracy = s.questions > 0 ? Math.round(((s.questions - s.errors) / s.questions) * 100) : 0;
+          
+          return (
+            <Card key={s.id} className="relative overflow-hidden">
+              <div className="absolute left-0 top-0 bottom-0 w-1" style={{backgroundColor:sub.color}}/>
+              <div className="flex justify-between items-start">
+                <div className="flex-1 pl-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold uppercase text-white px-1.5 rounded" style={{backgroundColor:sub.color}}>{sub.name}</span>
+                    <span className="text-xs text-gray-500">{new Date(s.date).toLocaleTimeString().slice(0,5)}</span>
+                  </div>
+                  <p className="text-sm text-gray-300">{s.notes||"Sem notas."}</p>
+
+                  {/* VISUALIZAÇÃO DE QUESTÕES E ERROS */}
+                  {s.questions > 0 && (
+                    <div className="mt-3 flex gap-3 text-xs">
+                       <span className="flex items-center gap-1 bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20 font-bold">
+                         <Activity size={12}/> {s.questions} Questões
+                       </span>
+                       <span className={`flex items-center gap-1 px-2 py-1 rounded border font-bold ${s.errors > 0 ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>
+                         {s.errors > 0 ? <AlertTriangle size={12}/> : <CheckCircle size={12}/>} {s.errors} Erros
+                       </span>
+                       <span className="flex items-center gap-1 bg-violet-500/10 text-violet-400 px-2 py-1 rounded border border-violet-500/20 font-bold">
+                         <Percent size={12}/> {accuracy}% Acerto
+                       </span>
+                    </div>
+                  )}
+
+                </div>
+                <span className="font-bold text-white">{s.minutes}m</span>
+              </div>
+            </Card>
+          )
+        })}
+      </div>
+
+      {dailyM.length>0&&(<div className="mt-8"><h3 className="text-red-400 font-bold mb-4 flex items-center gap-2"><AlertTriangle size={18}/> Erros</h3><div className="space-y-4">{dailyM.map(m=><Card key={m.id} className="border-red-500/20 bg-red-500/5"><p className="text-gray-300 text-sm mb-2"><strong className="text-red-400">Erro:</strong> {m.description}</p><div className="bg-zinc-900/50 p-2 rounded text-sm text-green-400 border-l-2 border-green-500"><strong className="text-green-500">Solução:</strong> {m.solution}</div></Card>)}</div></div>)}
+    </div>
   );
 };
 
