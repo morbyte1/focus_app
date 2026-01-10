@@ -1,41 +1,39 @@
 import React, { useContext, useState } from 'react';
-// ... imports existentes ...
-import { FocusContext, getXP, getRank } from '../../context/FocusContext'; // Certifique-se de importar FocusContext
-// ...
+import { Zap, Clock, Flame, Flag, BarChart2, Infinity as InfinityIcon } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { FocusContext, getXP, getRank } from '../../context/FocusContext';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Modal } from '../ui/Modal';
 
 export const DashboardView = () => {
-  // Puxe o 'userName' aqui também
   const { kpiData, weeklyChartData, setCurrentView, countdown, setCountdown, userLevel, userName } = useContext(FocusContext);
   const [modal, setModal] = useState(false); 
   const [form, setForm] = useState({ date: '', title: '' });
   
-  // ... cálculos existentes (xpNext, rank, daysLeft, countStyle)...
   const xpNext = getXP(userLevel.level);
   const rank = getRank(userLevel.level);
   
   const daysLeft = countdown.date ? Math.ceil((new Date(countdown.date).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000) : null;
-  const countStyle = daysLeft !== null ? (daysLeft < 0 ? {c:"border-l-red-500 text-red-500", b:"bg-red-500/20 text-red-500"} : daysLeft === 0 ? {c:"border-l-red-500 text-red-500", b:"bg-red-500/20 text-red-500 animate-pulse"} : daysLeft < 7 ? {c:"border-l-orange-500 text-orange-500", b:"bg-orange-500/20 text-orange-500"} : daysLeft < 30 ? {c:"border-l-blue-500 text-blue-500", b:"bg-blue-500/20 text-blue-500"} : {c:"border-l-emerald-500 text-emerald-500", b:"bg-emerald-500/20 text-emerald-500"}) : {c:"border-l-zinc-300 dark:border-l-zinc-700 text-zinc-400 dark:text-zinc-500", b:"bg-zinc-100 dark:bg-zinc-500/20 text-zinc-400 dark:text-zinc-500"};
+  const countStyle = daysLeft !== null ? (daysLeft < 0 ? {c:"border-l-red-500 text-red-500", b:"bg-red-500/20 text-red-500"} : daysLeft === 0 ? {c:"border-l-red-500 text-red-500", b:"bg-red-500/20 text-red-500 animate-pulse"} : daysLeft < 7 ? {c:"border-l-orange-500 text-orange-500", b:"bg-orange-500/20 text-orange-500"} : daysLeft < 30 ? {c:"border-l-blue-500 text-blue-500", b:"bg-blue-500/20 text-blue-500"} : {c:"border-l-emerald-500 text-emerald-500", b:"bg-emerald-500/20 text-emerald-500"}) : {c:"border-l-zinc-300 dark:border-l-zinc-700 text-zinc-400 dark:text-zinc-500", b:"bg-zinc-100 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-500"};
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       
-      {/* --- NOVO HEADER (TÍTULO E BOAS VINDAS) --- */}
+      {/* HEADER DE BOAS VINDAS */}
       <header className="mb-2">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-          {userName ? `Bem vindo de volta, ${userName}!` : 'Bem vindo ao Focus App'}
+            {userName ? `Bem vindo de volta, ${userName}!` : 'Bem vindo ao Focus App'}
         </h1>
         <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-          Aqui está o resumo do seu progresso hoje.
+            Aqui está o resumo do seu progresso hoje.
         </p>
       </header>
-      
-      {/* ... RESTO DO CÓDIGO (Cards, Gráficos, etc) PERMANECE IGUAL ... */}
+
+      {/* CARD DE NÍVEL */}
       <Card className="bg-gradient-to-r from-primary to-primary-light dark:from-primary/80 dark:via-[#0a0a0a] dark:to-[#0a0a0a] border-primary/30 overflow-hidden relative">
-          {/* ... conteúdo do card de nível ... */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[80px] rounded-full pointer-events-none" />
-           {/* ... resto do componente ... */}
            <div className="flex flex-col md:flex-row gap-6 items-center relative z-10">
-             {/* ... */}
               <div className="flex-shrink-0 relative">
                 <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${rank.b} p-[2px]`}>
                     <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center flex-col">
@@ -59,10 +57,10 @@ export const DashboardView = () => {
            </div>
       </Card>
 
+      {/* CARDS DE KPI (Hoje, Total, Sequência, Meta) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-         {/* ... (Cards de KPI: Hoje, Total, Sequência, Meta) ... copie o original aqui ... */}
          {[{ l: 'Hoje', v: `${kpiData.todayMinutes} min`, i: Zap, c: 'yellow-500' }, { l: 'Total', v: `${kpiData.totalHours} h`, i: Clock, c: 'primary', ic: 'primary-light' }, { l: 'Sequência', v: `${kpiData.streak} dias`, i: Flame, c: 'orange-500' }].map((x, i) => (
-          <Card key={i} className={`flex items-center gap-4 border-l-4 border-l-${x.c}`}>
+          <Card key={i} className={`flex items-center gap-4 border-l-4 border-l-[${x.c === 'primary' ? '#1100ab' : x.c}]`}>
             <div className={`p-3 bg-${x.c}/20 rounded-full text-${x.ic || x.c}`}><x.i size={24} /></div>
             <div>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{x.l}</p>
@@ -79,8 +77,8 @@ export const DashboardView = () => {
         </Card>
       </div>
 
+      {/* GRÁFICO E BOTÃO FOCAR */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         {/* ... (Gráfico e Botão Foco) ... copie o original aqui ... */}
           <Card className="lg:col-span-2 min-h-[300px]">
           <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-primary" /> Atividade Semanal</h3>
           <div className="h-[250px] w-full">
@@ -106,8 +104,8 @@ export const DashboardView = () => {
         </Card>
       </div>
 
+      {/* MODAL META */}
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Configurar Meta">
-         {/* ... (Modal de Meta) ... copie o original aqui ... */}
          <form onSubmit={e => { e.preventDefault(); setCountdown({ date: form.date, title: form.title || "Minha Meta" }); setModal(false); }} className="space-y-4">
           <div>
             <label className="text-xs text-zinc-500 font-bold uppercase">Nome da Meta</label>

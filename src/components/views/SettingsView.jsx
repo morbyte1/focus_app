@@ -1,15 +1,44 @@
 import React, { useContext } from 'react';
-import { Settings, Sun, Moon, Monitor, HardDrive, Download, Upload, Trash2, Crown, RotateCcw, User } from 'lucide-react'; // Adicionei User nos imports
+import { Settings, Sun, Moon, Monitor, HardDrive, Download, Upload, Trash2, Crown, RotateCcw, User } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 
 export const SettingsView = () => {
-  // Puxamos userName e setUserName do contexto
   const { resetAllData, resetXPOnly, theme, setTheme, userName, setUserName } = useContext(FocusContext);
   
-  // ... (funções hExp e hImp permanecem iguais)
-  const hExp = () => { /* ... código existente ... */ };
-  const hImp = (e) => { /* ... código existente ... */ };
+  // Função de Exportar Dados (Completa)
+  const hExp = () => {
+    const data = JSON.stringify(localStorage);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `focus_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Função de Importar Dados (Completa)
+  const hImp = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        Object.keys(data).forEach(k => {
+            if (k.startsWith('focus_') || k.startsWith('my_')) {
+                localStorage.setItem(k, data[k]);
+            }
+        });
+        alert("Dados importados! A página será recarregada.");
+        window.location.reload();
+      } catch (err) {
+        alert("Erro ao ler arquivo.");
+      }
+    };
+    reader.readAsText(file);
+  };
   
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
@@ -20,7 +49,7 @@ export const SettingsView = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        {/* --- NOVO CARTÃO DE PERFIL --- */}
+        {/* CARTÃO PERFIL (Novo) */}
         <Card>
           <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
             <User size={20} className="text-primary" /> Perfil
@@ -37,11 +66,10 @@ export const SettingsView = () => {
           </div>
         </Card>
 
+        {/* CARTÃO APARÊNCIA */}
         <Card>
-          {/* ... Conteúdo Aparência (MANTENHA O RESTO IGUAL) ... */}
            <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><Settings size={20} className="text-primary" /> Aparência</h3>
            <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-            {/* ... botões de tema ... */}
              <p className="text-sm text-zinc-600 dark:text-zinc-300 mb-3">Escolha o tema de sua preferência.</p>
             <div className="flex gap-2 bg-zinc-200 dark:bg-black/50 p-1 rounded-xl">
               <button onClick={() => setTheme('light')} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${theme === 'light' ? 'bg-white shadow text-primary' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}><Sun size={16} /> Claro</button>
@@ -51,10 +79,9 @@ export const SettingsView = () => {
            </div>
         </Card>
         
-        {/* ... Mantenha Dados do Sistema e Gamificação aqui ... */}
+        {/* CARTÃO DADOS */}
         <Card>
           <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><HardDrive size={20} className="text-primary" /> Dados do Sistema</h3>
-          {/* ... botões exportar/importar/resetar ... */}
            <div className="space-y-4">
             <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
               <div className="flex gap-3">
@@ -68,6 +95,7 @@ export const SettingsView = () => {
           </div>
         </Card>
 
+        {/* CARTÃO GAMIFICAÇÃO */}
         <Card>
              <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><Crown size={20} className="text-yellow-500" /> Gamificação</h3>
              <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
