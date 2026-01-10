@@ -66,13 +66,29 @@ const FocusProvider = ({ children }) => {
   const [theme, setTheme] = useStickyState('system', 'focus_theme');
   const refs = useRef({ end: null, start: null, last: 0 });
 
+  // Lógica de tema aprimorada para ouvir mudanças do sistema em tempo real
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.remove('dark'); 
-    // Se for 'system' verifica a preferência do OS, se for 'dark' força dark, se for 'light' remove a classe.
-    if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      root.classList.add('dark');
-    }
+    const applyTheme = () => {
+        const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = theme === 'dark' || (theme === 'system' && sysDark);
+        if (isDark) {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+    };
+    
+    applyTheme(); // Aplica imediatamente
+
+    // Listener para mudanças no SO se estiver em 'auto'
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+        if (theme === 'system') applyTheme();
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
   useEffect(() => { if (subjects.length > 0 && !subjects.find(s => s.id === selectedSubjectId)) setSelectedSubjectId(subjects[0].id); }, [subjects, selectedSubjectId]);
@@ -298,10 +314,46 @@ const FocusView = () => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-24 md:pb-0">
       <div className="lg:col-span-2 space-y-6">
-        <Card className="flex flex-col items-center justify-center min-h-[450px] relative overflow-hidden bg-black"><div className={`absolute w-96 h-96 rounded-full blur-[120px] opacity-20 pointer-events-none transition-colors duration-1000 ${isActive ? (timerMode === 'WORK' ? 'bg-[#1100ab] animate-pulse' : 'bg-emerald-500 animate-pulse') : 'bg-zinc-800'}`}></div><div className="flex bg-zinc-900 dark:bg-black p-1 rounded-xl border border-zinc-800 mb-6 z-10"><button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(POMODORO.WORK); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500'}`}>Pomodoro</button><button onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-[#1100ab] text-white shadow' : 'text-zinc-500'}`}>Flow</button></div>
-          <div className="w-full max-w-xs mb-8 z-10 text-center"><label className="text-xs font-semibold text-zinc-500 uppercase block mb-2">Matéria</label><select disabled={isActive} value={selectedSubjectId || ''} onChange={(e) => setSelectedSubjectId(Number(e.target.value))} className="w-full bg-zinc-900 dark:bg-[#18181B] text-white border border-zinc-700 rounded-2xl py-3 px-4 outline-none cursor-pointer">{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-          <div className="z-10 text-center"><div className="mb-6"><span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase border ${timerMode === 'WORK' ? 'bg-[#1100ab]/10 text-[#4d4dff] border-[#1100ab]/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>{timerMode === 'WORK' ? 'Foco Total' : 'Pausa'}</span></div><div className="text-8xl md:text-9xl font-mono font-bold text-white tracking-tighter mb-4 tabular-nums drop-shadow-2xl">{formatTime(timeLeft)}</div><div className="text-zinc-400 mb-8 font-medium">Ciclos: <span className="text-white font-bold ml-2">{cycles}</span></div>
-            <div className="flex gap-4 justify-center items-center mt-8"><button onClick={() => setIsActive(!isActive)} className={`px-8 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive ? 'bg-zinc-800 text-white border border-zinc-700' : (timerMode === 'WORK' ? 'bg-[#1100ab] text-white' : 'bg-emerald-500 text-white')}`}>{isActive ? <Pause size={24} /> : <Play size={24} />} <span>{isActive ? 'Pausar' : 'Iniciar'}</span></button><button onClick={() => { setIsActive(false); setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO.WORK); setElapsedTime(0); }} className="p-4 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700"><RotateCcw size={24} /></button>{timerType === 'FLOW' && timerMode === 'WORK' && <button onClick={() => { setFlowStoredTime(timeLeft); setTimerMode('BREAK'); setTimeLeft(Math.floor(timeLeft * 0.2)); setIsActive(true); }} className="p-4 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"><Coffee size={24} /></button>}<button onClick={() => { setIsActive(false); setFinMod(true); }} className="p-4 rounded-2xl bg-red-500/10 text-red-500 border border-red-500/20"><CheckCircle size={24} /></button></div>{timerType === 'FLOW' && timerMode === 'WORK' && <p className="text-xs text-zinc-500 mt-4">Clique no <Coffee size={12} className="inline" /> para pausa.</p>}</div></Card>
+        <Card className="flex flex-col items-center justify-center min-h-[450px] relative overflow-hidden bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 shadow-xl">
+          {/* Fundo dinâmico: No Dark é preto com blur azul, no Light é branco com leve tom de azul */}
+          <div className={`absolute w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-all duration-1000 ${isActive ? (timerMode === 'WORK' ? 'bg-[#1100ab]/20 animate-pulse' : 'bg-emerald-500/20 animate-pulse') : 'bg-zinc-200/50 dark:bg-zinc-800/30'}`}></div>
+          
+          <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-6 z-10 shadow-sm">
+            <button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(POMODORO.WORK); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Pomodoro</button>
+            <button onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-[#1100ab] text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Flow</button>
+          </div>
+          
+          <div className="w-full max-w-xs mb-8 z-10 text-center">
+            <label className="text-xs font-semibold text-zinc-500 uppercase block mb-2">Matéria</label>
+            <select disabled={isActive} value={selectedSubjectId || ''} onChange={(e) => setSelectedSubjectId(Number(e.target.value))} className="w-full bg-zinc-100 dark:bg-[#18181B] text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 rounded-2xl py-3 px-4 outline-none cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
+              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          
+          <div className="z-10 text-center">
+            <div className="mb-6">
+              <span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase border ${timerMode === 'WORK' ? 'bg-[#1100ab]/10 text-[#4d4dff] border-[#1100ab]/20' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20'}`}>{timerMode === 'WORK' ? 'Foco Total' : 'Pausa'}</span>
+            </div>
+            
+            {/* Timer agora reage ao tema */}
+            <div className="text-8xl md:text-9xl font-mono font-bold text-zinc-900 dark:text-white tracking-tighter mb-4 tabular-nums drop-shadow-sm dark:drop-shadow-2xl">{formatTime(timeLeft)}</div>
+            
+            <div className="text-zinc-500 dark:text-zinc-400 mb-8 font-medium">Ciclos: <span className="text-zinc-900 dark:text-white font-bold ml-2">{cycles}</span></div>
+            
+            <div className="flex gap-4 justify-center items-center mt-8">
+              <button onClick={() => setIsActive(!isActive)} className={`px-8 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700' : (timerMode === 'WORK' ? 'bg-[#1100ab] text-white hover:bg-[#0c007a]' : 'bg-emerald-500 text-white hover:bg-emerald-600')}`}>
+                {isActive ? <Pause size={24} /> : <Play size={24} />} <span>{isActive ? 'Pausar' : 'Iniciar'}</span>
+              </button>
+              
+              <button onClick={() => { setIsActive(false); setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO.WORK); setElapsedTime(0); }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"><RotateCcw size={24} /></button>
+              
+              {timerType === 'FLOW' && timerMode === 'WORK' && <button onClick={() => { setFlowStoredTime(timeLeft); setTimerMode('BREAK'); setTimeLeft(Math.floor(timeLeft * 0.2)); setIsActive(true); }} className="p-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-colors"><Coffee size={24} /></button>}
+              
+              <button onClick={() => { setIsActive(false); setFinMod(true); }} className="p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 transition-colors"><CheckCircle size={24} /></button>
+            </div>
+            {timerType === 'FLOW' && timerMode === 'WORK' && <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-4">Clique no <Coffee size={12} className="inline" /> para pausa.</p>}
+          </div>
+        </Card>
       </div>
       <div className="lg:col-span-1"><Card className="h-full flex flex-col min-h-[300px]"><h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-[#1100ab]" /> Tarefas</h3><form onSubmit={e => { e.preventDefault(); if (taskT && selectedSubjectId) { addTask(taskT, selectedSubjectId); setTaskT(""); } }} className="mb-4 flex gap-2"><input placeholder="Nova tarefa..." className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white outline-none focus:border-[#1100ab]" value={taskT} onChange={e => setTaskT(e.target.value)} /><button type="submit" className="bg-[#1100ab] rounded-2xl px-3 text-white"><Plus size={18} /></button></form><div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">{tasks.filter(t => t.subjectId === selectedSubjectId).map(t => (<div key={t.id} className={`group flex items-center gap-3 p-3 rounded-2xl border transition-all ${t.completed ? 'bg-[#1100ab]/10 border-[#1100ab]/20 opacity-60' : 'bg-zinc-50 dark:bg-[#18181B] border-zinc-200 dark:border-zinc-800'}`}><button onClick={() => toggleTask(t.id)} className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center ${t.completed ? 'bg-[#1100ab] border-[#1100ab]' : 'border-zinc-400 dark:border-zinc-500'}`}>{t.completed && <CheckCircle size={14} className="text-white" />}</button><span className={`text-sm flex-1 break-words ${t.completed ? 'text-zinc-500 line-through' : 'text-zinc-700 dark:text-zinc-200'}`}>{t.text}</span><button onClick={() => deleteTask(t.id)} className="text-zinc-400 hover:text-red-500 dark:text-zinc-600 opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button></div>))}</div></Card></div>
       <div className="lg:col-span-3 mt-12 mb-8 flex flex-col items-center justify-center border-t border-zinc-200 dark:border-zinc-800/50 pt-10"><div className="bg-white dark:bg-[#09090b] p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full text-center"><Clock size={24} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-500 opacity-50" /><p className="text-zinc-500 dark:text-zinc-400 text-sm mb-4">Esqueceu de ligar o timer ou estudou fora do app?</p><button onClick={() => { setMForm({ ...mForm, s: subjects[0]?.id }); setManMod(true); }} className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-[#1100ab]/10 hover:bg-[#1100ab] text-[#4d4dff] hover:text-white rounded-2xl border border-[#1100ab]/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-[#1100ab]/5"><Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> Lançar Estudo Manual</button></div></div>

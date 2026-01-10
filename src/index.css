@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 body {
-  /* Substituído cores fixas por classes dinâmicas (Claro vs Escuro) */
+  /* O fundo agora reage: Cinza muito claro no Light Mode, Preto no Dark Mode */
   @apply bg-zinc-50 text-zinc-900 dark:bg-[#000000] dark:text-white;
   font-family: 'Inter', sans-serif;
 }
