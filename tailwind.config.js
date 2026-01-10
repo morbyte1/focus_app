@@ -1,5 +1,11 @@
+{
+type: uploaded file
+fileName: tailwind.config.js
+fullContent:
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Essa linha abaixo é OBRIGATÓRIA para o botão de tema funcionar manualmente
+  darkMode: 'class', 
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -8,4 +14,5 @@ export default {
     extend: {},
   },
   plugins: [],
+}
 }
