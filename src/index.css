@@ -5,7 +5,6 @@
 @tailwind utilities;
 
 @layer base {
-  /* Garante que o CSS saiba que o tema mudou para barras de rolagem e inputs */
   :root {
     color-scheme: light;
   }
@@ -15,10 +14,14 @@
 }
 
 body {
-  /* CORREÇÃO APLICADA:
-     Adicionei 'dark:bg-[#000000]' e 'dark:text-white' diretamente aqui.
-     Isso garante que o Tailwind gerencie a troca de cores corretamente baseado na classe 'dark' do HTML.
-  */
-  @apply bg-zinc-50 text-zinc-900 dark:bg-[#000000] dark:text-white transition-colors duration-300;
+  /* Define o estilo base do corpo. O bg-zinc-50 é o padrão claro. */
+  @apply bg-zinc-50 text-zinc-900 transition-colors duration-300;
   font-family: 'Inter', sans-serif;
+}
+
+/* FORÇA BRUTA: Quando a classe 'dark' estiver no HTML, o body FICA preto.
+   Isso garante que o fundo mude independente do Tailwind carregar utilitários ou não. */
+html.dark body {
+  background-color: #000000;
+  color: #ffffff;
 }
