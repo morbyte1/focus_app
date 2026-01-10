@@ -122,11 +122,28 @@ const FocusProvider = ({ children }) => {
 
   const addSession = (mins, notes, mSubId = null, qs = 0, errs = 0) => {
     const sId = mSubId ? Number(mSubId) : selectedSubjectId;
-    setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: Number(qs)||0, errors: Number(errs)||0 }]);
-    let xp = (Math.floor(mins / 10) * 50) + ((Number(qs)||0) * 10);
+    
+    // CORREÇÃO DE LÓGICA: Validação e Higienização de Dados
+    // Garante que não sejam negativos e que sejam inteiros
+    let cleanQs = Math.max(0, parseInt(qs) || 0);
+    let cleanErrs = Math.max(0, parseInt(errs) || 0);
+
+    // Lógica para impedir que Erros > Questões
+    if (cleanErrs > cleanQs) {
+        alert(`Atenção: Você informou mais erros (${cleanErrs}) do que questões feitas (${cleanQs}). Ajustando o número de erros para ser igual ao total.`);
+        cleanErrs = cleanQs;
+    }
+
+    setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: cleanQs, errors: cleanErrs }]);
+    
+    // XP e Metas calculados com os valores limpos
+    let xp = (Math.floor(mins / 10) * 50) + (cleanQs * 10);
     const sub = subjects.find(s => s.id === sId);
     if (sub) {
-      const startW = new Date(); startW.setDate(startW.getDate() - startW.getDay()); startW.setHours(0,0,0,0);
+      const startW = new Date(); 
+      startW.setDate(startW.getDate() - startW.getDay()); 
+      startW.setHours(0,0,0,0); // Garante comparação correta de tempo
+      
       const prev = sessions.filter(s => s.subjectId === sId && new Date(s.date) >= startW).reduce((a, s) => a + s.minutes, 0);
       if (prev < sub.goalHours * 60 && (prev + mins) >= sub.goalHours * 60) { xp += 500; alert(`🏆 Meta semanal de ${sub.name} atingida! +500 XP`); }
     }
@@ -134,9 +151,16 @@ const FocusProvider = ({ children }) => {
   };
 
   const methods = {
-    addSubject: (n, c, g) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Number(g) }]),
-    updateSubject: (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Number(g) } : s)),
-    deleteSubject: (id) => { if (subjects.length > 1 && window.confirm("Excluir?")) { const r = subjects.filter(s => s.id !== id); setSubjects(r); if (selectedSubjectId === id) setSelectedSubjectId(r[0].id); } else if(subjects.length<=1) alert("Mantenha uma matéria."); },
+    addSubject: (n, c, g) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)) }]), // Evita meta negativa
+    updateSubject: (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Math.max(0, Number(g)) } : s)),
+    deleteSubject: (id) => { 
+        if (subjects.length > 1 && window.confirm("Excluir?")) { 
+            const r = subjects.filter(s => s.id !== id); 
+            setSubjects(r); 
+            // Correção: Garante que o selecionado mude se o atual for deletado
+            if (selectedSubjectId === id) setSelectedSubjectId(r[0].id); 
+        } else if(subjects.length<=1) alert("Mantenha uma matéria."); 
+    },
     addTask: (t, sId) => setTasks(p => [...p, { id: Date.now(), text: t, completed: false, subjectId: sId }]),
     toggleTask: (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t)),
     deleteTask: (id) => window.confirm("Excluir?") && setTasks(p => p.filter(t => t.id !== id)),
@@ -239,8 +263,29 @@ const FocusView = () => {
   const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); const [mForm, setMForm] = useState({ t: "", n: "", s: "", q: "", e: "" });
   
   if (!subjects.length) return <div className="text-center mt-20 text-zinc-400">Adicione matérias em Metas.</div>;
-  const finish = (e) => { e.preventDefault(); const mins = Math.round(elapsedTime / 60); if (mins > 0) { addSession(mins, fForm.n, null, fForm.q, fForm.e); alert(`Sessão salva: ${mins} min.`); } else alert("Tempo insuficiente."); setIsActive(false); setTimerMode('WORK'); setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO.WORK); setElapsedTime(0); setCycles(0); setFinMod(false); setFForm({ n: "", q: "", e: "" }); };
-  const manual = (e) => { e.preventDefault(); if (!mForm.t || !mForm.s) return alert("Preencha tempo e matéria."); addSession(parseInt(mForm.t), mForm.n, mForm.s, parseInt(mForm.q), parseInt(mForm.e)); setMForm({ t: "", n: "", s: "", q: "", e: "" }); setManMod(false); alert("Salvo!"); };
+  
+  const finish = (e) => { 
+      e.preventDefault(); 
+      const mins = Math.round(elapsedTime / 60); 
+      // Validação do tempo: só salva se tiver estudado algo
+      if (mins > 0) { 
+          // Chama addSession passando os valores parseados, mas o próprio addSession já valida.
+          addSession(mins, fForm.n, null, fForm.q, fForm.e); 
+          alert(`Sessão salva: ${mins} min.`); 
+      } else {
+          alert("Tempo insuficiente para salvar.");
+      }
+      setIsActive(false); setTimerMode('WORK'); setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO.WORK); setElapsedTime(0); setCycles(0); setFinMod(false); setFForm({ n: "", q: "", e: "" }); 
+  };
+  
+  const manual = (e) => { 
+      e.preventDefault(); 
+      if (!mForm.t || !mForm.s) return alert("Preencha tempo e matéria."); 
+      // Garante que o tempo seja positivo e inteiro
+      const tValid = Math.max(1, parseInt(mForm.t) || 0);
+      addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e); 
+      setMForm({ t: "", n: "", s: "", q: "", e: "" }); setManMod(false); alert("Salvo!"); 
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-24 md:pb-0">
@@ -275,7 +320,16 @@ const MistakesView = () => {
 const GoalsView = () => {
   const { subjects, sessions, addSubject, updateSubject, deleteSubject, themes, addTheme, deleteTheme, addThemeItem, toggleThemeItem, deleteThemeItem } = useContext(FocusContext);
   const [viewSub, setViewSub] = useState(null); const [col, setCol] = useState({}); const [modal, setModal] = useState(false); const [f, setF] = useState({ name: "", goal: 60, color: "#8b5cf6" }); const [edit, setEdit] = useState({ id: null, val: "" }); const [newTheme, setNewTheme] = useState("");
-  const getProg = (id, g) => { const wM = sessions.reduce((a, s) => (s.subjectId === id && new Date(s.date) >= new Date(new Date().setDate(new Date().getDate() - new Date().getDay()))) ? a + s.minutes : a, 0); const p = Math.round((wM / (g * 60)) * 100); return { h: (wM / 60).toFixed(1), p: Math.min(100, p || 0) }; };
+  const getProg = (id, g) => { 
+      // Correção de Data: Pega o domingo da semana atual com reset de horas
+      const startW = new Date(); 
+      startW.setDate(startW.getDate() - startW.getDay()); 
+      startW.setHours(0,0,0,0);
+      
+      const wM = sessions.reduce((a, s) => (s.subjectId === id && new Date(s.date) >= startW) ? a + s.minutes : a, 0); 
+      const p = Math.round((wM / (g * 60)) * 100); 
+      return { h: (wM / 60).toFixed(1), p: Math.min(100, p || 0) }; 
+  };
 
   if (viewSub) {
     const s = subjects.find(x => x.id === viewSub), sTh = themes.filter(t => t.subjectId === s?.id), tot = sTh.reduce((a, t) => a + t.items.length, 0), comp = sTh.reduce((a, t) => a + t.items.filter(i => i.completed).length, 0);
@@ -307,7 +361,6 @@ const StatsView = () => {
   const wrnQ = subjects.map(s => ({ name: s.name, value: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + (c.errors || 0), 0), color: s.color })).filter(d => d.value > 0);
   const heat = useMemo(() => { const d = [], end = new Date(); for (let c = new Date(end.getFullYear(), 0, 1); c <= end; c.setDate(c.getDate() + 1)) d.push({ date: new Date(c), hasStudy: sessions.some(s => new Date(s.date).toDateString() === c.toDateString()) }); return d; }, [sessions]);
   
-  // Lógica otimizada com Menos Questões (lq) adicionado e ordenação correta
   const hi = useMemo(() => {
     if (!subjects.length) return null;
     const agg = subjects.map(s => { const ss = sessions.filter(x => x.subjectId === s.id); return { name: s.name, min: ss.reduce((a, c) => a + c.minutes, 0), q: ss.reduce((a, c) => a + (c.questions || 0), 0), e: ss.reduce((a, c) => a + (c.errors || 0), 0), t: themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0) }; });
@@ -320,7 +373,7 @@ const StatsView = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[{ l: 'Tempo Total', v: `${(sessions.reduce((a, s) => a + s.minutes, 0) / 60).toFixed(1)}h`, c: '#1100ab' }, { l: 'Questões', v: totQ, c: 'blue-500' }, { l: 'Precisão Global', v: `${totQ > 0 ? Math.round(((totQ - totE) / totQ) * 100) : 0}%`, c: 'emerald-500' }, { l: 'Tópicos Feitos', v: themes.reduce((a, t) => a + t.items.filter(i => i.completed).length, 0), c: 'yellow-500' }].map((x, i) => <Card key={i} className={`flex flex-col gap-1 border-l-4 border-l-[${x.c}]`}><span className="text-xs text-zinc-500 uppercase font-bold">{x.l}</span><span className="text-2xl font-bold text-white">{x.v}</span></Card>)}</div>
       <Card><h3 className="text-white font-semibold mb-4 flex items-center gap-2"><Trophy size={18} className="text-yellow-500" /> Destaques de Performance</h3>
         {hi ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
-          {[ // Array ordenado por pares (Mais/Menos) para visualização consistente
+          {[ 
              { l: 'Mais Estudada', v: hi.ms.name, s: `${Math.round(hi.ms.min / 60)}h`, i: Clock, c: '#1100ab' },
              { l: 'Menos Estudada', v: hi.ls.name, s: `${Math.round(hi.ls.min / 60)}h`, i: Clock, c: 'zinc-500' },
              { l: 'Mais Tópicos', v: hi.mt.name, s: `${hi.mt.t} feitos`, i: CheckSquare, c: 'emerald-500' },
@@ -343,7 +396,6 @@ const HistoryView = () => {
   const { sessions, subjects, deleteDayHistory } = useContext(FocusContext);
   const [openDates, setOpenDates] = useState({});
 
-  // Agrupa sessões por data
   const history = useMemo(() => {
     const grp = {};
     sessions.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(s => {
@@ -354,12 +406,10 @@ const HistoryView = () => {
     return Object.entries(grp);
   }, [sessions]);
 
-  // Função para abrir/fechar o dia
   const toggleDate = (date) => {
     setOpenDates(prev => ({ ...prev, [date]: !prev[date] }));
   };
 
-  // Calcula totais do dia para exibir no cabeçalho
   const getDaySummary = (items) => {
     const mins = items.reduce((a, b) => a + b.minutes, 0);
     const q = items.reduce((a, b) => a + (b.questions || 0), 0);
@@ -387,11 +437,7 @@ const HistoryView = () => {
             
             return (
               <Card key={date} className="transition-all duration-300">
-                {/* Cabeçalho do Card (O Dia) */}
-                <div 
-                  onClick={() => toggleDate(date)} 
-                  className="flex justify-between items-center cursor-pointer select-none group"
-                >
+                <div onClick={() => toggleDate(date)} className="flex justify-between items-center cursor-pointer select-none group">
                   <div>
                     <h3 className="font-bold text-white capitalize text-lg group-hover:text-[#4d4dff] transition-colors">
                       {new Date(date).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -404,11 +450,7 @@ const HistoryView = () => {
                   </div>
                   
                   <div className="flex items-center gap-4">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); deleteDayHistory(date); }} 
-                      className="p-2 hover:bg-red-500/10 rounded-full text-zinc-600 hover:text-red-500 transition-colors"
-                      title="Apagar dia inteiro"
-                    >
+                    <button onClick={(e) => { e.stopPropagation(); deleteDayHistory(date); }} className="p-2 hover:bg-red-500/10 rounded-full text-zinc-600 hover:text-red-500 transition-colors" title="Apagar dia inteiro">
                       <Trash2 size={16} />
                     </button>
                     <div className={`p-2 rounded-full bg-zinc-900 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
@@ -417,36 +459,28 @@ const HistoryView = () => {
                   </div>
                 </div>
 
-                {/* Lista de Sessões Expandida */}
                 {isOpen && (
                   <div className="mt-6 space-y-3 animate-fadeIn border-t border-zinc-800/50 pt-4">
                     {items.map(s => {
                       const subject = subjects.find(sub => sub.id === s.subjectId);
                       return (
                         <div key={s.id} className="bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/50 hover:border-zinc-700 transition-colors">
-                          
-                          {/* Linha Superior: Matéria e Stats */}
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            {/* Identificação da Matéria */}
                             <div className="flex items-center gap-3">
                               <div className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]" style={{ color: subject?.color || '#555', backgroundColor: subject?.color || '#555' }}></div>
                               <span className="text-zinc-200 font-medium">{subject?.name || 'Matéria Excluída'}</span>
                             </div>
 
-                            {/* Dados da Sessão */}
                             <div className="flex items-center gap-4 text-sm bg-black/20 p-2 rounded-xl sm:bg-transparent sm:p-0 self-start sm:self-auto">
                                <div className="flex items-center gap-1.5 text-zinc-300" title="Tempo Focado">
                                   <Clock size={14} className="text-zinc-500"/>
                                   <span>{s.minutes} min</span>
                                </div>
-                               
                                <div className="w-px h-4 bg-zinc-800"></div>
-                               
                                <div className="flex items-center gap-1.5 text-blue-400" title="Questões Realizadas">
                                   <CheckSquare size={14} />
                                   <span className="font-bold">{s.questions || 0}</span>
                                </div>
-
                                <div className="flex items-center gap-1.5 text-red-400" title="Erros">
                                   <AlertTriangle size={14} />
                                   <span className="font-bold">{s.errors || 0}</span>
@@ -454,13 +488,10 @@ const HistoryView = () => {
                             </div>
                           </div>
                           
-                          {/* Linha Inferior: Diário Completo */}
                           {s.notes && (
                             <div className="mt-3 pt-3 border-t border-zinc-800/50 w-full">
                               <p className="text-xs font-bold text-zinc-600 uppercase mb-1">Diário da Sessão</p>
-                              <div className="text-sm text-zinc-300 italic whitespace-pre-wrap leading-relaxed">
-                                "{s.notes}"
-                              </div>
+                              <div className="text-sm text-zinc-300 italic whitespace-pre-wrap leading-relaxed">"{s.notes}"</div>
                             </div>
                           )}
                         </div>
