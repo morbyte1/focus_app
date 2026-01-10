@@ -5,8 +5,7 @@
 @tailwind utilities;
 
 body {
-  /* Fundo preto absoluto (coesão com o App.jsx) e fonte Inter padrão */
-  background-color: #000000;
-  color: white;
+  /* Substituído cores fixas por classes dinâmicas (Claro vs Escuro) */
+  @apply bg-zinc-50 text-zinc-900 dark:bg-[#000000] dark:text-white;
   font-family: 'Inter', sans-serif;
 }
