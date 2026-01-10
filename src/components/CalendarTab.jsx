@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Settings, Calendar as CalIcon, BookOpen, Layers, X, Check, Plus, Trash2, Trophy } from 'lucide-react';
 // Importamos o contexto do App para pegar as matérias salvas
-import { FocusContext } from '../App'; 
+import { FocusContext } from '../context/FocusContext';
 
 // Hook simples para persistir o cronograma no LocalStorage
 function useStickyState(defaultValue, key) {

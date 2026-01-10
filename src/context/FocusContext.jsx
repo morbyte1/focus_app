@@ -78,7 +78,7 @@ const FocusProvider = ({ children }) => {
         if (JSON.stringify(themes) !== JSON.stringify(healed)) setThemes(healed);
     }
   }, []);
-  useEffect(() => { document.title = timerState.active ? `${formatTime(timerState.timeLeft)} - ${timerState.mode === 'WORK' ? 'Foco' : 'Pausa'}` : "Focus App"; }, [timerState.active, timerState.timeLeft, timerState.mode]);
+  useEffect(() => { document.title = timerState.active ? `${formatTime(timerState.timeLeft)} - ${timerState.mode === 'WORK' ? 'Foco' : 'Pausa'}` : "Focus App - Estudos & Produtividade"; }, [timerState.active, timerState.timeLeft, timerState.mode]);
 
   useEffect(() => {
     let interval = null;
@@ -194,6 +194,27 @@ const FocusProvider = ({ children }) => {
     let maxS = 0, currS = 0; dates.forEach((d, i) => { if (i === 0) currS = 1; else currS = (d - dates[i - 1] <= 86400000) ? currS + 1 : 1; maxS = Math.max(maxS, currS); });
     return { monthlyData, bestSubject: ranked[0], worstSubject: ranked[ranked.length - 1], maxStreak: maxS };
   }, [sessions, subjects]);
+
+// Dentro do componente FocusProvider, logo antes do return
+useEffect(() => {
+  const root = window.document.documentElement;
+  
+  // Remove a classe antiga para evitar conflitos
+  root.classList.remove('light', 'dark');
+
+  if (theme === 'system') {
+    // Se for 'system', verifica a preferência do sistema operacional
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    root.classList.add(systemTheme);
+    return;
+  }
+
+  // Caso contrário, aplica o tema escolhido ('light' ou 'dark')
+  root.classList.add(theme);
+  
+  // Opcional: Salvar no localStorage para persistir após refresh
+  localStorage.setItem('focus_theme', theme);
+}, [theme]);
 
   return (
     <FocusContext.Provider value={{ currentView, setCurrentView, selectedHistoryDate, setSelectedHistoryDate, subjects, sessions, tasks, mistakes, themes, countdown, setCountdown, userLevel, timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), timeLeft: timerState.timeLeft, setTimeLeft: t => setTimerState(p => ({ ...p, timeLeft: t })), isActive: timerState.active, setIsActive: a => setTimerState(p => ({ ...p, active: a })), cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime, elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, ...methods }}>
