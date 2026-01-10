@@ -30,7 +30,6 @@ export function CalendarTab() {
   const [schedule, setSchedule] = useStickyState({}, 'my_study_schedule');
 
   // Estado do Ciclo de Simulados (Finais de Semana)
-  // Formato: [{ id: 1, name: "ETEC", color: "#ff0000" }, ...]
   const [examCycle, setExamCycle] = useStickyState([], 'my_exam_cycle');
 
   // Estados temporários para adicionar novo simulado no modal
@@ -47,37 +46,20 @@ export function CalendarTab() {
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
   // --- LÓGICA DE VISUALIZAÇÃO ---
-  
-  // Função para descobrir qual Simulado é o da vez baseado na data
   const getExamForDate = (dateObj) => {
     if (!examCycle || examCycle.length === 0) return null;
-
-    // Lógica Matemática:
-    // 1. Pegamos o timestamp da data
-    // 2. Se for Domingo, subtraímos 1 dia para que ele caia na mesma semana matemática do Sábado anterior.
-    // 3. Dividimos por 7 dias em milissegundos para obter o "índice da semana absoluta".
-    // 4. Usamos o operador % (resto) pelo tamanho do array de simulados para fazer o ciclo.
     
     const oneDay = 24 * 60 * 60 * 1000;
-    const currentDay = dateObj.getDay(); // 0 = Dom, 6 = Sab
+    const currentDay = dateObj.getDay(); 
     
-    // Clona a data para não alterar a original
     let calcDate = new Date(dateObj.getTime());
-    
-    // Se for Domingo (0), volta 1 dia para alinhar com o Sábado da mesma "janela" de fim de semana
     if (currentDay === 0) {
         calcDate = new Date(calcDate.getTime() - oneDay);
     }
 
-    // Definimos uma data base fixa (Epoch) e calculamos quantas semanas se passaram
     const oneWeekMs = oneDay * 7;
-    // Ajuste fino: floor para pegar o inteiro da semana
     const absoluteWeekIndex = Math.floor(calcDate.getTime() / oneWeekMs);
-    
-    // O ciclo
     const cycleIndex = absoluteWeekIndex % examCycle.length;
-    
-    // Retorna o simulado formatado como se fosse uma matéria para o layout funcionar
     const exam = examCycle[cycleIndex];
     if (!exam) return null;
 
@@ -85,7 +67,7 @@ export function CalendarTab() {
         id: `exam-${exam.id}`,
         name: `Simulado: ${exam.name}`,
         color: exam.color,
-        goalHours: '4h', // Meta padrão para prova
+        goalHours: '4h',
         isExam: true
     };
   };
@@ -93,13 +75,11 @@ export function CalendarTab() {
   const getSubjectsForDay = (dateObj) => {
     const dayIndex = dateObj.getDay();
 
-    // Se for Final de Semana (0 = Domingo, 6 = Sábado)
     if (dayIndex === 0 || dayIndex === 6) {
         const exam = getExamForDate(dateObj);
         return exam ? [exam] : [];
     }
 
-    // Se for Dia de Semana (Rotina normal)
     const daySchedule = schedule[dayIndex];
     if (!daySchedule) return [];
 
@@ -112,7 +92,6 @@ export function CalendarTab() {
   const selectedSubjects = getSubjectsForDay(selectedDate);
   const isWeekend = selectedDate.getDay() === 0 || selectedDate.getDay() === 6;
 
-  // Handlers para o Modal de Configuração
   const handleAddExam = () => {
     if (!newExamName.trim()) return;
     const newExam = {
@@ -132,26 +111,26 @@ export function CalendarTab() {
     <div className="flex flex-col lg:flex-row gap-6 h-full animate-fadeIn pb-24 md:pb-0">
       
       {/* --- COLUNA 1: CALENDÁRIO --- */}
-      <div className="flex-1 bg-[#09090b] border border-white/5 rounded-3xl p-6 shadow-lg h-fit">
+      <div className="flex-1 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-white/5 rounded-3xl p-6 shadow-sm dark:shadow-lg h-fit transition-colors">
         
         {/* Header Calendário */}
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-xl font-bold text-white flex items-center gap-3">
-            <div className="p-2 bg-primary/20 rounded-xl text-primary-light">
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-3 transition-colors">
+            <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-xl text-primary-light">
                 <CalIcon size={20} />
             </div>
-            {MONTHS[month]} <span className="text-zinc-500">{year}</span>
+            {MONTHS[month]} <span className="text-zinc-400 dark:text-zinc-500">{year}</span>
           </h2>
           <div className="flex gap-2">
-            <button onClick={prevMonth} className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl text-zinc-400 hover:text-white transition-colors border border-zinc-800"><ChevronLeft size={18}/></button>
-            <button onClick={nextMonth} className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl text-zinc-400 hover:text-white transition-colors border border-zinc-800"><ChevronRight size={18}/></button>
+            <button onClick={prevMonth} className="p-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors border border-zinc-200 dark:border-zinc-800"><ChevronLeft size={18}/></button>
+            <button onClick={nextMonth} className="p-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors border border-zinc-200 dark:border-zinc-800"><ChevronRight size={18}/></button>
           </div>
         </div>
 
         {/* Grid Calendário */}
         <div className="grid grid-cols-7 mb-4 text-center">
           {['D','S','T','Q','Q','S','S'].map((d,i) => (
-            <span key={i} className="text-xs font-bold text-zinc-500 py-2 uppercase tracking-wider">{d}</span>
+            <span key={i} className="text-xs font-bold text-zinc-400 dark:text-zinc-500 py-2 uppercase tracking-wider">{d}</span>
           ))}
         </div>
         <div className="grid grid-cols-7 gap-2 md:gap-3">
@@ -173,7 +152,7 @@ export function CalendarTab() {
                   relative h-10 md:h-12 w-full rounded-2xl flex items-center justify-center text-sm font-bold transition-all duration-300
                   ${isSelected 
                     ? 'bg-primary text-white shadow-lg shadow-primary/40 scale-105' 
-                    : 'hover:bg-zinc-800 text-zinc-400 hover:text-white bg-transparent'}
+                    : 'bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}
                   ${isToday && !isSelected ? 'border border-primary text-primary-light' : ''}
                 `}
               >
@@ -194,7 +173,7 @@ export function CalendarTab() {
         {/* Botão Configurar */}
         <button 
           onClick={() => setIsConfigOpen(true)}
-          className="mt-8 w-full py-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-dashed border-zinc-700 hover:border-primary transition-all text-sm font-bold flex items-center justify-center gap-2 group"
+          className="mt-8 w-full py-4 rounded-2xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-primary transition-all text-sm font-bold flex items-center justify-center gap-2 group"
         >
           <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" /> Configurar Rotina
         </button>
@@ -204,26 +183,26 @@ export function CalendarTab() {
       <div className="lg:w-96 flex flex-col gap-6">
         
         {/* Card Data Selecionada */}
-        <div className="bg-gradient-to-br from-primary/30 via-[#09090b] to-[#09090b] border border-primary/30 p-6 rounded-3xl relative overflow-hidden shadow-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-[50px] rounded-full pointer-events-none" />
+        <div className="bg-gradient-to-br from-primary/10 via-white to-white dark:from-primary/30 dark:via-[#09090b] dark:to-[#09090b] border border-primary/20 dark:border-primary/30 p-6 rounded-3xl relative overflow-hidden shadow-sm dark:shadow-lg transition-all">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 dark:bg-primary/20 blur-[50px] rounded-full pointer-events-none" />
           <p className="text-primary-light text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-primary-light animate-pulse"></span>
             {selectedDate.toDateString() === new Date().toDateString() ? 'Hoje' : 'Selecionado'}
           </p>
-          <h2 className="text-3xl font-bold text-white mb-1">{DAYS[selectedDate.getDay()]}</h2>
-          <p className="text-zinc-400 font-medium">{selectedDate.getDate()} de {MONTHS[selectedDate.getMonth()]}</p>
+          <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-1 transition-colors">{DAYS[selectedDate.getDay()]}</h2>
+          <p className="text-zinc-500 dark:text-zinc-400 font-medium transition-colors">{selectedDate.getDate()} de {MONTHS[selectedDate.getMonth()]}</p>
         </div>
 
         {/* Lista de Matérias / Simulados */}
-        <div className="flex-1 bg-[#09090b] border border-white/5 rounded-3xl p-6 shadow-lg flex flex-col min-h-[300px]">
-          <h3 className="text-white font-bold mb-6 flex items-center gap-2 text-lg">
+        <div className="flex-1 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-white/5 rounded-3xl p-6 shadow-sm dark:shadow-lg flex flex-col min-h-[300px] transition-colors">
+          <h3 className="text-zinc-900 dark:text-white font-bold mb-6 flex items-center gap-2 text-lg transition-colors">
             <BookOpen size={20} className="text-primary"/> {isWeekend ? 'Simulado do Fim de Semana' : 'Plano do Dia'}
           </h3>
 
           <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1">
             {selectedSubjects.length > 0 ? (
               selectedSubjects.map((subject, index) => (
-                <div key={index} className="group p-4 rounded-2xl bg-[#18181B] border border-zinc-800 hover:border-primary/50 transition-all relative overflow-hidden">
+                <div key={index} className="group p-4 rounded-2xl bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-800 hover:border-primary/50 transition-all relative overflow-hidden">
                   <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: subject.color }}></div>
                   <div className="pl-2">
                     <div className="flex justify-between items-start mb-1">
@@ -232,9 +211,9 @@ export function CalendarTab() {
                         </p>
                         {index === 0 && <span className="bg-primary/10 text-primary-light p-1 rounded-lg"><Check size={12}/></span>}
                     </div>
-                    <p className="text-white font-bold text-lg leading-tight mb-1">{subject.name}</p>
+                    <p className="text-zinc-900 dark:text-white font-bold text-lg leading-tight mb-1 transition-colors">{subject.name}</p>
                     <p className="text-xs text-zinc-500 flex items-center gap-1">
-                        {subject.isExam ? 'Duração Est.:' : 'Meta:'} <span className="text-zinc-300">{subject.goalHours}</span> {subject.isExam ? '' : '/ semana'}
+                        {subject.isExam ? 'Duração Est.:' : 'Meta:'} <span className="text-zinc-700 dark:text-zinc-300">{subject.goalHours}</span> {subject.isExam ? '' : '/ semana'}
                     </p>
                   </div>
                 </div>
@@ -243,21 +222,21 @@ export function CalendarTab() {
               <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-60">
                 {isWeekend ? (
                   <>
-                    <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mb-4 text-zinc-600">
+                    <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-4 text-zinc-400 dark:text-zinc-600 transition-colors">
                         <Trophy size={28} />
                     </div>
-                    <p className="text-white font-bold">Sem simulado programado</p>
-                    <p className="text-sm text-zinc-400 mt-1 mb-4">Adicione simulados nas configurações para rotacionar aos finais de semana.</p>
+                    <p className="text-zinc-900 dark:text-white font-bold transition-colors">Sem simulado programado</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 mb-4">Adicione simulados nas configurações para rotacionar aos finais de semana.</p>
                     <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl text-xs font-bold transition-colors">
                         Configurar Ciclo
                     </button>
                   </>
                 ) : (
                   <>
-                    <div className="bg-zinc-900 p-4 rounded-full mb-4 text-zinc-500">
+                    <div className="bg-zinc-100 dark:bg-zinc-900 p-4 rounded-full mb-4 text-zinc-400 dark:text-zinc-500 transition-colors">
                         <Layers size={32} strokeWidth={1.5} />
                     </div>
-                    <p className="text-zinc-300 font-medium">Dia Livre</p>
+                    <p className="text-zinc-900 dark:text-zinc-300 font-medium transition-colors">Dia Livre</p>
                     <p className="text-sm text-zinc-500 mt-1 mb-4">Nenhuma matéria fixa definida.</p>
                     <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl text-xs font-bold transition-colors">
                         Configurar agora
@@ -272,32 +251,32 @@ export function CalendarTab() {
 
       {/* --- MODAL DE CONFIGURAÇÃO --- */}
       {isConfigOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 dark:bg-black/90 backdrop-blur-md p-4 animate-fadeIn">
             {/* Overlay click to close */}
             <div className="absolute inset-0" onClick={() => setIsConfigOpen(false)}></div>
             
-            <div className="bg-[#09090b] border border-zinc-800 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] relative z-10">
+            <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] relative z-10 transition-colors">
             {/* Header Modal */}
-            <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-[#09090b] rounded-t-3xl">
+            <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-[#09090b] rounded-t-3xl transition-colors">
               <div>
-                <h3 className="text-xl font-bold text-white">Configurar Rotina</h3>
-                <p className="text-xs text-zinc-400 mt-1">Defina suas matérias e ciclo de simulados.</p>
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Configurar Rotina</h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Defina suas matérias e ciclo de simulados.</p>
               </div>
-              <button onClick={() => setIsConfigOpen(false)} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"><X size={20} /></button>
+              <button onClick={() => setIsConfigOpen(false)} className="p-2 text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"><X size={20} /></button>
             </div>
             
-            <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#09090b]">
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-white dark:bg-[#09090b] transition-colors">
                 <div className="p-6 space-y-8">
                     
                     {/* SEÇÃO 1: SEMANA (SEG-SEX) */}
                     <div>
-                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4 border-b border-zinc-800 pb-2">Dias Úteis (Matérias Fixas)</h4>
+                        <h4 className="text-sm font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-2">Dias Úteis (Matérias Fixas)</h4>
                         <div className="space-y-4">
                             {[1, 2, 3, 4, 5].map((dayIdx) => (
-                                <div key={dayIdx} className="bg-[#18181B] p-4 rounded-2xl border border-zinc-800 hover:border-zinc-700 transition-colors">
+                                <div key={dayIdx} className="bg-zinc-50 dark:bg-[#18181B] p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
                                 <div className="flex items-center gap-2 mb-3">
                                     <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                                    <p className="text-white font-bold text-sm uppercase tracking-wide">{DAYS[dayIdx]}</p>
+                                    <p className="text-zinc-900 dark:text-white font-bold text-sm uppercase tracking-wide transition-colors">{DAYS[dayIdx]}</p>
                                 </div>
                                 
                                 <div className="grid grid-cols-2 gap-4">
@@ -305,7 +284,7 @@ export function CalendarTab() {
                                     <div>
                                     <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block">Principal</label>
                                     <select 
-                                        className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
+                                        className="w-full bg-white dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl p-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
                                         value={schedule[dayIdx]?.main || ''}
                                         onChange={(e) => setSchedule(prev => ({
                                         ...prev, 
@@ -321,7 +300,7 @@ export function CalendarTab() {
                                     <div>
                                     <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block">Secundária</label>
                                     <select 
-                                        className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
+                                        className="w-full bg-white dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl p-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
                                         value={schedule[dayIdx]?.sec || ''}
                                         onChange={(e) => setSchedule(prev => ({
                                         ...prev, 
@@ -340,9 +319,9 @@ export function CalendarTab() {
 
                     {/* SEÇÃO 2: FIM DE SEMANA (CICLO) */}
                     <div>
-                         <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4 border-b border-zinc-800 pb-2 flex justify-between items-center">
+                         <h4 className="text-sm font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-2 flex justify-between items-center">
                             <span>Finais de Semana (Ciclo de Simulados)</span>
-                            <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-1 rounded-md normal-case font-normal">Sábados e Domingos</span>
+                            <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-2 py-1 rounded-md normal-case font-normal">Sábados e Domingos</span>
                         </h4>
                         
                         {/* Formulário de Adição */}
@@ -352,7 +331,7 @@ export function CalendarTab() {
                                 placeholder="Nome do Simulado (ex: ETEC)"
                                 value={newExamName}
                                 onChange={(e) => setNewExamName(e.target.value)}
-                                className="flex-1 bg-black border border-zinc-700 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-primary transition-colors"
+                                className="flex-1 bg-white dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors"
                             />
                             <div className="relative">
                                 <input 
@@ -362,7 +341,7 @@ export function CalendarTab() {
                                     className="w-10 h-full p-0 border-none bg-transparent absolute opacity-0 cursor-pointer"
                                 />
                                 <div 
-                                    className="w-10 h-full rounded-xl border border-zinc-700" 
+                                    className="w-10 h-full rounded-xl border border-zinc-300 dark:border-zinc-700" 
                                     style={{ backgroundColor: newExamColor }}
                                 ></div>
                             </div>
@@ -377,18 +356,18 @@ export function CalendarTab() {
                         {/* Lista de Simulados no Ciclo */}
                         <div className="space-y-2">
                             {examCycle.length === 0 && (
-                                <p className="text-zinc-600 text-sm text-center py-4 italic">Nenhum simulado no ciclo.</p>
+                                <p className="text-zinc-500 text-sm text-center py-4 italic">Nenhum simulado no ciclo.</p>
                             )}
                             {examCycle.map((exam, idx) => (
-                                <div key={exam.id} className="flex items-center justify-between bg-[#18181B] border border-zinc-800 p-3 rounded-xl group">
+                                <div key={exam.id} className="flex items-center justify-between bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-800 p-3 rounded-xl group transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <span className="text-zinc-500 text-xs font-mono w-4">#{idx + 1}</span>
+                                        <span className="text-zinc-400 text-xs font-mono w-4">#{idx + 1}</span>
                                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: exam.color }}></div>
-                                        <span className="text-white font-medium text-sm">{exam.name}</span>
+                                        <span className="text-zinc-900 dark:text-white font-medium text-sm">{exam.name}</span>
                                     </div>
                                     <button 
                                         onClick={() => handleRemoveExam(exam.id)}
-                                        className="text-zinc-600 hover:text-red-400 p-1.5 hover:bg-red-400/10 rounded-lg transition-colors"
+                                        className="text-zinc-400 hover:text-red-500 p-1.5 hover:bg-red-500/10 rounded-lg transition-colors"
                                     >
                                         <Trash2 size={16} />
                                     </button>
@@ -403,7 +382,7 @@ export function CalendarTab() {
                 </div>
             </div>
 
-            <div className="p-5 border-t border-zinc-800 bg-[#09090b] rounded-b-3xl">
+            <div className="p-5 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#09090b] rounded-b-3xl transition-colors">
               <button 
                 onClick={() => setIsConfigOpen(false)} 
                 className="w-full py-3.5 bg-primary hover:bg-primary-dark text-white rounded-2xl font-bold shadow-lg shadow-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -417,14 +396,3 @@ export function CalendarTab() {
     </div>
   );
 }
-
-// Ícone decorativo simples mantido
-const CalendarHeartIcon = () => (
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-    <line x1="16" y1="2" x2="16" y2="6"></line>
-    <line x1="8" y1="2" x2="8" y2="6"></line>
-    <line x1="3" y1="10" x2="21" y2="10"></line>
-    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-  </svg>
-);
