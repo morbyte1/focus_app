@@ -61,8 +61,14 @@ export const FocusView = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-24 md:pb-0">
+  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-24 md:pb-0">
+      {/* TÍTULO ADICIONADO PARA MANTER HARMONIA (ocupa as colunas no grid ou fica acima) */}
+      <header className="lg:col-span-3">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Modo Foco</h1>
+      </header>
+      
       <div className="lg:col-span-2 space-y-6">
+        {/* ... Card do Timer e resto do conteúdo ... */}
         <Card className="flex flex-col items-center justify-center min-h-[450px] relative overflow-hidden bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 shadow-xl">
           {/* Fundo dinâmico */}
           <div className={`absolute w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-all duration-1000 ${isActive ? (timerMode === 'WORK' ? 'bg-primary/20 animate-pulse' : 'bg-emerald-500/20 animate-pulse') : 'bg-zinc-200/50 dark:bg-zinc-800/30'}`}></div>

@@ -30,6 +30,7 @@ export function CalendarTab() {
   const [schedule, setSchedule] = useStickyState({}, 'my_study_schedule');
 
   // Estado do Ciclo de Simulados (Finais de Semana)
+  // Formato: [{ id: 1, name: "ETEC", color: "#ff0000" }, ...]
   const [examCycle, setExamCycle] = useStickyState([], 'my_exam_cycle');
 
   // Estados temporários para adicionar novo simulado no modal
@@ -46,13 +47,18 @@ export function CalendarTab() {
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
   // --- LÓGICA DE VISUALIZAÇÃO ---
+  
+  // Função para descobrir qual Simulado é o da vez baseado na data
   const getExamForDate = (dateObj) => {
     if (!examCycle || examCycle.length === 0) return null;
     
     const oneDay = 24 * 60 * 60 * 1000;
     const currentDay = dateObj.getDay(); 
     
+    // Clona a data para não alterar a original
     let calcDate = new Date(dateObj.getTime());
+    
+    // Se for Domingo (0), volta 1 dia para alinhar com o Sábado da mesma "janela" de fim de semana
     if (currentDay === 0) {
         calcDate = new Date(calcDate.getTime() - oneDay);
     }
@@ -60,6 +66,7 @@ export function CalendarTab() {
     const oneWeekMs = oneDay * 7;
     const absoluteWeekIndex = Math.floor(calcDate.getTime() / oneWeekMs);
     const cycleIndex = absoluteWeekIndex % examCycle.length;
+    
     const exam = examCycle[cycleIndex];
     if (!exam) return null;
 
@@ -67,7 +74,7 @@ export function CalendarTab() {
         id: `exam-${exam.id}`,
         name: `Simulado: ${exam.name}`,
         color: exam.color,
-        goalHours: '4h',
+        goalHours: '4h', // Meta padrão para prova
         isExam: true
     };
   };
@@ -75,11 +82,13 @@ export function CalendarTab() {
   const getSubjectsForDay = (dateObj) => {
     const dayIndex = dateObj.getDay();
 
+    // Se for Final de Semana (0 = Domingo, 6 = Sábado)
     if (dayIndex === 0 || dayIndex === 6) {
         const exam = getExamForDate(dateObj);
         return exam ? [exam] : [];
     }
 
+    // Se for Dia de Semana (Rotina normal)
     const daySchedule = schedule[dayIndex];
     if (!daySchedule) return [];
 
@@ -92,6 +101,7 @@ export function CalendarTab() {
   const selectedSubjects = getSubjectsForDay(selectedDate);
   const isWeekend = selectedDate.getDay() === 0 || selectedDate.getDay() === 6;
 
+  // Handlers para o Modal de Configuração
   const handleAddExam = () => {
     if (!newExamName.trim()) return;
     const newExam = {
@@ -108,144 +118,152 @@ export function CalendarTab() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full animate-fadeIn pb-24 md:pb-0">
+    <div className="flex flex-col h-full animate-fadeIn pb-24 md:pb-0 gap-6">
       
-      {/* --- COLUNA 1: CALENDÁRIO --- */}
-      <div className="flex-1 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-white/5 rounded-3xl p-6 shadow-sm dark:shadow-lg h-fit transition-colors">
+      {/* HEADER ADICIONADO (Mantém harmonia com as outras páginas) */}
+      <header>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Calendário Acadêmico</h1>
+      </header>
+
+      <div className="flex flex-col lg:flex-row gap-6 h-full">
         
-        {/* Header Calendário */}
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-3 transition-colors">
-            <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-xl text-primary-light">
-                <CalIcon size={20} />
-            </div>
-            {MONTHS[month]} <span className="text-zinc-400 dark:text-zinc-500">{year}</span>
-          </h2>
-          <div className="flex gap-2">
-            <button onClick={prevMonth} className="p-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors border border-zinc-200 dark:border-zinc-800"><ChevronLeft size={18}/></button>
-            <button onClick={nextMonth} className="p-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors border border-zinc-200 dark:border-zinc-800"><ChevronRight size={18}/></button>
-          </div>
-        </div>
-
-        {/* Grid Calendário */}
-        <div className="grid grid-cols-7 mb-4 text-center">
-          {['D','S','T','Q','Q','S','S'].map((d,i) => (
-            <span key={i} className="text-xs font-bold text-zinc-400 dark:text-zinc-500 py-2 uppercase tracking-wider">{d}</span>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-2 md:gap-3">
-          {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`} />)}
-          
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const day = i + 1;
-            const date = new Date(year, month, day);
-            const isToday = new Date().toDateString() === date.toDateString();
-            const isSelected = selectedDate.toDateString() === date.toDateString();
-            const daySubjects = getSubjectsForDay(date);
-            const hasClass = daySubjects.length > 0;
-
-            return (
-              <button
-                key={day}
-                onClick={() => setSelectedDate(date)}
-                className={`
-                  relative h-10 md:h-12 w-full rounded-2xl flex items-center justify-center text-sm font-bold transition-all duration-300
-                  ${isSelected 
-                    ? 'bg-primary text-white shadow-lg shadow-primary/40 scale-105' 
-                    : 'bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}
-                  ${isToday && !isSelected ? 'border border-primary text-primary-light' : ''}
-                `}
-              >
-                {day}
-                {/* Bolinhas indicadoras */}
-                {hasClass && !isSelected && (
-                  <div className="absolute bottom-1.5 flex gap-1">
-                    {daySubjects.map((s, idx) => (
-                      <div key={idx} className="w-1 h-1 rounded-full shadow-[0_0_4px_currentColor]" style={{ backgroundColor: s.color }}></div>
-                    ))}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Botão Configurar */}
-        <button 
-          onClick={() => setIsConfigOpen(true)}
-          className="mt-8 w-full py-4 rounded-2xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-primary transition-all text-sm font-bold flex items-center justify-center gap-2 group"
-        >
-          <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" /> Configurar Rotina
-        </button>
-      </div>
-
-      {/* --- COLUNA 2: INFO DO DIA --- */}
-      <div className="lg:w-96 flex flex-col gap-6">
-        
-        {/* Card Data Selecionada */}
-        <div className="bg-gradient-to-br from-primary/10 via-white to-white dark:from-primary/30 dark:via-[#09090b] dark:to-[#09090b] border border-primary/20 dark:border-primary/30 p-6 rounded-3xl relative overflow-hidden shadow-sm dark:shadow-lg transition-all">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 dark:bg-primary/20 blur-[50px] rounded-full pointer-events-none" />
-          <p className="text-primary-light text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-primary-light animate-pulse"></span>
-            {selectedDate.toDateString() === new Date().toDateString() ? 'Hoje' : 'Selecionado'}
-          </p>
-          <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-1 transition-colors">{DAYS[selectedDate.getDay()]}</h2>
-          <p className="text-zinc-500 dark:text-zinc-400 font-medium transition-colors">{selectedDate.getDate()} de {MONTHS[selectedDate.getMonth()]}</p>
-        </div>
-
-        {/* Lista de Matérias / Simulados */}
-        <div className="flex-1 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-white/5 rounded-3xl p-6 shadow-sm dark:shadow-lg flex flex-col min-h-[300px] transition-colors">
-          <h3 className="text-zinc-900 dark:text-white font-bold mb-6 flex items-center gap-2 text-lg transition-colors">
-            <BookOpen size={20} className="text-primary"/> {isWeekend ? 'Simulado do Fim de Semana' : 'Plano do Dia'}
-          </h3>
-
-          <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1">
-            {selectedSubjects.length > 0 ? (
-              selectedSubjects.map((subject, index) => (
-                <div key={index} className="group p-4 rounded-2xl bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-800 hover:border-primary/50 transition-all relative overflow-hidden">
-                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: subject.color }}></div>
-                  <div className="pl-2">
-                    <div className="flex justify-between items-start mb-1">
-                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide">
-                            {subject.isExam ? 'Prova / Simulado' : (index === 0 ? 'Foco Principal' : 'Revisão / Secundário')}
-                        </p>
-                        {index === 0 && <span className="bg-primary/10 text-primary-light p-1 rounded-lg"><Check size={12}/></span>}
-                    </div>
-                    <p className="text-zinc-900 dark:text-white font-bold text-lg leading-tight mb-1 transition-colors">{subject.name}</p>
-                    <p className="text-xs text-zinc-500 flex items-center gap-1">
-                        {subject.isExam ? 'Duração Est.:' : 'Meta:'} <span className="text-zinc-700 dark:text-zinc-300">{subject.goalHours}</span> {subject.isExam ? '' : '/ semana'}
-                    </p>
-                  </div>
+        {/* --- COLUNA 1: CALENDÁRIO --- */}
+        <div className="flex-1 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-sm dark:shadow-lg h-fit transition-colors">
+            
+            {/* Header Calendário */}
+            <div className="flex items-center justify-between mb-8">
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-3 transition-colors">
+                <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-xl text-primary-light">
+                    <CalIcon size={20} />
                 </div>
-              ))
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-60">
-                {isWeekend ? (
-                  <>
-                    <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-4 text-zinc-400 dark:text-zinc-600 transition-colors">
-                        <Trophy size={28} />
+                {MONTHS[month]} <span className="text-zinc-400 dark:text-zinc-500">{year}</span>
+            </h2>
+            <div className="flex gap-2">
+                <button onClick={prevMonth} className="p-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors border border-zinc-200 dark:border-zinc-800"><ChevronLeft size={18}/></button>
+                <button onClick={nextMonth} className="p-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors border border-zinc-200 dark:border-zinc-800"><ChevronRight size={18}/></button>
+            </div>
+            </div>
+
+            {/* Grid Calendário */}
+            <div className="grid grid-cols-7 mb-4 text-center">
+            {['D','S','T','Q','Q','S','S'].map((d,i) => (
+                <span key={i} className="text-xs font-bold text-zinc-400 dark:text-zinc-500 py-2 uppercase tracking-wider">{d}</span>
+            ))}
+            </div>
+            <div className="grid grid-cols-7 gap-2 md:gap-3">
+            {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`} />)}
+            
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const date = new Date(year, month, day);
+                const isToday = new Date().toDateString() === date.toDateString();
+                const isSelected = selectedDate.toDateString() === date.toDateString();
+                const daySubjects = getSubjectsForDay(date);
+                const hasClass = daySubjects.length > 0;
+
+                return (
+                <button
+                    key={day}
+                    onClick={() => setSelectedDate(date)}
+                    className={`
+                    relative h-10 md:h-12 w-full rounded-2xl flex items-center justify-center text-sm font-bold transition-all duration-300
+                    ${isSelected 
+                        ? 'bg-primary text-white shadow-lg shadow-primary/40 scale-105' 
+                        : 'bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}
+                    ${isToday && !isSelected ? 'border border-primary text-primary-light' : ''}
+                    `}
+                >
+                    {day}
+                    {/* Bolinhas indicadoras */}
+                    {hasClass && !isSelected && (
+                    <div className="absolute bottom-1.5 flex gap-1">
+                        {daySubjects.map((s, idx) => (
+                        <div key={idx} className="w-1 h-1 rounded-full shadow-[0_0_4px_currentColor]" style={{ backgroundColor: s.color }}></div>
+                        ))}
                     </div>
-                    <p className="text-zinc-900 dark:text-white font-bold transition-colors">Sem simulado programado</p>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 mb-4">Adicione simulados nas configurações para rotacionar aos finais de semana.</p>
-                    <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl text-xs font-bold transition-colors">
-                        Configurar Ciclo
-                    </button>
-                  </>
+                    )}
+                </button>
+                );
+            })}
+            </div>
+
+            {/* Botão Configurar */}
+            <button 
+            onClick={() => setIsConfigOpen(true)}
+            className="mt-8 w-full py-4 rounded-2xl bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-primary transition-all text-sm font-bold flex items-center justify-center gap-2 group"
+            >
+            <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" /> Configurar Rotina
+            </button>
+        </div>
+
+        {/* --- COLUNA 2: INFO DO DIA --- */}
+        <div className="lg:w-96 flex flex-col gap-6">
+            
+            {/* Card Data Selecionada */}
+            <div className="bg-gradient-to-br from-primary/10 via-white to-white dark:from-primary/30 dark:via-[#09090b] dark:to-[#09090b] border border-primary/20 dark:border-primary/30 p-6 rounded-3xl relative overflow-hidden shadow-sm dark:shadow-lg transition-all">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 dark:bg-primary/20 blur-[50px] rounded-full pointer-events-none" />
+            <p className="text-primary-light text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary-light animate-pulse"></span>
+                {selectedDate.toDateString() === new Date().toDateString() ? 'Hoje' : 'Selecionado'}
+            </p>
+            <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-1 transition-colors">{DAYS[selectedDate.getDay()]}</h2>
+            <p className="text-zinc-500 dark:text-zinc-400 font-medium transition-colors">{selectedDate.getDate()} de {MONTHS[selectedDate.getMonth()]}</p>
+            </div>
+
+            {/* Lista de Matérias / Simulados */}
+            <div className="flex-1 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-sm dark:shadow-lg flex flex-col min-h-[300px] transition-colors">
+            <h3 className="text-zinc-900 dark:text-white font-bold mb-6 flex items-center gap-2 text-lg transition-colors">
+                <BookOpen size={20} className="text-primary"/> {isWeekend ? 'Simulado do Fim de Semana' : 'Plano do Dia'}
+            </h3>
+
+            <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                {selectedSubjects.length > 0 ? (
+                selectedSubjects.map((subject, index) => (
+                    <div key={index} className="group p-4 rounded-2xl bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-800 hover:border-primary/50 transition-all relative overflow-hidden">
+                    <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: subject.color }}></div>
+                    <div className="pl-2">
+                        <div className="flex justify-between items-start mb-1">
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide">
+                                {subject.isExam ? 'Prova / Simulado' : (index === 0 ? 'Foco Principal' : 'Revisão / Secundário')}
+                            </p>
+                            {index === 0 && <span className="bg-primary/10 text-primary-light p-1 rounded-lg"><Check size={12}/></span>}
+                        </div>
+                        <p className="text-zinc-900 dark:text-white font-bold text-lg leading-tight mb-1 transition-colors">{subject.name}</p>
+                        <p className="text-xs text-zinc-500 flex items-center gap-1">
+                            {subject.isExam ? 'Duração Est.:' : 'Meta:'} <span className="text-zinc-700 dark:text-zinc-300">{subject.goalHours}</span> {subject.isExam ? '' : '/ semana'}
+                        </p>
+                    </div>
+                    </div>
+                ))
                 ) : (
-                  <>
-                    <div className="bg-zinc-100 dark:bg-zinc-900 p-4 rounded-full mb-4 text-zinc-400 dark:text-zinc-500 transition-colors">
-                        <Layers size={32} strokeWidth={1.5} />
-                    </div>
-                    <p className="text-zinc-900 dark:text-zinc-300 font-medium transition-colors">Dia Livre</p>
-                    <p className="text-sm text-zinc-500 mt-1 mb-4">Nenhuma matéria fixa definida.</p>
-                    <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl text-xs font-bold transition-colors">
-                        Configurar agora
-                    </button>
-                  </>
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-60">
+                    {isWeekend ? (
+                    <>
+                        <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-900 rounded-full flex items-center justify-center mb-4 text-zinc-400 dark:text-zinc-600 transition-colors">
+                            <Trophy size={28} />
+                        </div>
+                        <p className="text-zinc-900 dark:text-white font-bold transition-colors">Sem simulado programado</p>
+                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 mb-4">Adicione simulados nas configurações para rotacionar aos finais de semana.</p>
+                        <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl text-xs font-bold transition-colors">
+                            Configurar Ciclo
+                        </button>
+                    </>
+                    ) : (
+                    <>
+                        <div className="bg-zinc-100 dark:bg-zinc-900 p-4 rounded-full mb-4 text-zinc-400 dark:text-zinc-500 transition-colors">
+                            <Layers size={32} strokeWidth={1.5} />
+                        </div>
+                        <p className="text-zinc-900 dark:text-zinc-300 font-medium transition-colors">Dia Livre</p>
+                        <p className="text-sm text-zinc-500 mt-1 mb-4">Nenhuma matéria fixa definida.</p>
+                        <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl text-xs font-bold transition-colors">
+                            Configurar agora
+                        </button>
+                    </>
+                    )}
+                </div>
                 )}
-              </div>
-            )}
-          </div>
+            </div>
+            </div>
         </div>
       </div>
 

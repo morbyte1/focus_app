@@ -25,11 +25,13 @@ export const getTitle = l => TITLES.find(t => l >= t.l)?.t || "Novato Curioso";
 export const getRank = l => RANKS.find(s => l >= s.m) || RANKS[RANKS.length - 1];
 export const getXP = l => Math.floor(500 * Math.pow(l, 1.5));
 
+
 // --- Contexto ---
 export const FocusContext = createContext();
 
 export const FocusProvider = ({ children }) => {
   const [currentView, setCurrentView] = useState('dashboard');
+  const [userName, setUserName] = useStickyState('', 'focus_username');
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
   const [subjects, setSubjects] = useStickyState(DEFAULT_SUB, 'focus_subjects');
   const [sessions, setSessions] = useStickyState([], 'focus_sessions');
@@ -197,7 +199,7 @@ export const FocusProvider = ({ children }) => {
   }, [sessions, subjects]);
 
   return (
-    <FocusContext.Provider value={{ currentView, setCurrentView, selectedHistoryDate, setSelectedHistoryDate, subjects, sessions, tasks, mistakes, themes, countdown, setCountdown, userLevel, timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), timeLeft: timerState.timeLeft, setTimeLeft: t => setTimerState(p => ({ ...p, timeLeft: t })), isActive: timerState.active, setIsActive: a => setTimerState(p => ({ ...p, active: a })), cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime, elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, ...methods }}>
+    <FocusContext.Provider value={{ currentView, setCurrentView, userName, setUserName, selectedHistoryDate, setSelectedHistoryDate, subjects, sessions, tasks, mistakes, themes, countdown, setCountdown, userLevel, timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), timeLeft: timerState.timeLeft, setTimeLeft: t => setTimerState(p => ({ ...p, timeLeft: t })), isActive: timerState.active, setIsActive: a => setTimerState(p => ({ ...p, active: a })), cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime, elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, ...methods }}>
       {children}
     </FocusContext.Provider>
   );
