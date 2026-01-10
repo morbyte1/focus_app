@@ -1,11 +1,32 @@
+{
+type: uploaded file
+fileName: index.css
+fullContent:
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* Garante que o CSS saiba que o tema mudou para barras de rolagem e inputs */
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+
+  /* FORÇA a mudança de cor do body quando a classe .dark é adicionada ao HTML.
+     Isso corrige o problema caso o tailwind.config.js não esteja com darkMode: 'class' */
+  html.dark body {
+    @apply bg-[#000000] text-white;
+  }
+}
+
 body {
-  /* O fundo agora reage: Cinza muito claro no Light Mode, Preto no Dark Mode */
-  @apply bg-zinc-50 text-zinc-900 dark:bg-[#000000] dark:text-white;
+  /* Adicionei transition-colors para suavizar a troca de tema */
+  @apply bg-zinc-50 text-zinc-900 transition-colors duration-300;
   font-family: 'Inter', sans-serif;
+}
 }
