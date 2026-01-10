@@ -1,27 +1,53 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    color-scheme: light;
-  }
-  .dark {
-    color-scheme: dark;
-  }
+/* Melhora a renderização da fonte */
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  /* Define o estilo base do corpo. O bg-zinc-50 é o padrão claro. */
-  @apply bg-zinc-50 text-zinc-900 transition-colors duration-300;
-  font-family: 'Inter', sans-serif;
+  @apply bg-zinc-100 text-zinc-900 transition-colors duration-300;
 }
 
-/* FORÇA BRUTA: Quando a classe 'dark' estiver no HTML, o body FICA preto.
-   Isso garante que o fundo mude independente do Tailwind carregar utilitários ou não. */
-html.dark body {
-  background-color: #000000;
-  color: #ffffff;
+/* Aplica o estilo escuro ao body quando a classe dark está presente */
+.dark body {
+  @apply bg-black text-white;
+}
+
+/* === Scrollbar Personalizada (Usada nas suas Views) === */
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-zinc-300 dark:bg-zinc-800 rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-400 dark:bg-zinc-700;
+  }
+}
+
+/* === Animações (Usada no animate-fadeIn) === */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
 }

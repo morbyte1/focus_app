@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, createContext, useMemo, useRef } from 'react';
 import { Crown, Scroll, Shield, Compass, Feather, Sprout } from 'lucide-react';
 
-// --- Constantes e Helpers (Movidos do App.jsx) ---
+// --- Constantes e Helpers ---
 export const POMODORO = { WORK: 25 * 60, SHORT: 5 * 60, LONG: 15 * 60 };
 const DEFAULT_SUB = [{ id: 1, name: 'Programação', color: '#8b5cf6', goalHours: 20 }, { id: 2, name: 'Matemática', color: '#10b981', goalHours: 10 }, { id: 3, name: 'Inglês', color: '#f59e0b', goalHours: 5 }];
 export const formatTime = s => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
@@ -29,7 +29,6 @@ export const getXP = l => Math.floor(500 * Math.pow(l, 1.5));
 export const FocusContext = createContext();
 
 export const FocusProvider = ({ children }) => {
-const FocusProvider = ({ children }) => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
   const [subjects, setSubjects] = useStickyState(DEFAULT_SUB, 'focus_subjects');
@@ -46,31 +45,33 @@ const FocusProvider = ({ children }) => {
   const [theme, setTheme] = useStickyState('system', 'focus_theme');
   const refs = useRef({ end: null, start: null, last: 0 });
 
-  // Lógica de tema aprimorada para ouvir mudanças do sistema em tempo real
+  // --- Lógica do Tema (Corrigida) ---
   useEffect(() => {
     const root = window.document.documentElement;
-    const applyTheme = () => {
-        const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const isDark = theme === 'dark' || (theme === 'system' && sysDark);
-        if (isDark) {
-            root.classList.add('dark');
-        } else {
-            root.classList.remove('dark');
-        }
-    };
-    
-    applyTheme(); // Aplica imediatamente
+    root.classList.remove('light', 'dark'); // Limpa classes antigas
 
-    // Listener para mudanças no SO se estiver em 'auto'
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+    localStorage.setItem('focus_theme', theme);
+  }, [theme]);
+
+  // Listener para mudanças no sistema (ex: usuario mudou o SO de claro para escuro)
+  useEffect(() => {
+    if (theme !== 'system') return;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
-        if (theme === 'system') applyTheme();
+       const root = window.document.documentElement;
+       root.classList.remove('light', 'dark');
+       root.classList.add(mediaQuery.matches ? 'dark' : 'light');
     };
-
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
-
+  
   useEffect(() => { if (subjects.length > 0 && !subjects.find(s => s.id === selectedSubjectId)) setSelectedSubjectId(subjects[0].id); }, [subjects, selectedSubjectId]);
   useEffect(() => { 
     if (themes.length > 0) {
@@ -195,31 +196,9 @@ const FocusProvider = ({ children }) => {
     return { monthlyData, bestSubject: ranked[0], worstSubject: ranked[ranked.length - 1], maxStreak: maxS };
   }, [sessions, subjects]);
 
-// Dentro do componente FocusProvider, logo antes do return
-useEffect(() => {
-  const root = window.document.documentElement;
-  
-  // Remove a classe antiga para evitar conflitos
-  root.classList.remove('light', 'dark');
-
-  if (theme === 'system') {
-    // Se for 'system', verifica a preferência do sistema operacional
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    root.classList.add(systemTheme);
-    return;
-  }
-
-  // Caso contrário, aplica o tema escolhido ('light' ou 'dark')
-  root.classList.add(theme);
-  
-  // Opcional: Salvar no localStorage para persistir após refresh
-  localStorage.setItem('focus_theme', theme);
-}, [theme]);
-
   return (
     <FocusContext.Provider value={{ currentView, setCurrentView, selectedHistoryDate, setSelectedHistoryDate, subjects, sessions, tasks, mistakes, themes, countdown, setCountdown, userLevel, timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), timeLeft: timerState.timeLeft, setTimeLeft: t => setTimerState(p => ({ ...p, timeLeft: t })), isActive: timerState.active, setIsActive: a => setTimerState(p => ({ ...p, active: a })), cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime, elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, ...methods }}>
       {children}
     </FocusContext.Provider>
   );
-};
 };
