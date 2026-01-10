@@ -341,10 +341,127 @@ const StatsView = () => {
 
 const HistoryView = () => {
   const { sessions, subjects, deleteDayHistory } = useContext(FocusContext);
-  const history = useMemo(() => { const grp = {}; sessions.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(s => { const d = new Date(s.date).toDateString(); if(!grp[d]) grp[d] = []; grp[d].push(s); }); return Object.entries(grp); }, [sessions]);
+  const [openDates, setOpenDates] = useState({});
+
+  // Agrupa sessões por data
+  const history = useMemo(() => {
+    const grp = {};
+    sessions.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(s => {
+      const d = new Date(s.date).toDateString();
+      if (!grp[d]) grp[d] = [];
+      grp[d].push(s);
+    });
+    return Object.entries(grp);
+  }, [sessions]);
+
+  // Função para abrir/fechar o dia
+  const toggleDate = (date) => {
+    setOpenDates(prev => ({ ...prev, [date]: !prev[date] }));
+  };
+
+  // Calcula totais do dia para exibir no cabeçalho (Resumo rápido)
+  const getDaySummary = (items) => {
+    const mins = items.reduce((a, b) => a + b.minutes, 0);
+    const q = items.reduce((a, b) => a + (b.questions || 0), 0);
+    const e = items.reduce((a, b) => a + (b.errors || 0), 0);
+    return { mins, q, e };
+  };
+
   return (
-    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0"><header><h1 className="text-2xl font-bold text-white mb-1">Histórico</h1></header>
-      <div className="space-y-4">{history.length === 0 ? <p className="text-zinc-500">Sem histórico.</p> : history.map(([date, items]) => (<Card key={date}><div className="flex justify-between items-center mb-4 border-b border-zinc-800 pb-2"><h3 className="font-bold text-white capitalize">{new Date(date).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</h3><button onClick={() => deleteDayHistory(date)} className="text-xs text-red-500 hover:text-red-400">Apagar dia</button></div><div className="space-y-3">{items.map(s => (<div key={s.id} className="flex items-center gap-3 text-sm"><div className="w-2 h-2 rounded-full" style={{background: subjects.find(sub => sub.id === s.subjectId)?.color || '#555'}}></div><span className="text-zinc-300 flex-1">{subjects.find(sub => sub.id === s.subjectId)?.name || 'Desconhecido'}</span><span className="text-zinc-500">{s.minutes} min</span></div>))}</div></Card>))}</div>
+    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
+      <header>
+        <h1 className="text-2xl font-bold text-white mb-1">Histórico</h1>
+        <p className="text-zinc-400 text-sm">Clique nos dias para ver os detalhes.</p>
+      </header>
+      
+      <div className="space-y-4">
+        {history.length === 0 ? (
+          <div className="text-center py-10 opacity-50">
+             <History size={40} className="mx-auto mb-2" />
+             <p>Nenhum histórico registrado ainda.</p>
+          </div>
+        ) : (
+          history.map(([date, items]) => {
+            const isOpen = openDates[date];
+            const summary = getDaySummary(items);
+            
+            return (
+              <Card key={date} className="transition-all duration-300">
+                {/* Cabeçalho do Card (O Dia) - Clicável */}
+                <div 
+                  onClick={() => toggleDate(date)} 
+                  className="flex justify-between items-center cursor-pointer select-none group"
+                >
+                  <div>
+                    <h3 className="font-bold text-white capitalize text-lg group-hover:text-[#4d4dff] transition-colors">
+                      {new Date(date).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </h3>
+                    <div className="flex gap-3 text-xs text-zinc-500 mt-1">
+                      <span className="flex items-center gap-1"><Clock size={12}/> {summary.mins} min</span>
+                      {summary.q > 0 && <span className="flex items-center gap-1 text-blue-500/70"><CheckSquare size={12}/> {summary.q}</span>}
+                      {summary.e > 0 && <span className="flex items-center gap-1 text-red-500/70"><AlertTriangle size={12}/> {summary.e}</span>}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); deleteDayHistory(date); }} 
+                      className="p-2 hover:bg-red-500/10 rounded-full text-zinc-600 hover:text-red-500 transition-colors"
+                      title="Apagar dia inteiro"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                    <div className={`p-2 rounded-full bg-zinc-900 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+                      <ChevronDown size={20} className="text-zinc-400" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lista de Sessões (Aparece apenas se estiver aberto) */}
+                {isOpen && (
+                  <div className="mt-6 space-y-3 animate-fadeIn border-t border-zinc-800/50 pt-4">
+                    {items.map(s => {
+                      const subject = subjects.find(sub => sub.id === s.subjectId);
+                      return (
+                        <div key={s.id} className="bg-zinc-900/40 p-3 rounded-2xl border border-zinc-800/50 hover:border-zinc-700 transition-colors flex flex-col sm:flex-row sm:items-center gap-3">
+                          {/* Identificação da Matéria */}
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]" style={{ color: subject?.color || '#555', backgroundColor: subject?.color || '#555' }}></div>
+                            <span className="text-zinc-200 font-medium">{subject?.name || 'Matéria Excluída'}</span>
+                          </div>
+
+                          {/* Dados da Sessão (Tempo, Questões, Erros) */}
+                          <div className="flex items-center justify-between sm:justify-end gap-4 text-sm bg-black/20 p-2 rounded-xl sm:bg-transparent sm:p-0">
+                             <div className="flex items-center gap-1.5 text-zinc-300" title="Tempo Focado">
+                                <Clock size={14} className="text-zinc-500"/>
+                                <span>{s.minutes} min</span>
+                             </div>
+                             
+                             <div className="w-px h-4 bg-zinc-800 hidden sm:block"></div>
+                             
+                             <div className="flex items-center gap-1.5 text-blue-400" title="Questões Realizadas">
+                                <CheckSquare size={14} />
+                                <span className="font-bold">{s.questions || 0}</span>
+                             </div>
+
+                             <div className="flex items-center gap-1.5 text-red-400" title="Erros">
+                                <AlertTriangle size={14} />
+                                <span className="font-bold">{s.errors || 0}</span>
+                             </div>
+                          </div>
+                          
+                          {/* Notas (se houver) */}
+                          {s.notes && <div className="w-full sm:w-auto text-xs text-zinc-500 italic border-t sm:border-t-0 sm:border-l border-zinc-800 pt-2 sm:pt-0 sm:pl-3 max-w-xs truncate">"{s.notes}"</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 };
