@@ -39,8 +39,8 @@ export const GoalsView = () => {
             <span className="text-xs font-bold uppercase px-2 py-1 rounded text-white mb-2 inline-block" style={{ backgroundColor: s.color }}>{s.name}</span>
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Conteúdo</h1>
             <div className="flex items-center gap-4 mt-2">
-              <div className="flex items-center gap-2 text-zinc-500 text-sm"><CheckSquare size={16} className="text-[#1100ab]" /><span>{comp} / {tot} Tópicos</span></div>
-              <div className="flex items-center gap-2 text-zinc-500 text-sm"><Percent size={16} className="text-[#1100ab]" /><span>{tot ? Math.round((comp / tot) * 100) : 0}% Concluído</span></div>
+              <div className="flex items-center gap-2 text-zinc-500 text-sm"><CheckSquare size={16} className="text-primary" /><span>{comp} / {tot} Tópicos</span></div>
+              <div className="flex items-center gap-2 text-zinc-500 text-sm"><Percent size={16} className="text-primary" /><span>{tot ? Math.round((comp / tot) * 100) : 0}% Concluído</span></div>
             </div>
           </div>
           <div className="text-right text-2xl font-bold text-zinc-900 dark:text-white">{s.goalHours}h <span className="text-xs text-zinc-500 block font-normal">Meta Semanal</span></div>
@@ -65,7 +65,7 @@ export const GoalsView = () => {
                     <div className="flex-1">
                       <h3 onClick={() => setCol({ ...col, [t.id]: !col[t.id] })} className="text-xl font-bold text-zinc-900 dark:text-white cursor-pointer select-none">{t.title}</h3>
                       <div className="flex items-center gap-2 mt-1">
-                        <div className="h-1.5 w-24 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-[#1100ab]" style={{ width: `${p}%` }} /></div>
+                        <div className="h-1.5 w-24 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-primary" style={{ width: `${p}%` }} /></div>
                         <span className="text-xs text-zinc-500">{p}%</span>
                       </div>
                     </div>
@@ -76,14 +76,14 @@ export const GoalsView = () => {
                   <div className="space-y-2 mb-4 animate-fadeIn pl-8">
                     {t.items.map(i => (
                       <div key={i.id} className="flex gap-3 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 rounded-2xl group/item">
-                        <button onClick={() => toggleThemeItem(t.id, i.id)} className={`w-5 h-5 rounded border flex items-center justify-center ${i.completed ? 'bg-[#1100ab] border-[#1100ab]' : 'border-zinc-400 dark:border-zinc-600'}`}>{i.completed && <CheckSquare size={14} className="text-white" />}</button>
+                        <button onClick={() => toggleThemeItem(t.id, i.id)} className={`w-5 h-5 rounded border flex items-center justify-center ${i.completed ? 'bg-primary border-primary' : 'border-zinc-400 dark:border-zinc-600'}`}>{i.completed && <CheckSquare size={14} className="text-white" />}</button>
                         <span className={`text-sm flex-1 ${i.completed ? 'text-zinc-500 line-through' : 'text-zinc-700 dark:text-zinc-200'}`}>{i.text}</span>
                         <button onClick={() => deleteThemeItem(t.id, i.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-400 hover:text-red-500"><X size={14} /></button>
                       </div>
                     ))}
                     <form onSubmit={e => { e.preventDefault(); if (e.target.item.value) { addThemeItem(t.id, e.target.item.value); e.target.reset(); } }} className="flex gap-2 mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800/50">
                       <input name="item" className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl px-3 py-1.5 text-sm text-zinc-900 dark:text-white" placeholder="Tópico (Ctrl+V para lista)..." onPaste={e => { const d = e.clipboardData.getData('text'); if (d.includes('\n')) { e.preventDefault(); d.split('\n').map(l => l.trim()).filter(l => l).forEach(l => addThemeItem(t.id, l)); } }} />
-                      <button type="submit" className="p-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-[#1100ab] text-zinc-900 dark:text-white hover:text-white rounded"><Plus size={16} /></button>
+                      <button type="submit" className="p-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-primary text-zinc-900 dark:text-white hover:text-white rounded"><Plus size={16} /></button>
                     </form>
                   </div>
                 )}
@@ -102,7 +102,7 @@ export const GoalsView = () => {
         {subjects.map(s => { 
           const { h, p } = getProg(s.id, s.goalHours); 
           return (
-            <Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-[#1100ab]/50">
+            <Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-primary/50">
               <div onClick={() => setViewSub(s.id)}>
                 <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: s.color }} />
                 <div className="mb-4"><h3 className="text-xl font-bold text-zinc-900 dark:text-white">{s.name}</h3>{edit.id !== s.id && <p className="text-sm text-zinc-500">Meta: {s.goalHours}h</p>}</div>

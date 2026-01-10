@@ -77,7 +77,7 @@ export const StatsView = () => {
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="min-h-[300px]">
-          <h3 className="text-zinc-900 dark:text-white font-semibold mb-6 flex items-center gap-2"><Activity size={18} className="text-[#1100ab]" /> Volume de Questões</h3>
+          <h3 className="text-zinc-900 dark:text-white font-semibold mb-6 flex items-center gap-2"><Activity size={18} className="text-primary" /> Volume de Questões</h3>
           <div className="h-[250px] w-full">
             <ResponsiveContainer>
               <BarChart data={perfData}>

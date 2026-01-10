@@ -44,7 +44,7 @@ export const AppLayout = () => {
         <aside className={`fixed inset-y-0 left-0 z-50 bg-white dark:bg-[#000000] border-r border-zinc-200 dark:border-zinc-900 flex flex-col transition-all duration-300 md:translate-x-0 ${menu ? 'translate-x-0' : '-translate-x-full'} ${col ? 'w-20' : 'w-64'}`}>
             <div className={`p-6 flex items-center ${col ? 'justify-center flex-col gap-4' : 'justify-between'}`}>
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-[#1100ab] to-blue-900 rounded-2xl flex items-center justify-center text-white font-bold flex-shrink-0">F</div>
+                    <div className="w-8 h-8 bg-gradient-to-br from-primary to-blue-900 rounded-2xl flex items-center justify-center text-white font-bold flex-shrink-0">F</div>
                     {!col && <span className="text-xl font-bold text-zinc-900 dark:text-white tracking-tight">Focus</span>}
                 </div>
                 <button onClick={() => setCol(!col)} className="p-2 hover:bg-zinc-100 dark:hover:bg-[#09090b] rounded-xl text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors">
@@ -62,7 +62,7 @@ export const AppLayout = () => {
             
             <nav className="flex-1 px-4 space-y-2">
                 {nav.map(i => (
-                    <button key={i.id} onClick={() => { setCurrentView(i.id); setMenu(false) }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${currentView === i.id ? 'bg-[#1100ab]/10 text-[#4d4dff] font-medium' : 'hover:bg-zinc-100 dark:hover:bg-[#09090b] hover:text-zinc-900 dark:hover:text-white'} ${col ? 'justify-center' : ''}`} title={col ? i.l : ''}>
+                    <button key={i.id} onClick={() => { setCurrentView(i.id); setMenu(false) }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${currentView === i.id ? 'bg-primary/10 text-primary-light font-medium' : 'hover:bg-zinc-100 dark:hover:bg-[#09090b] hover:text-zinc-900 dark:hover:text-white'} ${col ? 'justify-center' : ''}`} title={col ? i.l : ''}>
                         <i.i size={20} />{!col && i.l}
                     </button>
                 ))}

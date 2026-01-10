@@ -137,7 +137,7 @@ export function CalendarTab() {
         {/* Header Calendário */}
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-xl font-bold text-white flex items-center gap-3">
-            <div className="p-2 bg-[#1100ab]/20 rounded-xl text-[#4d4dff]">
+            <div className="p-2 bg-primary/20 rounded-xl text-primary-light">
                 <CalIcon size={20} />
             </div>
             {MONTHS[month]} <span className="text-zinc-500">{year}</span>
@@ -172,9 +172,9 @@ export function CalendarTab() {
                 className={`
                   relative h-10 md:h-12 w-full rounded-2xl flex items-center justify-center text-sm font-bold transition-all duration-300
                   ${isSelected 
-                    ? 'bg-[#1100ab] text-white shadow-lg shadow-[#1100ab]/40 scale-105' 
+                    ? 'bg-primary text-white shadow-lg shadow-primary/40 scale-105' 
                     : 'hover:bg-zinc-800 text-zinc-400 hover:text-white bg-transparent'}
-                  ${isToday && !isSelected ? 'border border-[#1100ab] text-[#4d4dff]' : ''}
+                  ${isToday && !isSelected ? 'border border-primary text-primary-light' : ''}
                 `}
               >
                 {day}
@@ -194,7 +194,7 @@ export function CalendarTab() {
         {/* Botão Configurar */}
         <button 
           onClick={() => setIsConfigOpen(true)}
-          className="mt-8 w-full py-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-dashed border-zinc-700 hover:border-[#1100ab] transition-all text-sm font-bold flex items-center justify-center gap-2 group"
+          className="mt-8 w-full py-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-dashed border-zinc-700 hover:border-primary transition-all text-sm font-bold flex items-center justify-center gap-2 group"
         >
           <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" /> Configurar Rotina
         </button>
@@ -204,10 +204,10 @@ export function CalendarTab() {
       <div className="lg:w-96 flex flex-col gap-6">
         
         {/* Card Data Selecionada */}
-        <div className="bg-gradient-to-br from-[#1100ab]/30 via-[#09090b] to-[#09090b] border border-[#1100ab]/30 p-6 rounded-3xl relative overflow-hidden shadow-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#1100ab]/20 blur-[50px] rounded-full pointer-events-none" />
-          <p className="text-[#4d4dff] text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#4d4dff] animate-pulse"></span>
+        <div className="bg-gradient-to-br from-primary/30 via-[#09090b] to-[#09090b] border border-primary/30 p-6 rounded-3xl relative overflow-hidden shadow-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-[50px] rounded-full pointer-events-none" />
+          <p className="text-primary-light text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-primary-light animate-pulse"></span>
             {selectedDate.toDateString() === new Date().toDateString() ? 'Hoje' : 'Selecionado'}
           </p>
           <h2 className="text-3xl font-bold text-white mb-1">{DAYS[selectedDate.getDay()]}</h2>
@@ -217,20 +217,20 @@ export function CalendarTab() {
         {/* Lista de Matérias / Simulados */}
         <div className="flex-1 bg-[#09090b] border border-white/5 rounded-3xl p-6 shadow-lg flex flex-col min-h-[300px]">
           <h3 className="text-white font-bold mb-6 flex items-center gap-2 text-lg">
-            <BookOpen size={20} className="text-[#1100ab]"/> {isWeekend ? 'Simulado do Fim de Semana' : 'Plano do Dia'}
+            <BookOpen size={20} className="text-primary"/> {isWeekend ? 'Simulado do Fim de Semana' : 'Plano do Dia'}
           </h3>
 
           <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1">
             {selectedSubjects.length > 0 ? (
               selectedSubjects.map((subject, index) => (
-                <div key={index} className="group p-4 rounded-2xl bg-[#18181B] border border-zinc-800 hover:border-[#1100ab]/50 transition-all relative overflow-hidden">
+                <div key={index} className="group p-4 rounded-2xl bg-[#18181B] border border-zinc-800 hover:border-primary/50 transition-all relative overflow-hidden">
                   <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: subject.color }}></div>
                   <div className="pl-2">
                     <div className="flex justify-between items-start mb-1">
                         <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide">
                             {subject.isExam ? 'Prova / Simulado' : (index === 0 ? 'Foco Principal' : 'Revisão / Secundário')}
                         </p>
-                        {index === 0 && <span className="bg-[#1100ab]/10 text-[#4d4dff] p-1 rounded-lg"><Check size={12}/></span>}
+                        {index === 0 && <span className="bg-primary/10 text-primary-light p-1 rounded-lg"><Check size={12}/></span>}
                     </div>
                     <p className="text-white font-bold text-lg leading-tight mb-1">{subject.name}</p>
                     <p className="text-xs text-zinc-500 flex items-center gap-1">
@@ -248,7 +248,7 @@ export function CalendarTab() {
                     </div>
                     <p className="text-white font-bold">Sem simulado programado</p>
                     <p className="text-sm text-zinc-400 mt-1 mb-4">Adicione simulados nas configurações para rotacionar aos finais de semana.</p>
-                    <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-[#1100ab]/10 hover:bg-[#1100ab]/20 text-[#4d4dff] rounded-xl text-xs font-bold transition-colors">
+                    <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl text-xs font-bold transition-colors">
                         Configurar Ciclo
                     </button>
                   </>
@@ -259,7 +259,7 @@ export function CalendarTab() {
                     </div>
                     <p className="text-zinc-300 font-medium">Dia Livre</p>
                     <p className="text-sm text-zinc-500 mt-1 mb-4">Nenhuma matéria fixa definida.</p>
-                    <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-[#1100ab]/10 hover:bg-[#1100ab]/20 text-[#4d4dff] rounded-xl text-xs font-bold transition-colors">
+                    <button onClick={() => setIsConfigOpen(true)} className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary-light rounded-xl text-xs font-bold transition-colors">
                         Configurar agora
                     </button>
                   </>
@@ -296,7 +296,7 @@ export function CalendarTab() {
                             {[1, 2, 3, 4, 5].map((dayIdx) => (
                                 <div key={dayIdx} className="bg-[#18181B] p-4 rounded-2xl border border-zinc-800 hover:border-zinc-700 transition-colors">
                                 <div className="flex items-center gap-2 mb-3">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-[#1100ab]"></div>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
                                     <p className="text-white font-bold text-sm uppercase tracking-wide">{DAYS[dayIdx]}</p>
                                 </div>
                                 
@@ -305,7 +305,7 @@ export function CalendarTab() {
                                     <div>
                                     <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block">Principal</label>
                                     <select 
-                                        className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-white outline-none focus:border-[#1100ab] transition-colors appearance-none cursor-pointer"
+                                        className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
                                         value={schedule[dayIdx]?.main || ''}
                                         onChange={(e) => setSchedule(prev => ({
                                         ...prev, 
@@ -321,7 +321,7 @@ export function CalendarTab() {
                                     <div>
                                     <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block">Secundária</label>
                                     <select 
-                                        className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-white outline-none focus:border-[#1100ab] transition-colors appearance-none cursor-pointer"
+                                        className="w-full bg-black border border-zinc-700 rounded-xl p-2 text-sm text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
                                         value={schedule[dayIdx]?.sec || ''}
                                         onChange={(e) => setSchedule(prev => ({
                                         ...prev, 
@@ -352,7 +352,7 @@ export function CalendarTab() {
                                 placeholder="Nome do Simulado (ex: ETEC)"
                                 value={newExamName}
                                 onChange={(e) => setNewExamName(e.target.value)}
-                                className="flex-1 bg-black border border-zinc-700 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-[#1100ab] transition-colors"
+                                className="flex-1 bg-black border border-zinc-700 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-primary transition-colors"
                             />
                             <div className="relative">
                                 <input 
@@ -368,7 +368,7 @@ export function CalendarTab() {
                             </div>
                             <button 
                                 onClick={handleAddExam}
-                                className="bg-[#1100ab] hover:bg-[#0c007a] text-white p-2.5 rounded-xl transition-colors"
+                                className="bg-primary hover:bg-primary-dark text-white p-2.5 rounded-xl transition-colors"
                             >
                                 <Plus size={20} />
                             </button>
@@ -406,7 +406,7 @@ export function CalendarTab() {
             <div className="p-5 border-t border-zinc-800 bg-[#09090b] rounded-b-3xl">
               <button 
                 onClick={() => setIsConfigOpen(false)} 
-                className="w-full py-3.5 bg-[#1100ab] hover:bg-[#0c007a] text-white rounded-2xl font-bold shadow-lg shadow-[#1100ab]/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                className="w-full py-3.5 bg-primary hover:bg-primary-dark text-white rounded-2xl font-bold shadow-lg shadow-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 <Check size={18} /> Salvar Alterações
               </button>

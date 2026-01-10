@@ -50,7 +50,7 @@ export const HistoryView = () => {
               <Card key={date} className="transition-all duration-300">
                 <div onClick={() => toggleDate(date)} className="flex justify-between items-center cursor-pointer select-none group">
                   <div>
-                    <h3 className="font-bold text-zinc-900 dark:text-white capitalize text-lg group-hover:text-[#4d4dff] transition-colors">
+                    <h3 className="font-bold text-zinc-900 dark:text-white capitalize text-lg group-hover:text-primary-light transition-colors">
                       {new Date(date).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </h3>
                     <div className="flex gap-3 text-xs text-zinc-500 mt-1">
