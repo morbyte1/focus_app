@@ -359,7 +359,7 @@ const HistoryView = () => {
     setOpenDates(prev => ({ ...prev, [date]: !prev[date] }));
   };
 
-  // Calcula totais do dia para exibir no cabeçalho (Resumo rápido)
+  // Calcula totais do dia para exibir no cabeçalho
   const getDaySummary = (items) => {
     const mins = items.reduce((a, b) => a + b.minutes, 0);
     const q = items.reduce((a, b) => a + (b.questions || 0), 0);
@@ -387,7 +387,7 @@ const HistoryView = () => {
             
             return (
               <Card key={date} className="transition-all duration-300">
-                {/* Cabeçalho do Card (O Dia) - Clicável */}
+                {/* Cabeçalho do Card (O Dia) */}
                 <div 
                   onClick={() => toggleDate(date)} 
                   className="flex justify-between items-center cursor-pointer select-none group"
@@ -417,41 +417,52 @@ const HistoryView = () => {
                   </div>
                 </div>
 
-                {/* Lista de Sessões (Aparece apenas se estiver aberto) */}
+                {/* Lista de Sessões Expandida */}
                 {isOpen && (
                   <div className="mt-6 space-y-3 animate-fadeIn border-t border-zinc-800/50 pt-4">
                     {items.map(s => {
                       const subject = subjects.find(sub => sub.id === s.subjectId);
                       return (
-                        <div key={s.id} className="bg-zinc-900/40 p-3 rounded-2xl border border-zinc-800/50 hover:border-zinc-700 transition-colors flex flex-col sm:flex-row sm:items-center gap-3">
-                          {/* Identificação da Matéria */}
-                          <div className="flex items-center gap-3 flex-1">
-                            <div className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]" style={{ color: subject?.color || '#555', backgroundColor: subject?.color || '#555' }}></div>
-                            <span className="text-zinc-200 font-medium">{subject?.name || 'Matéria Excluída'}</span>
-                          </div>
+                        <div key={s.id} className="bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/50 hover:border-zinc-700 transition-colors">
+                          
+                          {/* Linha Superior: Matéria e Stats */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            {/* Identificação da Matéria */}
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]" style={{ color: subject?.color || '#555', backgroundColor: subject?.color || '#555' }}></div>
+                              <span className="text-zinc-200 font-medium">{subject?.name || 'Matéria Excluída'}</span>
+                            </div>
 
-                          {/* Dados da Sessão (Tempo, Questões, Erros) */}
-                          <div className="flex items-center justify-between sm:justify-end gap-4 text-sm bg-black/20 p-2 rounded-xl sm:bg-transparent sm:p-0">
-                             <div className="flex items-center gap-1.5 text-zinc-300" title="Tempo Focado">
-                                <Clock size={14} className="text-zinc-500"/>
-                                <span>{s.minutes} min</span>
-                             </div>
-                             
-                             <div className="w-px h-4 bg-zinc-800 hidden sm:block"></div>
-                             
-                             <div className="flex items-center gap-1.5 text-blue-400" title="Questões Realizadas">
-                                <CheckSquare size={14} />
-                                <span className="font-bold">{s.questions || 0}</span>
-                             </div>
+                            {/* Dados da Sessão */}
+                            <div className="flex items-center gap-4 text-sm bg-black/20 p-2 rounded-xl sm:bg-transparent sm:p-0 self-start sm:self-auto">
+                               <div className="flex items-center gap-1.5 text-zinc-300" title="Tempo Focado">
+                                  <Clock size={14} className="text-zinc-500"/>
+                                  <span>{s.minutes} min</span>
+                               </div>
+                               
+                               <div className="w-px h-4 bg-zinc-800"></div>
+                               
+                               <div className="flex items-center gap-1.5 text-blue-400" title="Questões Realizadas">
+                                  <CheckSquare size={14} />
+                                  <span className="font-bold">{s.questions || 0}</span>
+                               </div>
 
-                             <div className="flex items-center gap-1.5 text-red-400" title="Erros">
-                                <AlertTriangle size={14} />
-                                <span className="font-bold">{s.errors || 0}</span>
-                             </div>
+                               <div className="flex items-center gap-1.5 text-red-400" title="Erros">
+                                  <AlertTriangle size={14} />
+                                  <span className="font-bold">{s.errors || 0}</span>
+                               </div>
+                            </div>
                           </div>
                           
-                          {/* Notas (se houver) */}
-                          {s.notes && <div className="w-full sm:w-auto text-xs text-zinc-500 italic border-t sm:border-t-0 sm:border-l border-zinc-800 pt-2 sm:pt-0 sm:pl-3 max-w-xs truncate">"{s.notes}"</div>}
+                          {/* Linha Inferior: Diário Completo */}
+                          {s.notes && (
+                            <div className="mt-3 pt-3 border-t border-zinc-800/50 w-full">
+                              <p className="text-xs font-bold text-zinc-600 uppercase mb-1">Diário da Sessão</p>
+                              <div className="text-sm text-zinc-300 italic whitespace-pre-wrap leading-relaxed">
+                                "{s.notes}"
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
