@@ -38,7 +38,7 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
         updateSchoolSchedule(dayId, updated);
     };
     
-    // NOVO: Função para limpar o dia inteiro
+    // Função para limpar o dia inteiro
     const clearDay = (dayId) => {
         if(window.confirm("Limpar todas as aulas deste dia?")) {
             updateSchoolSchedule(dayId, []);
@@ -182,7 +182,6 @@ const CalendarTab = ({ schoolWorks, schoolAbsences, schoolSchedule, subjects }) 
                             {selectedDay ? new Date(selectedDay.date).toLocaleDateString() : 'Selecione'}
                         </h3>
                     </div>
-                    {/* Botão de fechar removido conforme solicitado */}
                 </div>
                 
                 {selectedDay ? (
@@ -389,7 +388,7 @@ const AbsencesTab = ({ schoolAbsences, deleteAbsenceRecord, subjects, schoolSche
                             
                             // 3. Faltas atuais
                             const currentAbsences = bySubject.find(x => x.id === s.id)?.value || 0;
-                            const percentageUsed = (currentAbsences / limitAbsences) * 100;
+                            const percentageUsed = limitAbsences > 0 ? (currentAbsences / limitAbsences) * 100 : 0;
 
                             // 4. Cor do risco
                             let barColor = 'bg-emerald-500';

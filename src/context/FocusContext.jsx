@@ -31,7 +31,6 @@ export const getTitle = l => TITLES.find(t => l >= t.l)?.t || "Novato Curioso";
 export const getRank = l => RANKS.find(s => l >= s.m) || RANKS[RANKS.length - 1];
 export const getXP = l => Math.floor(500 * Math.pow(l, 1.5));
 
-
 // --- Contexto ---
 export const FocusContext = createContext();
 
@@ -59,7 +58,7 @@ export const FocusProvider = ({ children }) => {
   const [theme, setTheme] = useStickyState('system', 'focus_theme');
   const refs = useRef({ end: null, start: null, last: 0 });
 
-  // --- Lógica do Tema ---
+  // --- Efeitos ---
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark'); 
@@ -85,12 +84,14 @@ export const FocusProvider = ({ children }) => {
   }, [theme]);
   
   useEffect(() => { if (subjects.length > 0 && !subjects.find(s => s.id === selectedSubjectId)) setSelectedSubjectId(subjects[0].id); }, [subjects, selectedSubjectId]);
+  
   useEffect(() => { 
     if (themes.length > 0) {
         const healed = themes.map(t => ({ ...t, items: t.items.map((i, idx) => ({ ...i, id: i.id + (Math.random() * (idx + 1)) })) }));
         if (JSON.stringify(themes) !== JSON.stringify(healed)) setThemes(healed);
     }
   }, []);
+
   useEffect(() => { document.title = timerState.active ? `${formatTime(timerState.timeLeft)} - ${timerState.mode === 'WORK' ? 'Foco' : 'Pausa'}` : "Focus App - Estudos & Produtividade"; }, [timerState.active, timerState.timeLeft, timerState.mode]);
 
   useEffect(() => {
@@ -129,6 +130,7 @@ export const FocusProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [timerState.active, timerState.mode, timerState.type, flowStoredTime]);
 
+  // --- XP e Métodos ---
   const gainXP = (amt, reason = "") => {
     setUserLevel(prev => {
       let { level, currentXP: cx, totalXP: tx } = prev, nx = getXP(level);
@@ -180,12 +182,12 @@ export const FocusProvider = ({ children }) => {
         description, 
         status: 'pending', 
         grade: null, 
-        maxGrade: Number(maxGrade) || 10 // AQUI ESTÁ A CORREÇÃO: Salva o valor máximo ou usa 10 como padrão
+        maxGrade: Number(maxGrade) || 10 // Padrão 10 se não vier nada
     }]),
     updateWork: (id, updates) => setSchoolWorks(p => p.map(w => w.id === id ? { ...w, ...updates } : w)),
     deleteWork: (id) => window.confirm("Excluir trabalho?") && setSchoolWorks(p => p.filter(w => w.id !== id)),
     
-    addAbsenceRecord: (date, reason, lessonsMap) => { // lessonsMap: { subjectId: count }
+    addAbsenceRecord: (date, reason, lessonsMap) => {
         setSchoolAbsences(p => [...p, { id: Date.now(), date, reason, lessons: lessonsMap }]);
     },
     deleteAbsenceRecord: (id) => window.confirm("Excluir registro de falta?") && setSchoolAbsences(p => p.filter(a => a.id !== id)),
@@ -229,9 +231,9 @@ export const FocusProvider = ({ children }) => {
         userName, setUserName, 
         selectedHistoryDate, setSelectedHistoryDate, 
         subjects, sessions, tasks, mistakes, themes, 
-        schoolWorks, addWork, updateWork, deleteWork, 
-        schoolAbsences, addAbsenceRecord, deleteAbsenceRecord, 
-        schoolSchedule, updateSchoolSchedule,
+        schoolWorks, 
+        schoolAbsences, 
+        schoolSchedule,
         countdown, setCountdown, 
         userLevel, 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
@@ -241,7 +243,9 @@ export const FocusProvider = ({ children }) => {
         cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), 
         selectedSubjectId, setSelectedSubjectId, 
         flowStoredTime, setFlowStoredTime, 
-        elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, ...methods }}>
+        elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, 
+        ...methods // AQUI ESTAVA O ERRO: As funções agora são passadas APENAS aqui
+    }}>
       {children}
     </FocusContext.Provider>
   );
