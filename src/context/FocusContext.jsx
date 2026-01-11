@@ -45,6 +45,10 @@ export const FocusProvider = ({ children }) => {
   const [themes, setThemes] = useStickyState([], 'focus_themes');
   const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
   const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
+  
+  // === NOVO ESTADO: TRABALHOS ESCOLARES ===
+  const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
+
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [flowStoredTime, setFlowStoredTime] = useState(0);
@@ -158,6 +162,24 @@ export const FocusProvider = ({ children }) => {
     if (xp > 0) gainXP(xp, "Sessão");
   };
 
+  // === MÉTODOS DE TRABALHOS ESCOLARES ===
+  const addWork = (subjectId, title, dueDate, description) => {
+    setSchoolWorks(prev => [...prev, {
+      id: Date.now(),
+      subjectId: Number(subjectId),
+      title,
+      dueDate, // Formato YYYY-MM-DD vindo do input type="date"
+      description,
+      status: 'pending'
+    }]);
+  };
+
+  const deleteWork = (id) => {
+    if (window.confirm("Remover este trabalho?")) {
+      setSchoolWorks(prev => prev.filter(w => w.id !== id));
+    }
+  };
+
   const methods = {
     // ATUALIZADO: Agora aceita o parâmetro isSchool (padrão false)
     addSubject: (n, c, g, isSchool = false) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool }]),
@@ -213,7 +235,27 @@ export const FocusProvider = ({ children }) => {
   }, [sessions, subjects]);
 
   return (
-    <FocusContext.Provider value={{ currentView, setCurrentView, userName, setUserName, selectedHistoryDate, setSelectedHistoryDate, subjects, sessions, tasks, mistakes, themes, countdown, setCountdown, userLevel, timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), timeLeft: timerState.timeLeft, setTimeLeft: t => setTimerState(p => ({ ...p, timeLeft: t })), isActive: timerState.active, setIsActive: a => setTimerState(p => ({ ...p, active: a })), cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime, elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, ...methods }}>
+    <FocusContext.Provider value={{ 
+        currentView, setCurrentView, 
+        userName, setUserName, 
+        selectedHistoryDate, setSelectedHistoryDate, 
+        subjects, sessions, tasks, mistakes, themes, 
+        schoolWorks, addWork, deleteWork, // <-- EXPORTANDO OS NOVOS MÉTODOS E ESTADO
+        countdown, setCountdown, 
+        userLevel, 
+        timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
+        timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), 
+        timeLeft: timerState.timeLeft, setTimeLeft: t => setTimerState(p => ({ ...p, timeLeft: t })), 
+        isActive: timerState.active, setIsActive: a => setTimerState(p => ({ ...p, active: a })), 
+        cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), 
+        selectedSubjectId, setSelectedSubjectId, 
+        flowStoredTime, setFlowStoredTime, 
+        elapsedTime, setElapsedTime, 
+        kpiData, weeklyChartData, advancedStats, 
+        addSession, 
+        theme, setTheme, 
+        ...methods 
+    }}>
       {children}
     </FocusContext.Provider>
   );
