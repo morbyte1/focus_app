@@ -522,14 +522,14 @@ export const SchoolView = () => {
                     <div className="space-y-6">
                         <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{selectedWork.title}</h2>
                         <div className="grid grid-cols-2 gap-2">
-                            {['pending', 'done', 'delivered', 'corrected'].map((st) => (
+                            {['Pendente', 'Feito', 'Entregue', 'Corrigido'].map((st) => (
                                 <button key={st} onClick={() => { updateWork(selectedWork.id, {status: st, grade: st !== 'corrected' ? null : selectedWork.grade}); setSelectedWork(p => ({...p, status: st})); }} className={`p-2 rounded-xl border text-sm font-bold ${selectedWork.status === st ? 'bg-primary text-white border-primary' : 'bg-zinc-50 dark:bg-zinc-900 text-zinc-500'}`}>{st}</button>
                             ))}
                         </div>
-                        {selectedWork.status === 'corrected' && (
+                        {selectedWork.status === 'Corrigido' && (
                              <input type="number" placeholder="Nota" className="w-full bg-zinc-100 dark:bg-black border rounded-xl p-3 font-bold text-center" value={selectedWork.grade || ''} onChange={(e) => { updateWork(selectedWork.id, {grade: e.target.value}); setSelectedWork(p => ({...p, grade: e.target.value})); }} />
                         )}
-                        <button onClick={() => { deleteWork(selectedWork.id); setSelectedWork(null); }} className="w-full py-3 text-red-500 bg-red-500/10 rounded-xl font-bold flex justify-center gap-2"><Trash2 size={18}/> Excluir</button>
+                        <button onClick={() => { deleteWork(selectedWork.id); setSelectedWork(null); }} className="w-full py-3 text-red-500 bg-red-500/10 rounded-xl font-bold flex justify-center gap-2"><Trash2 size={18}/> Excluir trabalho</button>
                     </div>
                 </Modal>
             )}
