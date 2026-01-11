@@ -50,7 +50,7 @@ export const FocusProvider = ({ children }) => {
   // === ESTADO: ESCOLA (Trabalhos, Faltas e Grade) ===
   const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
-  const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [] }, 'focus_school_schedule');
+  const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, 'focus_school_schedule');
 
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
@@ -205,7 +205,30 @@ export const FocusProvider = ({ children }) => {
     deleteWork: (id) => window.confirm("Excluir trabalho?") && setSchoolWorks(p => p.filter(w => w.id !== id)),
     
     addAbsenceRecord: (date, reason, lessonsMap) => {
-        setSchoolAbsences(p => [...p, { id: Date.now(), date, reason, lessons: lessonsMap }]);
+        setSchoolAbsences(prev => {
+            const existingIndex = prev.findIndex(a => a.date === date);
+            if (existingIndex >= 0) {
+                // Mesclar com registro existente
+                const updated = [...prev];
+                const oldRecord = updated[existingIndex];
+                const newLessons = { ...oldRecord.lessons };
+                
+                Object.entries(lessonsMap).forEach(([subId, count]) => {
+                    newLessons[subId] = (newLessons[subId] || 0) + count;
+                });
+                
+                let newReason = oldRecord.reason;
+                if (reason && !oldRecord.reason.includes(reason)) {
+                    newReason = `${oldRecord.reason} + ${reason}`;
+                }
+
+                updated[existingIndex] = { ...oldRecord, lessons: newLessons, reason: newReason };
+                return updated;
+            } else {
+                // Criar novo registro
+                return [...prev, { id: Date.now(), date, reason, lessons: lessonsMap }];
+            }
+        });
     },
     deleteAbsenceRecord: (id) => window.confirm("Excluir registro de falta?") && setSchoolAbsences(p => p.filter(a => a.id !== id)),
     

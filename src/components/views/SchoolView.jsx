@@ -15,7 +15,8 @@ import { Modal } from '../ui/Modal';
 const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, updateSchoolSchedule }) => {
     const days = [
         { id: 1, name: "Segunda" }, { id: 2, name: "Terça" }, { id: 3, name: "Quarta" },
-        { id: 4, name: "Quinta" }, { id: 5, name: "Sexta" }
+        { id: 4, name: "Quinta" }, { id: 5, name: "Sexta" },
+        { id: 6, name: "Sábado" } // Adicionado Sábado
     ];
     const [addingToDay, setAddingToDay] = useState(null); // ID do dia que está recebendo aula
 
@@ -196,6 +197,8 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                                     let barColor = 'bg-emerald-500';
                                     if (percentage >= 75) barColor = 'bg-red-500';
                                     else if (percentage >= 50) barColor = 'bg-yellow-500';
+                                    
+                                    const remaining = d.limit - d.current;
 
                                     return (
                                         <div key={d.id}>
@@ -204,9 +207,14 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                                                     <span className="text-sm font-bold text-zinc-900 dark:text-white">{d.name}</span>
                                                     <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">{d.freq} aulas/sem</span>
                                                 </div>
-                                                <span className={`text-xs font-bold ${percentage >= 75 ? 'text-red-500' : 'text-zinc-500'}`}>
-                                                    {d.current} / {d.limit} ({percentage.toFixed(0)}%)
-                                                </span>
+                                                <div className="flex items-center">
+                                                    <span className={`text-xs font-bold ${percentage >= 75 ? 'text-red-500' : 'text-zinc-500'}`}>
+                                                        {d.current} / {d.limit} ({percentage.toFixed(0)}%)
+                                                    </span>
+                                                    <span className="text-[10px] text-zinc-400 font-normal ml-2">
+                                                        (Restam: {Math.max(0, remaining)})
+                                                    </span>
+                                                </div>
                                             </div>
                                             <div className="w-full h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                                                 <div 
@@ -294,8 +302,8 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
         
         // Lógica de Grade Diária
         const dayOfWeek = dateObj.getDay(); // 0 (Dom) a 6 (Sab)
-        const dailyScheduleIds = (dayOfWeek >= 1 && dayOfWeek <= 5) ? schoolSchedule[dayOfWeek] : [];
-        const dailyLessons = dailyScheduleIds.map(id => subjects.find(s => s.id === id)).filter(Boolean);
+        const dailyScheduleIds = (dayOfWeek >= 1 && dayOfWeek <= 6) ? schoolSchedule[dayOfWeek] : [];
+        const dailyLessons = dailyScheduleIds?.map(id => subjects.find(s => s.id === id)).filter(Boolean) || [];
 
         setSelectedDayInfo({ dateStr, works, absence, dailyLessons, dayOfWeek });
     };
@@ -375,7 +383,7 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
                             ) : (
                                 <div className="text-center py-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed">
                                     <p className="text-xs text-zinc-400 italic">
-                                        {[0,6].includes(selectedDayInfo.dayOfWeek) ? "Final de Semana" : "Sem aulas na grade."}
+                                        {[0].includes(selectedDayInfo.dayOfWeek) ? "Domingo Livre" : "Sem aulas na grade."}
                                     </p>
                                 </div>
                             )}
@@ -521,6 +529,27 @@ export const SchoolView = () => {
         const next = Math.max(0, current + delta);
         return { ...prev, counts: { ...prev.counts, [subId]: next } };
     });
+  };
+  
+  // Função para Preencher Automático (NOVO)
+  const autoFillFromSchedule = () => {
+    if (!absForm.date) return alert("Selecione uma data primeiro.");
+    
+    // Constrói a data considerando o timezone local para pegar o dia da semana correto
+    const dateObj = new Date(absForm.date + 'T00:00:00'); 
+    const dayOfWeek = dateObj.getDay(); // 0 (Dom) - 6 (Sáb)
+
+    if (dayOfWeek === 0) return alert("Domingo não tem aula na grade.");
+    
+    const lessons = schoolSchedule[dayOfWeek] || [];
+    if (lessons.length === 0) return alert("Sem aulas cadastradas para este dia da semana.");
+
+    const newCounts = {};
+    lessons.forEach(subId => {
+        newCounts[subId] = (newCounts[subId] || 0) + 1;
+    });
+
+    setAbsForm(prev => ({ ...prev, counts: newCounts }));
   };
 
   const handleAbsenceSubmit = (e) => {
@@ -816,6 +845,10 @@ export const SchoolView = () => {
                     <div>
                         <label className="text-xs text-zinc-500 font-bold uppercase">Data</label>
                         <input type="date" required className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2.5 text-zinc-900 dark:text-white outline-none focus:border-primary" value={absForm.date} onChange={e => setAbsForm({...absForm, date: e.target.value})} />
+                        {/* Botão de Preenchimento Automático */}
+                        <button type="button" onClick={autoFillFromSchedule} className="text-xs text-primary hover:underline mt-1 font-medium">
+                            Preencher com grade do dia
+                        </button>
                     </div>
                     <div>
                         <label className="text-xs text-zinc-500 font-bold uppercase">Motivo</label>
