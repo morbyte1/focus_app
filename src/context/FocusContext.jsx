@@ -47,10 +47,11 @@ export const FocusProvider = ({ children }) => {
   const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
   const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
   
-  // === ESTADO: ESCOLA (Trabalhos e Faltas) ===
+  // === ESTADO: ESCOLA (Trabalhos, Faltas e Grade) ===
   const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
-  // NOVO: Estado de Faltas
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
+  // NOVO: Grade Horária (1=Seg, 2=Ter, ..., 5=Sex). Valor: Array de IDs de matérias
+  const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [] }, 'focus_school_schedule');
 
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
@@ -187,7 +188,7 @@ export const FocusProvider = ({ children }) => {
     }
   };
 
-  // === NOVOS MÉTODOS PARA FALTAS ===
+  // === MÉTODOS PARA FALTAS E GRADE ===
   const addAbsenceRecord = (date, reason, lessonsMap) => {
     setSchoolAbsences(prev => [...prev, {
         id: Date.now(),
@@ -201,6 +202,11 @@ export const FocusProvider = ({ children }) => {
     if (window.confirm("Remover este registro de falta?")) {
         setSchoolAbsences(prev => prev.filter(a => a.id !== id));
     }
+  };
+
+  // Método para atualizar a grade (recebe dia 1-5 e array de ids de matérias)
+  const updateSchoolSchedule = (dayIndex, lessonsArray) => {
+    setSchoolSchedule(prev => ({ ...prev, [dayIndex]: lessonsArray }));
   };
 
   const methods = {
@@ -262,7 +268,8 @@ export const FocusProvider = ({ children }) => {
         selectedHistoryDate, setSelectedHistoryDate, 
         subjects, sessions, tasks, mistakes, themes, 
         schoolWorks, addWork, updateWork, deleteWork, 
-        schoolAbsences, addAbsenceRecord, deleteAbsenceRecord, // Exportando
+        schoolAbsences, addAbsenceRecord, deleteAbsenceRecord, 
+        schoolSchedule, updateSchoolSchedule, // Exportando Grade Horária
         countdown, setCountdown, 
         userLevel, 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
