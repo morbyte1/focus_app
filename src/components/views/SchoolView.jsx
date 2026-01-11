@@ -1,5 +1,5 @@
 import React, { useContext, useState } from 'react';
-import { GraduationCap, Plus, Calendar, Clock, Trash2, FileText, CheckCircle, Send, ClipboardCheck, AlertCircle } from 'lucide-react';
+import { GraduationCap, Plus, Calendar, Clock, Trash2, FileText, CheckCircle, Send, ClipboardCheck } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -12,7 +12,7 @@ export const SchoolView = () => {
   const [selectedWork, setSelectedWork] = useState(null); 
   const [form, setForm] = useState({ subjectId: "", title: "", dueDate: "", description: "" });
 
-  // Helpers de Status
+  // Configuração visual dos status (usada quando NÃO é pendente)
   const statusConfig = {
     pending: { label: 'Pendente', icon: Clock, color: 'text-zinc-500', bg: 'bg-zinc-100 dark:bg-zinc-800', border: 'border-zinc-200' },
     done: { label: 'Feito', icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
@@ -20,9 +20,11 @@ export const SchoolView = () => {
     corrected: { label: 'Corrigido', icon: ClipboardCheck, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/20' }
   };
 
+  // Função atualizada: Agora retorna background (bg) para criar o badge de urgência
   const getUrgency = (dateString, status) => {
-    if (status === 'delivered' || status === 'corrected') return { label: "Entregue", color: "text-zinc-400", border: "border-zinc-200 dark:border-zinc-800" };
-    if (status === 'done') return { label: "Concluído (Não entregue)", color: "text-emerald-500", border: "border-emerald-500" };
+    // Se já foi entregue ou corrigido, a urgência é irrelevante visualmente
+    if (status === 'delivered' || status === 'corrected') return { label: "Entregue", color: "text-zinc-400", border: "border-zinc-200 dark:border-zinc-800", bg: "bg-zinc-100" };
+    if (status === 'done') return { label: "Pronto", color: "text-emerald-500", border: "border-emerald-500", bg: "bg-emerald-500/10" };
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -30,13 +32,17 @@ export const SchoolView = () => {
     const diffTime = due - today;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) return { label: "Atrasado", color: "text-red-500", border: "border-red-500 animate-pulse" };
-    if (diffDays === 0) return { label: "É Hoje!", color: "text-red-600", border: "border-red-600 animate-pulse" };
-    if (diffDays <= 3) return { label: `${diffDays} dias`, color: "text-orange-500", border: "border-orange-500" };
-    return { label: `${diffDays} dias`, color: "text-emerald-500", border: "border-zinc-200 dark:border-zinc-800" };
+    // Urgências (Cores + Backgrounds)
+    if (diffDays < 0) return { label: "Atrasado", color: "text-red-500", border: "border-red-500 animate-pulse", bg: "bg-red-500/10" };
+    if (diffDays === 0) return { label: "É Hoje!", color: "text-red-600", border: "border-red-600 animate-pulse", bg: "bg-red-600/10" };
+    if (diffDays === 1) return { label: "Amanhã", color: "text-orange-500", border: "border-orange-500", bg: "bg-orange-500/10" };
+    if (diffDays <= 3) return { label: `${diffDays} dias`, color: "text-orange-500", border: "border-orange-500", bg: "bg-orange-500/10" };
+    if (diffDays <= 7) return { label: `${diffDays} dias`, color: "text-yellow-500", border: "border-yellow-500", bg: "bg-yellow-500/10" };
+    
+    // Prazo longo
+    return { label: `${diffDays} dias`, color: "text-emerald-500", border: "border-zinc-200 dark:border-zinc-800", bg: "bg-emerald-500/10" };
   };
 
-  // Ordenação: Pendentes primeiro (por data), depois os finalizados
   const sortedWorks = [...schoolWorks].sort((a, b) => {
     const score = (status) => status === 'pending' ? 0 : status === 'done' ? 1 : 2;
     if (score(a.status) !== score(b.status)) return score(a.status) - score(b.status);
@@ -52,17 +58,11 @@ export const SchoolView = () => {
     }
   };
 
-  // Função para atualizar status
   const handleStatusChange = (newStatus) => {
     if (!selectedWork) return;
-    
-    // Se mudar para algo que não é corrigido, limpa a nota (opcional, mas seguro)
     const updates = { status: newStatus };
     if (newStatus !== 'corrected') updates.grade = null;
-    
     updateWork(selectedWork.id, updates);
-    
-    // Atualiza o modal localmente para refletir mudança imediata
     setSelectedWork(prev => ({ ...prev, ...updates }));
   };
 
@@ -84,7 +84,6 @@ export const SchoolView = () => {
         </Button>
       </header>
 
-      {/* LISTA */}
       <div className="space-y-4">
         {sortedWorks.length === 0 ? (
            <div className="text-center py-12 opacity-50">
@@ -96,13 +95,23 @@ export const SchoolView = () => {
                 const subject = subjects.find(s => s.id === work.subjectId);
                 const urgency = getUrgency(work.dueDate, work.status);
                 const stConfig = statusConfig[work.status] || statusConfig.pending;
-                const StatusIcon = stConfig.icon;
+                
+                // LÓGICA NOVA: 
+                // Se estiver pendente, o destaque é a URGÊNCIA (Tempo).
+                // Se não estiver pendente, o destaque é o STATUS (Feito/Entregue).
+                const isPending = work.status === 'pending';
+                
+                const badgeLabel = isPending ? urgency.label : stConfig.label;
+                const BadgeIcon = isPending ? Clock : stConfig.icon;
+                const badgeColor = isPending ? urgency.color : stConfig.color;
+                const badgeBg = isPending ? urgency.bg : stConfig.bg;
+                const badgeBorder = isPending ? urgency.border : stConfig.border;
 
                 return (
                     <Card 
                         key={work.id} 
                         onClick={() => setSelectedWork(work)}
-                        className={`cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all group border-l-4 ${urgency.border}`}
+                        className={`cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all group border-l-4 ${urgency.border.replace('animate-pulse', '')}`}
                     >
                         <div className="flex justify-between items-center gap-4">
                             <div className="flex-1 min-w-0">
@@ -124,16 +133,16 @@ export const SchoolView = () => {
                             </div>
 
                             <div className="flex flex-col items-end gap-1">
-                                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold uppercase border ${stConfig.color} ${stConfig.bg} ${stConfig.border}`}>
-                                    <StatusIcon size={12} /> {stConfig.label}
+                                {/* BADGE PRINCIPAL: Agora mostra o PRAZO se estiver pendente */}
+                                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase border ${badgeColor} ${badgeBg} ${badgeBorder} shadow-sm`}>
+                                    <BadgeIcon size={14} /> {badgeLabel}
                                 </div>
+                                
+                                {/* Nota (se houver) */}
                                 {work.grade !== null && work.grade !== undefined && (
-                                    <span className="text-sm font-bold text-zinc-900 dark:text-white">
+                                    <span className="text-sm font-bold text-zinc-900 dark:text-white mt-1">
                                         Nota: {work.grade}
                                     </span>
-                                )}
-                                {(work.status === 'pending' || work.status === 'done') && (
-                                    <span className={`text-xs ${urgency.color} font-medium`}>{urgency.label}</span>
                                 )}
                             </div>
                         </div>
@@ -143,7 +152,6 @@ export const SchoolView = () => {
         )}
       </div>
 
-      {/* MODAL: CRIAR */}
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Novo Trabalho">
         <form onSubmit={handleAddSubmit} className="space-y-4">
             <div>
@@ -163,7 +171,7 @@ export const SchoolView = () => {
                 <input 
                     required 
                     type="text" 
-                    placeholder="Ex: Redação, Maquete..." 
+                    placeholder="Ex: Redação..." 
                     className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
                     value={form.title}
                     onChange={e => setForm({ ...form, title: e.target.value })}
@@ -180,23 +188,20 @@ export const SchoolView = () => {
                 />
             </div>
             <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase">Detalhes (Opcional)</label>
+                <label className="text-xs text-zinc-500 font-bold uppercase">Detalhes</label>
                 <textarea 
                     className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-sm text-zinc-900 dark:text-white h-24 outline-none focus:border-primary resize-none"
                     value={form.description}
                     onChange={e => setForm({ ...form, description: e.target.value })}
                 />
             </div>
-            <Button type="submit" className="w-full mt-2">Salvar Trabalho</Button>
+            <Button type="submit" className="w-full mt-2">Salvar</Button>
         </form>
       </Modal>
 
-      {/* MODAL: DETALHES E STATUS */}
       {selectedWork && (
           <Modal isOpen={!!selectedWork} onClose={() => setSelectedWork(null)} title="Gerenciar Trabalho">
               <div className="space-y-6">
-                
-                {/* Cabeçalho do Modal */}
                 <div className="flex items-center gap-3">
                     <div className="w-1.5 h-12 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === selectedWork.subjectId)?.color || '#555' }}></div>
                     <div>
@@ -207,7 +212,6 @@ export const SchoolView = () => {
                     </div>
                 </div>
 
-                {/* Ciclo de Vida (Botões de Status) */}
                 <div>
                     <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Status Atual</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -232,7 +236,6 @@ export const SchoolView = () => {
                     </div>
                 </div>
 
-                {/* Campo de Nota (Só aparece se estiver Corrigido) */}
                 {selectedWork.status === 'corrected' && (
                     <div className="animate-fadeIn bg-purple-500/5 border border-purple-500/20 p-4 rounded-2xl">
                         <label className="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase flex items-center gap-2 mb-2">
@@ -241,16 +244,14 @@ export const SchoolView = () => {
                         <input 
                             type="number" 
                             step="0.1"
-                            placeholder="Ex: 10, 8.5..."
+                            placeholder="Ex: 10"
                             className="w-full bg-white dark:bg-black border border-purple-200 dark:border-purple-900/50 rounded-xl p-3 text-2xl font-bold text-center text-purple-700 dark:text-purple-300 outline-none focus:border-purple-500"
                             value={selectedWork.grade === null ? '' : selectedWork.grade}
                             onChange={(e) => handleGradeChange(e.target.value)}
                         />
-                        <p className="text-[10px] text-center text-zinc-400 mt-2">A nota será salva automaticamente.</p>
                     </div>
                 )}
 
-                {/* Descrição */}
                 <div className="bg-zinc-50 dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 min-h-[80px]">
                     <p className="text-[10px] font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1"><FileText size={10}/> Detalhes</p>
                     <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
@@ -258,7 +259,6 @@ export const SchoolView = () => {
                     </p>
                 </div>
 
-                {/* Rodapé: Excluir */}
                 <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
                     <button 
                         onClick={() => { deleteWork(selectedWork.id); setSelectedWork(null); }}
@@ -267,7 +267,6 @@ export const SchoolView = () => {
                         <Trash2 size={16} /> Excluir Trabalho
                     </button>
                 </div>
-
               </div>
           </Modal>
       )}
