@@ -417,21 +417,28 @@ export const SchoolView = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false); // Modal da Grade
   const [selectedWork, setSelectedWork] = useState(null); 
-  const [form, setForm] = useState({ subjectId: "", title: "", dueDate: "", description: "" });
+  const [form, setForm] = useState({ subjectId: "", title: "", dueDate: "", description: "", maxGrade: 10 }); // ADICIONADO: maxGrade
 
   const [activeTab, setActiveTab] = useState('works');
   const [isAddAbsenceModalOpen, setIsAddAbsenceModalOpen] = useState(false);
   const [absForm, setAbsForm] = useState({ date: new Date().toISOString().split('T')[0], reason: "Doença / Médico", counts: {} });
 
-  // --- CÁLCULO DE MÉDIAS (NOVO) ---
+  // --- CÁLCULO DE MÉDIAS (ATUALIZADO) ---
   const gradeStats = useMemo(() => {
     return subjects.map(sub => {
         // Pega todos os trabalhos dessa matéria que tenham nota definida
         const subWorks = schoolWorks.filter(w => w.subjectId === sub.id && w.grade !== null && w.grade !== undefined && w.grade !== "");
+        
+        // CORREÇÃO: Evita divisão por zero se não houver trabalhos
         if (subWorks.length === 0) return null;
 
-        // Calcula média
-        const sum = subWorks.reduce((acc, curr) => acc + Number(curr.grade), 0);
+        // Calcula média NORMALIZADA (Considerando o valor da atividade)
+        const sum = subWorks.reduce((acc, curr) => {
+            const max = curr.maxGrade || 10; // Se não tiver maxGrade, assume 10
+            const normalizedGrade = (Number(curr.grade) / max) * 10; // Converte para base 10
+            return acc + normalizedGrade;
+        }, 0);
+        
         const avg = sum / subWorks.length;
 
         return {
@@ -442,10 +449,9 @@ export const SchoolView = () => {
         };
     })
     .filter(Boolean) // Remove matérias sem nota
-    .sort((a, b) => a.average - b.average); // Ordena da menor nota para a maior (Alerta primeiro)
+    .sort((a, b) => a.average - b.average); // Ordena da menor nota para a maior
   }, [subjects, schoolWorks]);
 
-  // --- LÓGICA ORIGINAL RESTAURADA ---
   const statusConfig = {
     pending: { label: 'Pendente', icon: Clock, color: 'text-zinc-500', bg: 'bg-zinc-100 dark:bg-zinc-800', border: 'border-zinc-200' },
     done: { label: 'Feito', icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
@@ -481,8 +487,9 @@ export const SchoolView = () => {
   const handleAddSubmit = (e) => {
     e.preventDefault();
     if (form.subjectId && form.title && form.dueDate) {
-      addWork(form.subjectId, form.title, form.dueDate, form.description);
-      setForm({ subjectId: "", title: "", dueDate: "", description: "" });
+      // Passa maxGrade junto. Assume que o Context aceita como parâmetro extra ou objeto.
+      addWork(form.subjectId, form.title, form.dueDate, form.description, Number(form.maxGrade));
+      setForm({ subjectId: "", title: "", dueDate: "", description: "", maxGrade: 10 });
       setIsAddModalOpen(false);
     }
   };
@@ -553,11 +560,11 @@ export const SchoolView = () => {
           {activeTab === 'works' && (
               <div className="space-y-4">
                   
-                  {/* === PAINEL DE MÉDIAS (NOVO) === */}
+                  {/* === PAINEL DE MÉDIAS === */}
                   {gradeStats.length > 0 && (
                       <div className="mb-2">
                          <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-2">
-                            <TrendingUp size={14}/> Médias Atuais (Baseado em notas lançadas)
+                            <TrendingUp size={14}/> Médias Atuais (Normalizadas 0-10)
                          </h3>
                          <div className="flex gap-3 overflow-x-auto pb-4 custom-scrollbar">
                             {gradeStats.map(stat => {
@@ -632,7 +639,7 @@ export const SchoolView = () => {
                                             </div>
                                             {work.grade !== null && work.grade !== undefined && (
                                                 <span className="text-sm font-bold text-zinc-900 dark:text-white mt-1">
-                                                    Nota: {work.grade}
+                                                    Nota: {work.grade} <span className="text-zinc-400 font-normal">/ {work.maxGrade || 10}</span>
                                                 </span>
                                             )}
                                         </div>
@@ -657,7 +664,7 @@ export const SchoolView = () => {
         updateSchoolSchedule={updateSchoolSchedule}
       />
 
-      {/* === MODAL DE TRABALHOS (CÓDIGO ORIGINAL MANTIDO) === */}
+      {/* === MODAL DE TRABALHOS === */}
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Novo Trabalho">
         <form onSubmit={handleAddSubmit} className="space-y-4">
             <div>
@@ -683,16 +690,32 @@ export const SchoolView = () => {
                     onChange={e => setForm({ ...form, title: e.target.value })}
                 />
             </div>
-            <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase">Data de Entrega</label>
-                <input 
-                    required 
-                    type="date" 
-                    className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
-                    value={form.dueDate}
-                    onChange={e => setForm({ ...form, dueDate: e.target.value })}
-                />
+            
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <label className="text-xs text-zinc-500 font-bold uppercase">Data de Entrega</label>
+                    <input 
+                        required 
+                        type="date" 
+                        className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
+                        value={form.dueDate}
+                        onChange={e => setForm({ ...form, dueDate: e.target.value })}
+                    />
+                </div>
+                <div>
+                    <label className="text-xs text-zinc-500 font-bold uppercase">Vale Quanto?</label>
+                    <input 
+                        required 
+                        type="number" 
+                        min="1"
+                        placeholder="Ex: 10"
+                        className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
+                        value={form.maxGrade}
+                        onChange={e => setForm({ ...form, maxGrade: e.target.value })}
+                    />
+                </div>
             </div>
+
             <div>
                 <label className="text-xs text-zinc-500 font-bold uppercase">Detalhes</label>
                 <textarea 
@@ -746,12 +769,13 @@ export const SchoolView = () => {
                 {selectedWork.status === 'corrected' && (
                     <div className="animate-fadeIn bg-purple-500/5 border border-purple-500/20 p-4 rounded-2xl">
                         <label className="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase flex items-center gap-2 mb-2">
-                            <ClipboardCheck size={14}/> Nota Final
+                            <ClipboardCheck size={14}/> Nota Final (0 - {selectedWork.maxGrade || 10})
                         </label>
                         <input 
                             type="number" 
                             step="0.1"
-                            placeholder="Ex: 10"
+                            max={selectedWork.maxGrade || 10}
+                            placeholder={`Max: ${selectedWork.maxGrade || 10}`}
                             className="w-full bg-white dark:bg-black border border-purple-200 dark:border-purple-900/50 rounded-xl p-3 text-2xl font-bold text-center text-purple-700 dark:text-purple-300 outline-none focus:border-purple-500"
                             value={selectedWork.grade === null ? '' : selectedWork.grade}
                             onChange={(e) => handleGradeChange(e.target.value)}
@@ -778,7 +802,7 @@ export const SchoolView = () => {
           </Modal>
       )}
 
-      {/* === MODAL DE FALTAS (NOVO) === */}
+      {/* === MODAL DE FALTAS === */}
       <Modal isOpen={isAddAbsenceModalOpen} onClose={() => setIsAddAbsenceModalOpen(false)} title="Registrar Falta">
             <form onSubmit={handleAbsenceSubmit} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
