@@ -3,7 +3,12 @@ import { Crown, Scroll, Shield, Compass, Feather, Sprout } from 'lucide-react';
 
 // --- Constantes e Helpers ---
 export const POMODORO = { WORK: 25 * 60, SHORT: 5 * 60, LONG: 15 * 60 };
-const DEFAULT_SUB = [{ id: 1, name: 'Programação', color: '#8b5cf6', goalHours: 20 }, { id: 2, name: 'Matemática', color: '#10b981', goalHours: 10 }, { id: 3, name: 'Inglês', color: '#f59e0b', goalHours: 5 }];
+// Adicionei isSchool: false nas matérias padrão para manter compatibilidade
+const DEFAULT_SUB = [
+  { id: 1, name: 'Programação', color: '#8b5cf6', goalHours: 20, isSchool: false }, 
+  { id: 2, name: 'Matemática', color: '#10b981', goalHours: 10, isSchool: false }, 
+  { id: 3, name: 'Inglês', color: '#f59e0b', goalHours: 5, isSchool: false }
+];
 export const formatTime = s => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
 function useStickyState(defaultValue, key) {
@@ -47,10 +52,10 @@ export const FocusProvider = ({ children }) => {
   const [theme, setTheme] = useStickyState('system', 'focus_theme');
   const refs = useRef({ end: null, start: null, last: 0 });
 
-  // --- Lógica do Tema (Corrigida) ---
+  // --- Lógica do Tema ---
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.remove('light', 'dark'); // Limpa classes antigas
+    root.classList.remove('light', 'dark'); 
 
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -61,7 +66,6 @@ export const FocusProvider = ({ children }) => {
     localStorage.setItem('focus_theme', theme);
   }, [theme]);
 
-  // Listener para mudanças no sistema (ex: usuario mudou o SO de claro para escuro)
   useEffect(() => {
     if (theme !== 'system') return;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -139,19 +143,24 @@ export const FocusProvider = ({ children }) => {
     }
     setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: cleanQs, errors: cleanErrs }]);
     let xp = (Math.floor(mins / 10) * 50) + (cleanQs * 10);
+    
     const sub = subjects.find(s => s.id === sId);
-    if (sub) {
+    
+    // Se for matéria escolar (isSchool), não gera bônus de meta semanal, mas gera XP base pelo esforço
+    if (sub && !sub.isSchool) {
       const startW = new Date(); 
       startW.setDate(startW.getDate() - startW.getDay()); 
       startW.setHours(0,0,0,0);
       const prev = sessions.filter(s => s.subjectId === sId && new Date(s.date) >= startW).reduce((a, s) => a + s.minutes, 0);
       if (prev < sub.goalHours * 60 && (prev + mins) >= sub.goalHours * 60) { xp += 500; alert(`🏆 Meta semanal de ${sub.name} atingida! +500 XP`); }
     }
+    
     if (xp > 0) gainXP(xp, "Sessão");
   };
 
   const methods = {
-    addSubject: (n, c, g) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)) }]),
+    // ATUALIZADO: Agora aceita o parâmetro isSchool (padrão false)
+    addSubject: (n, c, g, isSchool = false) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool }]),
     updateSubject: (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Math.max(0, Number(g)) } : s)),
     deleteSubject: (id) => { 
         if (subjects.length > 1 && window.confirm("Excluir?")) { 
@@ -192,9 +201,14 @@ export const FocusProvider = ({ children }) => {
   const advancedStats = useMemo(() => {
     const now = new Date(), m = now.getMonth(), y = now.getFullYear();
     const monthlyData = Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => ({ name: (i + 1).toString(), minutes: sessions.reduce((acc, s) => { const sd = new Date(s.date); return (sd.getDate() === i + 1 && sd.getMonth() === m && sd.getFullYear() === y) ? acc + s.minutes : acc; }, 0) }));
-    const ranked = subjects.map(s => ({ ...s, totalMins: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + c.minutes, 0) })).sort((a, b) => b.totalMins - a.totalMins);
+    
+    // ATUALIZADO: Filtra apenas matérias que NÃO são isSchool para o ranking
+    const activeSubjects = subjects.filter(s => !s.isSchool);
+    const ranked = activeSubjects.map(s => ({ ...s, totalMins: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + c.minutes, 0) })).sort((a, b) => b.totalMins - a.totalMins);
+    
     const dates = [...new Set(sessions.map(s => new Date(s.date).toDateString()))].map(d => new Date(d)).sort((a, b) => a - b);
     let maxS = 0, currS = 0; dates.forEach((d, i) => { if (i === 0) currS = 1; else currS = (d - dates[i - 1] <= 86400000) ? currS + 1 : 1; maxS = Math.max(maxS, currS); });
+    
     return { monthlyData, bestSubject: ranked[0], worstSubject: ranked[ranked.length - 1], maxStreak: maxS };
   }, [sessions, subjects]);
 

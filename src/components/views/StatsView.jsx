@@ -8,10 +8,14 @@ export const StatsView = () => {
   const { sessions, subjects, mistakes, themes, advancedStats } = useContext(FocusContext);
   const { monthlyData } = advancedStats;
   
+  // ATUALIZADO: Filtramos para pegar apenas matérias que não são "apenas escolares"
+  const activeSubjects = subjects.filter(s => !s.isSchool);
+
   const totQ = sessions.reduce((a, s) => a + (s.questions || 0), 0);
   const totE = sessions.reduce((a, s) => a + (s.errors || 0), 0);
   
-  const perfData = subjects.map(s => { 
+  // Usamos activeSubjects aqui para os gráficos de performance
+  const perfData = activeSubjects.map(s => { 
       const ss = sessions.filter(x => x.subjectId === s.id);
       const q = ss.reduce((a, c) => a + (c.questions || 0), 0);
       const e = ss.reduce((a, c) => a + (c.errors || 0), 0); 
@@ -20,9 +24,11 @@ export const StatsView = () => {
   
   const misReasons = Object.entries(mistakes.reduce((a, m) => ({ ...a, [m.reason]: (a[m.reason] || 0) + 1 }), {})).map(([k, v]) => ({ name: k, quantidade: v }));
   
-  const compTopics = subjects.map(s => ({ name: s.name, value: themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0), color: s.color })).filter(d => d.value > 0);
+  // Usamos activeSubjects aqui também
+  const compTopics = activeSubjects.map(s => ({ name: s.name, value: themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0), color: s.color })).filter(d => d.value > 0);
   
-  const wrnQ = subjects.map(s => ({ name: s.name, value: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + (c.errors || 0), 0), color: s.color })).filter(d => d.value > 0);
+  // E aqui
+  const wrnQ = activeSubjects.map(s => ({ name: s.name, value: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + (c.errors || 0), 0), color: s.color })).filter(d => d.value > 0);
   
   const heat = useMemo(() => { 
       const d = []; 
@@ -34,11 +40,11 @@ export const StatsView = () => {
   }, [sessions]);
   
   const hi = useMemo(() => {
-    if (!subjects.length) return null;
-    const agg = subjects.map(s => { const ss = sessions.filter(x => x.subjectId === s.id); return { name: s.name, min: ss.reduce((a, c) => a + c.minutes, 0), q: ss.reduce((a, c) => a + (c.questions || 0), 0), e: ss.reduce((a, c) => a + (c.errors || 0), 0), t: themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0) }; });
+    if (!activeSubjects.length) return null;
+    const agg = activeSubjects.map(s => { const ss = sessions.filter(x => x.subjectId === s.id); return { name: s.name, min: ss.reduce((a, c) => a + c.minutes, 0), q: ss.reduce((a, c) => a + (c.questions || 0), 0), e: ss.reduce((a, c) => a + (c.errors || 0), 0), t: themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0) }; });
     const sMin = [...agg].sort((a, b) => b.min - a.min), sTop = [...agg].sort((a, b) => b.t - a.t), sQ = [...agg].sort((a, b) => b.q - a.q);
     return { ms: sMin[0], ls: sMin[sMin.length - 1], mt: sTop[0], lt: sTop[sTop.length - 1], mq: sQ[0], lq: sQ[sQ.length - 1], mc: [...agg].sort((a, b) => (b.q - b.e) - (a.q - a.e))[0], me: [...agg].sort((a, b) => b.e - a.e)[0] };
-  }, [subjects, sessions, themes]);
+  }, [activeSubjects, sessions, themes]);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">

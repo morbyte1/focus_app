@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { Target, Plus, ChevronRight, ChevronDown, Trash2, CheckSquare, X, Settings, ArrowLeft, Percent } from 'lucide-react';
+import { Target, Plus, ChevronRight, ChevronDown, Trash2, CheckSquare, X, Settings, ArrowLeft, Percent, GraduationCap } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -10,7 +10,10 @@ export const GoalsView = () => {
   const [viewSub, setViewSub] = useState(null); 
   const [col, setCol] = useState({}); 
   const [modal, setModal] = useState(false); 
-  const [f, setF] = useState({ name: "", goal: 60, color: "#8b5cf6" }); 
+  
+  // ATUALIZADO: Adicionado estado isSchool no formulário
+  const [f, setF] = useState({ name: "", goal: 60, color: "#8b5cf6", isSchool: false }); 
+  
   const [edit, setEdit] = useState({ id: null, val: "" }); 
   const [newTheme, setNewTheme] = useState("");
   
@@ -19,7 +22,9 @@ export const GoalsView = () => {
       startW.setDate(startW.getDate() - startW.getDay()); 
       startW.setHours(0,0,0,0);
       const wM = sessions.reduce((a, s) => (s.subjectId === id && new Date(s.date) >= startW) ? a + s.minutes : a, 0); 
-      const p = Math.round((wM / (g * 60)) * 100); 
+      // Evita divisão por zero se não tiver meta
+      const goalM = g * 60;
+      const p = goalM > 0 ? Math.round((wM / goalM) * 100) : 0; 
       return { h: (wM / 60).toFixed(1), p: Math.min(100, p || 0) }; 
   };
 
@@ -43,7 +48,9 @@ export const GoalsView = () => {
               <div className="flex items-center gap-2 text-zinc-500 text-sm"><Percent size={16} className="text-primary" /><span>{tot ? Math.round((comp / tot) * 100) : 0}% Concluído</span></div>
             </div>
           </div>
-          <div className="text-right text-2xl font-bold text-zinc-900 dark:text-white">{s.goalHours}h <span className="text-xs text-zinc-500 block font-normal">Meta Semanal</span></div>
+          {/* Se for escolar, mostra apenas o badge, não a meta */}
+          {!s.isSchool && <div className="text-right text-2xl font-bold text-zinc-900 dark:text-white">{s.goalHours}h <span className="text-xs text-zinc-500 block font-normal">Meta Semanal</span></div>}
+          {s.isSchool && <div className="text-right text-zinc-500"><div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full"><GraduationCap size={16}/> <span className="text-xs font-bold uppercase">Escolar</span></div></div>}
         </header>
         
         <div className="bg-zinc-100 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex gap-4 items-center">
@@ -105,15 +112,26 @@ export const GoalsView = () => {
             <Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-primary/50">
               <div onClick={() => setViewSub(s.id)}>
                 <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: s.color }} />
-                <div className="mb-4"><h3 className="text-xl font-bold text-zinc-900 dark:text-white">{s.name}</h3>{edit.id !== s.id && <p className="text-sm text-zinc-500">Meta: {s.goalHours}h</p>}</div>
-                {edit.id !== s.id && (<><div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-zinc-900 dark:text-white">{h}h</span><span className="text-sm font-medium" style={{ color: s.color }}>{p}%</span></div><div className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{ width: `${p}%`, backgroundColor: s.color }} /></div></>)}
+                <div className="mb-4"><h3 className="text-xl font-bold text-zinc-900 dark:text-white">{s.name}</h3>
+                {/* Lógica de exibição condicional */}
+                {s.isSchool ? (
+                    <p className="text-xs font-bold text-zinc-400 uppercase mt-1 flex items-center gap-1"><GraduationCap size={14}/> Apenas Escolar</p>
+                ) : (
+                    edit.id !== s.id && <p className="text-sm text-zinc-500">Meta: {s.goalHours}h</p>
+                )}
+                </div>
+                
+                {/* Se NÃO for escolar, mostra progresso. Se for, mostra vazio ou info */}
+                {!s.isSchool && edit.id !== s.id && (<><div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-zinc-900 dark:text-white">{h}h</span><span className="text-sm font-medium" style={{ color: s.color }}>{p}%</span></div><div className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{ width: `${p}%`, backgroundColor: s.color }} /></div></>)}
               </div>
+              
               <div className="absolute top-4 right-4 flex gap-2">
                 {edit.id === s.id ? (
                   <div className="flex gap-2 bg-black/80 p-1 rounded-2xl"><input type="number" className="w-16 bg-black border border-zinc-600 rounded-2xl px-1 text-sm text-white" value={edit.val} onChange={e => setEdit({ ...edit, val: e.target.value })} autoFocus /><button onClick={() => { updateSubject(s.id, edit.val / 60); setEdit({ id: null, val: "" }) }} className="text-green-400 text-xs font-bold">OK</button></div>
                 ) : (
                   <>
-                    <button onClick={e => { e.stopPropagation(); setEdit({ id: s.id, val: Math.round(s.goalHours * 60) }) }} className="p-2 rounded-2xl bg-zinc-100 dark:bg-[#18181B]"><Settings size={16} className="text-zinc-400" /></button>
+                    {/* Só permite editar meta se não for escolar */}
+                    {!s.isSchool && <button onClick={e => { e.stopPropagation(); setEdit({ id: s.id, val: Math.round(s.goalHours * 60) }) }} className="p-2 rounded-2xl bg-zinc-100 dark:bg-[#18181B]"><Settings size={16} className="text-zinc-400" /></button>}
                     <button onClick={e => { e.stopPropagation(); deleteSubject(s.id) }} className="p-2 rounded-2xl bg-zinc-100 dark:bg-[#18181B]"><Trash2 size={16} className="text-zinc-400 hover:text-red-500" /></button>
                   </>
                 )}
@@ -123,9 +141,24 @@ export const GoalsView = () => {
         })}
       </div>
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Nova Matéria">
-        <form onSubmit={e => { e.preventDefault(); addSubject(f.name, f.color, f.goal / 60); setModal(false); setF({ name: "", goal: 60, color: "#8b5cf6" }); }} className="space-y-4">
+        {/* ATUALIZADO: Passando isSchool para o addSubject */}
+        <form onSubmit={e => { e.preventDefault(); addSubject(f.name, f.color, f.isSchool ? 0 : f.goal / 60, f.isSchool); setModal(false); setF({ name: "", goal: 60, color: "#8b5cf6", isSchool: false }); }} className="space-y-4">
           <div><label className="text-sm text-zinc-500">Nome</label><input required className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2 text-zinc-900 dark:text-white" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} /></div>
-          <div><label className="text-sm text-zinc-500">Meta Semanal (minutos)</label><input required type="number" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2 text-zinc-900 dark:text-white" value={f.goal} onChange={e => setF({ ...f, goal: e.target.value })} /></div>
+          
+          {/* Checkbox Escolar */}
+          <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800">
+             <input type="checkbox" id="isSchool" className="w-5 h-5 rounded text-primary focus:ring-primary" checked={f.isSchool} onChange={e => setF({...f, isSchool: e.target.checked})} />
+             <label htmlFor="isSchool" className="text-sm font-bold text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">Apenas Escolar (Não conta nas estatísticas)</label>
+          </div>
+
+          {/* Só mostra input de horas se não for escolar */}
+          {!f.isSchool && (
+            <div className="animate-fadeIn">
+                <label className="text-sm text-zinc-500">Meta Semanal (minutos)</label>
+                <input required type="number" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2 text-zinc-900 dark:text-white" value={f.goal} onChange={e => setF({ ...f, goal: e.target.value })} />
+            </div>
+          )}
+
           <div><label className="text-sm text-zinc-500">Cor</label><div className="flex gap-2 mt-2">{['#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#ef4444'].map(c => <div key={c} onClick={() => setF({ ...f, color: c })} className={`w-8 h-8 rounded-full cursor-pointer border-2 ${f.color === c ? 'border-zinc-900 dark:border-white' : 'border-transparent'}`} style={{ backgroundColor: c }} />)}</div></div>
           <Button type="submit" className="w-full mt-4">Criar</Button>
         </form>
