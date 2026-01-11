@@ -31,6 +31,7 @@ export const getTitle = l => TITLES.find(t => l >= t.l)?.t || "Novato Curioso";
 export const getRank = l => RANKS.find(s => l >= s.m) || RANKS[RANKS.length - 1];
 export const getXP = l => Math.floor(500 * Math.pow(l, 1.5));
 
+
 // --- Contexto ---
 export const FocusContext = createContext();
 
@@ -43,14 +44,14 @@ export const FocusProvider = ({ children }) => {
   const [tasks, setTasks] = useStickyState([], 'focus_tasks');
   const [mistakes, setMistakes] = useStickyState([], 'focus_mistakes');
   const [themes, setThemes] = useStickyState([], 'focus_themes');
-  
-  // === ESTADOS NOVOS (ESCOLA) ===
-  const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
-  const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
-  const [schoolSchedule, setSchoolSchedule] = useStickyState({}, 'focus_school_schedule');
-  
   const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
   const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
+  
+  // === ESTADO: ESCOLA (Trabalhos, Faltas e Grade) ===
+  const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
+  const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
+  const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [] }, 'focus_school_schedule');
+
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [flowStoredTime, setFlowStoredTime] = useState(0);
@@ -58,10 +59,11 @@ export const FocusProvider = ({ children }) => {
   const [theme, setTheme] = useStickyState('system', 'focus_theme');
   const refs = useRef({ end: null, start: null, last: 0 });
 
-  // --- Efeitos ---
+  // --- Lógica do Tema ---
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark'); 
+
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
@@ -130,7 +132,6 @@ export const FocusProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [timerState.active, timerState.mode, timerState.type, flowStoredTime]);
 
-  // --- XP e Métodos ---
   const gainXP = (amt, reason = "") => {
     setUserLevel(prev => {
       let { level, currentXP: cx, totalXP: tx } = prev, nx = getXP(level);
@@ -145,22 +146,35 @@ export const FocusProvider = ({ children }) => {
     const sId = mSubId ? Number(mSubId) : selectedSubjectId;
     let cleanQs = Math.max(0, parseInt(qs) || 0);
     let cleanErrs = Math.max(0, parseInt(errs) || 0);
-    if (cleanErrs > cleanQs) cleanErrs = cleanQs;
+    if (cleanErrs > cleanQs) {
+        alert(`Atenção: Você informou mais erros (${cleanErrs}) do que questões feitas (${cleanQs}). Ajustando o número de erros para ser igual ao total.`);
+        cleanErrs = cleanQs;
+    }
     setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: cleanQs, errors: cleanErrs }]);
     let xp = (Math.floor(mins / 10) * 50) + (cleanQs * 10);
+    
     const sub = subjects.find(s => s.id === sId);
     if (sub && !sub.isSchool) {
-      const startW = new Date(); startW.setDate(startW.getDate() - startW.getDay()); startW.setHours(0,0,0,0);
+      const startW = new Date(); 
+      startW.setDate(startW.getDate() - startW.getDay()); 
+      startW.setHours(0,0,0,0);
       const prev = sessions.filter(s => s.subjectId === sId && new Date(s.date) >= startW).reduce((a, s) => a + s.minutes, 0);
       if (prev < sub.goalHours * 60 && (prev + mins) >= sub.goalHours * 60) { xp += 500; alert(`🏆 Meta semanal de ${sub.name} atingida! +500 XP`); }
     }
+    
     if (xp > 0) gainXP(xp, "Sessão");
   };
 
   const methods = {
     addSubject: (n, c, g, isSchool = false) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool }]),
     updateSubject: (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Math.max(0, Number(g)) } : s)),
-    deleteSubject: (id) => { if (subjects.length > 1 && window.confirm("Excluir?")) { const r = subjects.filter(s => s.id !== id); setSubjects(r); if (selectedSubjectId === id) setSelectedSubjectId(r[0].id); } else if(subjects.length<=1) alert("Mantenha uma matéria."); },
+    deleteSubject: (id) => { 
+        if (subjects.length > 1 && window.confirm("Excluir?")) { 
+            const r = subjects.filter(s => s.id !== id); 
+            setSubjects(r); 
+            if (selectedSubjectId === id) setSelectedSubjectId(r[0].id); 
+        } else if(subjects.length<=1) alert("Mantenha uma matéria."); 
+    },
     addTask: (t, sId) => setTasks(p => [...p, { id: Date.now(), text: t, completed: false, subjectId: sId }]),
     toggleTask: (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t)),
     deleteTask: (id) => window.confirm("Excluir?") && setTasks(p => p.filter(t => t.id !== id)),
@@ -172,8 +186,11 @@ export const FocusProvider = ({ children }) => {
     addThemeItem: (tId, txt) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text: txt, completed: false }] } : t)),
     toggleThemeItem: (tId, iId) => setThemes(p => { const t = p.find(x => x.id === tId), i = t?.items.find(x => x.id === iId); if(i && !i.completed) gainXP(20); return p.map(x => x.id === tId ? { ...x, items: x.items.map(y => y.id === iId ? { ...y, completed: !y.completed } : y) } : x); }),
     deleteThemeItem: (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.filter(i => i.id !== iId) } : t)),
+    resetXPOnly: () => window.confirm("Resetar nível?") && (setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }) || alert("Nível resetado.")),
+    resetAllData: () => window.confirm("Apagar TUDO?") && (localStorage.clear() || window.location.reload()),
+    deleteDayHistory: (d) => window.confirm(`Apagar ${d}?`) && setSessions(p => p.filter(s => new Date(s.date).toDateString() !== d)),
     
-    // === MÉTODOS ESCOLARES (ATUALIZADOS) ===
+    // === MÉTODOS ESCOLARES (UNIFICADOS AQUI) ===
     addWork: (subjectId, title, dueDate, description, maxGrade) => setSchoolWorks(p => [...p, { 
         id: Date.now(), 
         subjectId: Number(subjectId), 
@@ -182,7 +199,7 @@ export const FocusProvider = ({ children }) => {
         description, 
         status: 'pending', 
         grade: null, 
-        maxGrade: Number(maxGrade) || 10 // Padrão 10 se não vier nada
+        maxGrade: Number(maxGrade) || 10
     }]),
     updateWork: (id, updates) => setSchoolWorks(p => p.map(w => w.id === id ? { ...w, ...updates } : w)),
     deleteWork: (id) => window.confirm("Excluir trabalho?") && setSchoolWorks(p => p.filter(w => w.id !== id)),
@@ -192,11 +209,7 @@ export const FocusProvider = ({ children }) => {
     },
     deleteAbsenceRecord: (id) => window.confirm("Excluir registro de falta?") && setSchoolAbsences(p => p.filter(a => a.id !== id)),
     
-    updateSchoolSchedule: (dayId, lessonsArray) => setSchoolSchedule(p => ({ ...p, [dayId]: lessonsArray })),
-
-    resetXPOnly: () => window.confirm("Resetar nível?") && (setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }) || alert("Nível resetado.")),
-    resetAllData: () => window.confirm("Apagar TUDO?") && (localStorage.clear() || window.location.reload()),
-    deleteDayHistory: (d) => window.confirm(`Apagar ${d}?`) && setSessions(p => p.filter(s => new Date(s.date).toDateString() !== d))
+    updateSchoolSchedule: (dayId, lessonsArray) => setSchoolSchedule(p => ({ ...p, [dayId]: lessonsArray }))
   };
 
   const kpiData = useMemo(() => {
@@ -231,9 +244,7 @@ export const FocusProvider = ({ children }) => {
         userName, setUserName, 
         selectedHistoryDate, setSelectedHistoryDate, 
         subjects, sessions, tasks, mistakes, themes, 
-        schoolWorks, 
-        schoolAbsences, 
-        schoolSchedule,
+        schoolWorks, schoolAbsences, schoolSchedule,
         countdown, setCountdown, 
         userLevel, 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
@@ -243,8 +254,11 @@ export const FocusProvider = ({ children }) => {
         cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), 
         selectedSubjectId, setSelectedSubjectId, 
         flowStoredTime, setFlowStoredTime, 
-        elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, 
-        ...methods // AQUI ESTAVA O ERRO: As funções agora são passadas APENAS aqui
+        elapsedTime, setElapsedTime, 
+        kpiData, weeklyChartData, advancedStats, 
+        addSession, 
+        theme, setTheme, 
+        ...methods 
     }}>
       {children}
     </FocusContext.Provider>
