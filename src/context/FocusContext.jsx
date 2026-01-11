@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useContext, createContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, createContext, useMemo, useRef } from 'react';
 import { Crown, Scroll, Shield, Compass, Feather, Sprout } from 'lucide-react';
 
 // --- Constantes e Helpers ---
 export const POMODORO = { WORK: 25 * 60, SHORT: 5 * 60, LONG: 15 * 60 };
-// Adicionei isSchool: false nas matérias padrão para manter compatibilidade
+
 const DEFAULT_SUB = [
   { id: 1, name: 'Programação', color: '#8b5cf6', goalHours: 20, isSchool: false }, 
   { id: 2, name: 'Matemática', color: '#10b981', goalHours: 10, isSchool: false }, 
   { id: 3, name: 'Inglês', color: '#f59e0b', goalHours: 5, isSchool: false }
 ];
+
 export const formatTime = s => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
 function useStickyState(defaultValue, key) {
@@ -46,7 +47,7 @@ export const FocusProvider = ({ children }) => {
   const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
   const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
   
-  // === NOVO ESTADO: TRABALHOS ESCOLARES ===
+  // === ESTADO: TRABALHOS ESCOLARES ===
   const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
 
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
@@ -83,12 +84,15 @@ export const FocusProvider = ({ children }) => {
   }, [theme]);
   
   useEffect(() => { if (subjects.length > 0 && !subjects.find(s => s.id === selectedSubjectId)) setSelectedSubjectId(subjects[0].id); }, [subjects, selectedSubjectId]);
+  
+  // Correção de IDs de temas antigos (se houver)
   useEffect(() => { 
     if (themes.length > 0) {
         const healed = themes.map(t => ({ ...t, items: t.items.map((i, idx) => ({ ...i, id: i.id + (Math.random() * (idx + 1)) })) }));
         if (JSON.stringify(themes) !== JSON.stringify(healed)) setThemes(healed);
     }
   }, []);
+
   useEffect(() => { document.title = timerState.active ? `${formatTime(timerState.timeLeft)} - ${timerState.mode === 'WORK' ? 'Foco' : 'Pausa'}` : "Focus App - Estudos & Produtividade"; }, [timerState.active, timerState.timeLeft, timerState.mode]);
 
   useEffect(() => {
@@ -150,7 +154,7 @@ export const FocusProvider = ({ children }) => {
     
     const sub = subjects.find(s => s.id === sId);
     
-    // Se for matéria escolar (isSchool), não gera bônus de meta semanal, mas gera XP base pelo esforço
+    // Se for matéria escolar (isSchool), não gera bônus de meta semanal, mas gera XP base
     if (sub && !sub.isSchool) {
       const startW = new Date(); 
       startW.setDate(startW.getDate() - startW.getDay()); 
@@ -163,15 +167,23 @@ export const FocusProvider = ({ children }) => {
   };
 
   // === MÉTODOS DE TRABALHOS ESCOLARES ===
+  
+  // Adiciona novo trabalho com status 'pending' e grade null
   const addWork = (subjectId, title, dueDate, description) => {
     setSchoolWorks(prev => [...prev, {
       id: Date.now(),
       subjectId: Number(subjectId),
       title,
-      dueDate, // Formato YYYY-MM-DD vindo do input type="date"
+      dueDate, // Formato YYYY-MM-DD
       description,
-      status: 'pending'
+      status: 'pending', // pending, done, delivered, corrected
+      grade: null        // Nota (number ou null)
     }]);
+  };
+
+  // Atualiza um trabalho existente (status, nota, etc)
+  const updateWork = (id, updates) => {
+    setSchoolWorks(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
   };
 
   const deleteWork = (id) => {
@@ -181,7 +193,7 @@ export const FocusProvider = ({ children }) => {
   };
 
   const methods = {
-    // ATUALIZADO: Agora aceita o parâmetro isSchool (padrão false)
+    // Agora aceita isSchool (padrão false)
     addSubject: (n, c, g, isSchool = false) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool }]),
     updateSubject: (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Math.max(0, Number(g)) } : s)),
     deleteSubject: (id) => { 
@@ -224,7 +236,7 @@ export const FocusProvider = ({ children }) => {
     const now = new Date(), m = now.getMonth(), y = now.getFullYear();
     const monthlyData = Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => ({ name: (i + 1).toString(), minutes: sessions.reduce((acc, s) => { const sd = new Date(s.date); return (sd.getDate() === i + 1 && sd.getMonth() === m && sd.getFullYear() === y) ? acc + s.minutes : acc; }, 0) }));
     
-    // ATUALIZADO: Filtra apenas matérias que NÃO são isSchool para o ranking
+    // Filtra apenas matérias que NÃO são isSchool para o ranking de estudo
     const activeSubjects = subjects.filter(s => !s.isSchool);
     const ranked = activeSubjects.map(s => ({ ...s, totalMins: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + c.minutes, 0) })).sort((a, b) => b.totalMins - a.totalMins);
     
@@ -240,7 +252,7 @@ export const FocusProvider = ({ children }) => {
         userName, setUserName, 
         selectedHistoryDate, setSelectedHistoryDate, 
         subjects, sessions, tasks, mistakes, themes, 
-        schoolWorks, addWork, deleteWork, // <-- EXPORTANDO OS NOVOS MÉTODOS E ESTADO
+        schoolWorks, addWork, updateWork, deleteWork, // <-- EXPORTANDO updateWork AQUI
         countdown, setCountdown, 
         userLevel, 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
