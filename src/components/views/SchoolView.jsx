@@ -1,7 +1,7 @@
 import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { 
     GraduationCap, Plus, Calendar, Clock, Trash2, FileText, CheckCircle, Send, ClipboardCheck, 
-    AlertOctagon, PieChart as PieChartIcon, ChevronLeft, ChevronRight, Minus, Settings, BookOpen, AlertTriangle, TrendingUp 
+    AlertOctagon, ChevronLeft, ChevronRight, Minus, Settings, BookOpen, AlertTriangle, TrendingUp 
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { FocusContext } from '../../context/FocusContext';
@@ -9,16 +9,16 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 
-// === SUB-COMPONENTES NOVOS (FALTAS, CALENDÁRIO, GRADE) ===
+// === SUB-COMPONENTES AUXILIARES ===
 
 // Modal de Configuração da Grade Horária
 const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, updateSchoolSchedule }) => {
     const days = [
         { id: 1, name: "Segunda" }, { id: 2, name: "Terça" }, { id: 3, name: "Quarta" },
         { id: 4, name: "Quinta" }, { id: 5, name: "Sexta" },
-        { id: 6, name: "Sábado" } // Adicionado Sábado
+        { id: 6, name: "Sábado" }
     ];
-    const [addingToDay, setAddingToDay] = useState(null); // ID do dia que está recebendo aula
+    const [addingToDay, setAddingToDay] = useState(null);
 
     const addLesson = (dayId, subjectId) => {
         const current = schoolSchedule[dayId] || [];
@@ -42,7 +42,6 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
                     {days.map(d => (
                         <div key={d.id} className="min-w-[160px] flex-1 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-3 flex flex-col">
                             <h4 className="font-bold text-center text-zinc-900 dark:text-white mb-3 uppercase text-xs tracking-wider">{d.name}</h4>
-                            
                             <div className="flex-1 space-y-2 mb-3">
                                 {(schoolSchedule[d.id] || []).map((lessonSubId, idx) => {
                                     const sub = subjects.find(s => s.id === lessonSubId);
@@ -58,7 +57,6 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
                                 })}
                                 {(schoolSchedule[d.id] || []).length === 0 && <p className="text-center text-zinc-400 text-[10px] italic py-2">Sem aulas</p>}
                             </div>
-
                             {addingToDay === d.id ? (
                                 <div className="animate-fadeIn">
                                     <select 
@@ -85,14 +83,14 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
     );
 };
 
+// === TAB: FALTAS (REFORMULADA - VISUAL DARK/NEON) ===
 const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen }) => {
-    // Cálculo avançado de estatísticas e limites baseados na Grade Horária
     const stats = useMemo(() => {
         const absencesCountMap = {}; 
         let totalLost = 0;
         const reasonMap = {};
 
-        // 1. Contar Faltas Reais
+        // 1. Contar Faltas
         schoolAbsences.forEach(record => {
             Object.entries(record.lessons).forEach(([subId, count]) => {
                 if (count > 0) {
@@ -106,161 +104,222 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
             }
         });
 
-        // 2. Calcular Limites Baseados na Grade (40 Semanas Letivas)
+        // 2. Calcular Limites e Frequência
         const SCHOOL_WEEKS = 40;
         const MAX_ABSENCE_PERCENTAGE = 0.25;
-        
-        // Frequência semanal por matéria
         const weeklyFreq = {};
         Object.values(schoolSchedule).flat().forEach(subId => {
             weeklyFreq[subId] = (weeklyFreq[subId] || 0) + 1;
         });
 
-        // Total de aulas no ano (soma de todas as frequencias * 40)
         const totalAnnualClassesGlobal = Object.values(weeklyFreq).reduce((a, b) => a + b, 0) * SCHOOL_WEEKS;
 
-        // Montar dados de Risco por Matéria
         const riskData = subjects.map(sub => {
             const freq = weeklyFreq[sub.id] || 0;
             const totalAnnual = freq * SCHOOL_WEEKS;
             const limit = Math.floor(totalAnnual * MAX_ABSENCE_PERCENTAGE);
             const current = absencesCountMap[sub.id] || 0;
             const percentageUsed = limit > 0 ? (current / limit) * 100 : 0;
-            
-            return {
-                ...sub,
-                freq,
-                totalAnnual,
-                limit,
-                current,
-                percentageUsed
-            };
+            return { ...sub, freq, totalAnnual, limit, current, percentageUsed };
         }).filter(d => d.freq > 0).sort((a, b) => b.percentageUsed - a.percentageUsed);
 
-        // Identificar Crítico e Melhor
         const critical = riskData.length > 0 && riskData[0].current > 0 ? riskData[0] : null;
-        
-        // Taxa Global Real (Baseada na Grade)
         const globalRate = totalAnnualClassesGlobal > 0 
             ? Math.max(0, 100 - ((totalLost / totalAnnualClassesGlobal) * 100)).toFixed(1)
             : "100.0";
 
-        // Gráfico de Pizza (Motivos)
-        const REASON_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
-        const reasonChartData = Object.entries(reasonMap)
-            .map(([reason, count], index) => ({
-                name: reason,
-                value: count,
-                color: REASON_COLORS[index % REASON_COLORS.length]
-            }))
-            .sort((a, b) => b.value - a.value);
+        // Gráfico Donut (Matérias)
+        const subjectChartData = subjects.map(s => ({
+            name: s.name,
+            value: absencesCountMap[s.id] || 0,
+            color: s.color
+        })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
 
-        return { totalLost, critical, globalRate, riskData, reasonChartData, totalAnnualClassesGlobal };
+        // Gráfico Pie (Motivos)
+        const REASON_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+        const reasonChartData = Object.entries(reasonMap).map(([reason, count], index) => ({
+            name: reason,
+            value: count,
+            color: REASON_COLORS[index % REASON_COLORS.length]
+        })).sort((a, b) => b.value - a.value);
+
+        return { totalLost, critical, globalRate, riskData, reasonChartData, subjectChartData };
     }, [schoolAbsences, subjects, schoolSchedule]);
 
     return (
-        <div className="space-y-6 animate-fadeIn">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-l-4 border-red-500 bg-red-500/5">
-                    <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Risco Crítico</p>
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white truncate">{stats.critical?.name || "Nenhuma"}</h3>
-                    <p className="text-sm text-red-500 font-medium">
-                        {stats.critical ? `${stats.critical.current} / ${stats.critical.limit} faltas` : "Tudo sob controle"}
-                    </p>
-                </Card>
-                <Card className="border-l-4 border-blue-500 bg-blue-500/5">
-                    <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Frequência Global</p>
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white">{stats.globalRate}%</h3>
-                    <p className="text-sm text-blue-500 font-medium">Base: {stats.totalAnnualClassesGlobal} aulas/ano</p>
-                </Card>
-                <Card className="border-l-4 border-orange-500 bg-orange-500/5 cursor-pointer hover:bg-orange-500/10 transition-colors" onClick={() => setIsAddAbsenceModalOpen(true)}>
-                    <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Ação Rápida</p>
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2"><Plus size={20}/> Registrar</h3>
-                    <p className="text-sm text-orange-500 font-medium">Adicionar falta</p>
-                </Card>
+        <div className="space-y-6 animate-fadeIn pb-12">
+            
+            {/* Header com Botão Vermelho "Pill" */}
+            <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Controle de Faltas</h2>
+                <button 
+                    onClick={() => setIsAddAbsenceModalOpen(true)}
+                    className="bg-red-500 hover:bg-red-600 active:scale-95 transition-all text-white px-5 py-2 rounded-full font-bold text-sm flex items-center gap-2 shadow-lg shadow-red-500/30"
+                >
+                    <Plus size={18} strokeWidth={2.5} /> Registrar Falta
+                </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Monitor de Risco (Barra de Progresso) */}
-                <div className="lg:col-span-2">
-                    <Card className="h-full">
-                        <h3 className="text-zinc-900 dark:text-white font-bold mb-6 flex items-center gap-2">
-                            <AlertTriangle size={18} className="text-yellow-500"/> Monitor de Risco (Limite 25%)
-                        </h3>
-                        <div className="space-y-5">
-                            {stats.riskData.length === 0 ? (
-                                <p className="text-center text-zinc-400 text-sm py-10">Configure sua Grade Horária para ver os limites de faltas.</p>
-                            ) : (
-                                stats.riskData.map(d => {
-                                    const percentage = Math.min(100, (d.current / d.limit) * 100);
-                                    let barColor = 'bg-emerald-500';
-                                    if (percentage >= 75) barColor = 'bg-red-500';
-                                    else if (percentage >= 50) barColor = 'bg-yellow-500';
-                                    
-                                    const remaining = d.limit - d.current;
-
-                                    return (
-                                        <div key={d.id}>
-                                            <div className="flex justify-between items-end mb-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-bold text-zinc-900 dark:text-white">{d.name}</span>
-                                                    <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">{d.freq} aulas/sem</span>
-                                                </div>
-                                                <div className="flex items-center">
-                                                    <span className={`text-xs font-bold ${percentage >= 75 ? 'text-red-500' : 'text-zinc-500'}`}>
-                                                        {d.current} / {d.limit} ({percentage.toFixed(0)}%)
-                                                    </span>
-                                                    <span className="text-[10px] text-zinc-400 font-normal ml-2">
-                                                        (Restam: {Math.max(0, remaining)})
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="w-full h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full rounded-full transition-all duration-1000 ${barColor}`} 
-                                                    style={{ width: `${percentage}%` }}
-                                                ></div>
-                                            </div>
-                                        </div>
-                                    )
-                                })
-                            )}
+            {/* Grid Principal estilo Dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* 1. Card Presença Global (Verde Neon) */}
+                <div className="md:col-span-3 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm relative overflow-hidden">
+                     {/* Glow Effect Background */}
+                     <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-3xl rounded-full pointer-events-none"></div>
+                     
+                     <div className="relative z-10">
+                        <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2">Presença Global</p>
+                        <div className="flex items-end gap-2 mb-4">
+                            <span className="text-5xl font-bold text-emerald-500 dark:text-emerald-400 tracking-tighter">{stats.globalRate}%</span>
+                            <span className="text-sm text-zinc-400 mb-2">anual</span>
                         </div>
-                    </Card>
+                        {/* Barra de Progresso Fina */}
+                        <div className="h-1.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                            <div 
+                                className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-1000 shadow-[0_0_10px_currentColor]" 
+                                style={{ width: `${stats.globalRate}%` }}
+                            ></div>
+                        </div>
+                     </div>
                 </div>
 
-                {/* Gráfico de Motivos */}
-                <Card className="min-h-[300px] flex flex-col">
-                    <h3 className="text-zinc-900 dark:text-white font-bold mb-4 flex items-center gap-2"><AlertOctagon size={18} className="text-orange-500"/> Motivos</h3>
+                {/* 2. Card Mais Faltas */}
+                <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col justify-center">
+                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-3">Mais Faltas</p>
+                    {stats.critical ? (
+                        <div>
+                            <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-1 truncate">{stats.critical.name}</h3>
+                            <p className="text-sm font-bold text-red-500">{stats.critical.current} aulas perdidas</p>
+                        </div>
+                    ) : (
+                        <p className="text-zinc-400 text-sm">Nenhuma falta crítica.</p>
+                    )}
+                </div>
+
+                {/* 3. Card Total Acumulado */}
+                <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col justify-center">
+                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2">Total Acumulado</p>
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-bold text-zinc-900 dark:text-white">{stats.totalLost}</span>
+                        <span className="text-sm text-zinc-500">aulas</span>
+                    </div>
+                </div>
+
+                 {/* 4. Gráficos (Lado a Lado) */}
+                 <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col justify-center relative min-h-[220px]">
+                    <p className="absolute top-6 left-6 text-xs text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-2">
+                        <Clock size={14}/> Faltas por Matéria
+                    </p>
+                    <div className="w-full h-[140px] mt-6">
+                        {stats.subjectChartData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie 
+                                        data={stats.subjectChartData} 
+                                        cx="50%" cy="50%" 
+                                        innerRadius={40} outerRadius={60} 
+                                        paddingAngle={4} 
+                                        dataKey="value"
+                                        stroke="none"
+                                    >
+                                        {stats.subjectChartData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <RechartsTooltip 
+                                        contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff', borderRadius: '12px' }} 
+                                        itemStyle={{ color: '#fff' }} 
+                                        formatter={(val) => `${val} aulas`}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">Sem dados</div>}
+                    </div>
+                </div>
+
+            </div>
+            
+            {/* Seção Gráfico de Motivos e Lista de Risco */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 {/* Monitor de Risco (Funcionalidade Mantida) */}
+                 <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm">
+                    <h3 className="text-zinc-900 dark:text-white font-bold mb-6 flex items-center gap-2 text-sm uppercase tracking-wide">
+                        Monitor de Risco <span className="text-zinc-500 normal-case font-normal">(Limite 25%)</span>
+                    </h3>
+                    <div className="space-y-6">
+                        {stats.riskData.length === 0 ? (
+                            <p className="text-center text-zinc-400 text-sm py-4">Configure a grade horária.</p>
+                        ) : (
+                            stats.riskData.map(d => {
+                                const percentage = Math.min(100, (d.current / d.limit) * 100);
+                                let barColor = 'bg-emerald-500';
+                                if (percentage >= 75) barColor = 'bg-red-500';
+                                else if (percentage >= 50) barColor = 'bg-yellow-500';
+                                
+                                return (
+                                    <div key={d.id}>
+                                        <div className="flex justify-between items-end mb-2">
+                                            <span className="text-sm font-bold text-zinc-700 dark:text-zinc-300">{d.name}</span>
+                                            <div className="flex items-center gap-1">
+                                                <span className={`text-xs font-bold ${percentage >= 75 ? 'text-red-500' : 'text-zinc-500'}`}>
+                                                    {d.current} <span className="text-zinc-600 dark:text-zinc-500">/ {d.limit}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="w-full h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full rounded-full transition-all duration-1000 ${barColor}`} 
+                                                style={{ width: `${percentage}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                )
+                            })
+                        )}
+                    </div>
+                </div>
+
+                {/* Gráfico de Motivos (Mantido) */}
+                <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col">
+                    <h3 className="text-zinc-900 dark:text-white font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
+                        Motivos das Faltas
+                    </h3>
                     <div className="flex-1 min-h-[200px]">
                         {stats.reasonChartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
-                                    <Pie data={stats.reasonChartData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value">
+                                    <Pie 
+                                        data={stats.reasonChartData} 
+                                        cx="50%" cy="50%" 
+                                        innerRadius={0} outerRadius={70} 
+                                        paddingAngle={2} 
+                                        dataKey="value"
+                                        stroke="none"
+                                    >
                                         {stats.reasonChartData.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff' }} itemStyle={{ color: '#fff' }} />
-                                    <Legend verticalAlign="bottom" wrapperStyle={{fontSize: '10px'}}/>
+                                    <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff' }} />
+                                    <Legend verticalAlign="bottom" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle"/>
                                 </PieChart>
                             </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-zinc-400 text-sm">Sem dados.</div>}
+                        ) : <div className="h-full flex items-center justify-center text-zinc-500 text-sm">Sem dados.</div>}
                     </div>
-                </Card>
+                </div>
             </div>
 
-            {/* Lista Histórico */}
+            {/* Histórico Recente (Ajustado ao Visual) */}
             <div>
-                <h3 className="text-zinc-900 dark:text-white font-bold mb-4">Histórico Recente</h3>
+                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-4 mt-2">Histórico Recente</h3>
                 <div className="space-y-3">
                     {schoolAbsences.length === 0 ? <p className="text-zinc-500 italic text-sm">Nenhum registro.</p> : 
                     [...schoolAbsences].sort((a,b) => new Date(b.date) - new Date(a.date)).map(record => (
-                        <div key={record.id} className="bg-white dark:bg-[#09090b] p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex justify-between items-center hover:border-red-500/30 transition-colors group">
+                        <div key={record.id} className="bg-white dark:bg-[#09090b] p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex justify-between items-center hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors group">
                             <div>
                                 <p className="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                                     {new Date(record.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                                     <span className="text-zinc-400 font-normal text-xs">• {record.reason}</span>
                                 </p>
@@ -284,6 +343,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
     );
 };
 
+// === TAB: CALENDÁRIO (MANTIDO) ===
 const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) => {
     const [date, setDate] = useState(new Date());
     const [selectedDayInfo, setSelectedDayInfo] = useState(null); 
@@ -299,9 +359,7 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const works = schoolWorks.filter(w => w.dueDate === dateStr);
         const absence = schoolAbsences.find(a => a.date === dateStr);
-        
-        // Lógica de Grade Diária
-        const dayOfWeek = dateObj.getDay(); // 0 (Dom) a 6 (Sab)
+        const dayOfWeek = dateObj.getDay(); 
         const dailyScheduleIds = (dayOfWeek >= 1 && dayOfWeek <= 6) ? schoolSchedule[dayOfWeek] : [];
         const dailyLessons = dailyScheduleIds?.map(id => subjects.find(s => s.id === id)).filter(Boolean) || [];
 
@@ -358,7 +416,6 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
                             <h3 className="font-bold text-lg text-zinc-900 dark:text-white capitalize">{new Date(selectedDayInfo.dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
                         </div>
                         
-                        {/* Seção 1: Faltas */}
                         {selectedDayInfo.absence ? (
                             <div className="mb-4 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
                                 <p className="text-xs font-bold text-red-500 uppercase mb-1 flex items-center gap-1"><AlertOctagon size={12}/> Falta Registrada</p>
@@ -367,7 +424,6 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
                             </div>
                         ) : null}
 
-                        {/* Seção 2: Grade Horária do Dia (NOVO) */}
                         <div className="mb-4 flex-1">
                             <p className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1"><BookOpen size={12}/> Aulas do Dia</p>
                             {selectedDayInfo.dailyLessons && selectedDayInfo.dailyLessons.length > 0 ? (
@@ -389,7 +445,6 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
                             )}
                         </div>
 
-                        {/* Seção 3: Trabalhos */}
                         {selectedDayInfo.works.length > 0 && (
                             <div className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800/50">
                                 <p className="text-xs font-bold text-zinc-500 uppercase">Entregas</p>
@@ -413,7 +468,7 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
     );
 };
 
-// === VIEW PRINCIPAL ===
+// === VIEW PRINCIPAL (LAYOUT MANTIDO) ===
 
 export const SchoolView = () => {
   const { 
@@ -423,41 +478,26 @@ export const SchoolView = () => {
   } = useContext(FocusContext);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false); // Modal da Grade
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedWork, setSelectedWork] = useState(null); 
-  const [form, setForm] = useState({ subjectId: "", title: "", dueDate: "", description: "", maxGrade: 10 }); // ADICIONADO: maxGrade
+  const [form, setForm] = useState({ subjectId: "", title: "", dueDate: "", description: "", maxGrade: 10 });
 
   const [activeTab, setActiveTab] = useState('works');
   const [isAddAbsenceModalOpen, setIsAddAbsenceModalOpen] = useState(false);
   const [absForm, setAbsForm] = useState({ date: new Date().toISOString().split('T')[0], reason: "Doença / Médico", counts: {} });
 
-  // --- CÁLCULO DE MÉDIAS (ATUALIZADO) ---
   const gradeStats = useMemo(() => {
     return subjects.map(sub => {
-        // Pega todos os trabalhos dessa matéria que tenham nota definida
         const subWorks = schoolWorks.filter(w => w.subjectId === sub.id && w.grade !== null && w.grade !== undefined && w.grade !== "");
-        
-        // CORREÇÃO: Evita divisão por zero se não houver trabalhos
         if (subWorks.length === 0) return null;
-
-        // Calcula média NORMALIZADA (Considerando o valor da atividade)
         const sum = subWorks.reduce((acc, curr) => {
-            const max = curr.maxGrade || 10; // Se não tiver maxGrade, assume 10
-            const normalizedGrade = (Number(curr.grade) / max) * 10; // Converte para base 10
+            const max = curr.maxGrade || 10; 
+            const normalizedGrade = (Number(curr.grade) / max) * 10;
             return acc + normalizedGrade;
         }, 0);
-        
         const avg = sum / subWorks.length;
-
-        return {
-            id: sub.id,
-            name: sub.name,
-            color: sub.color,
-            average: avg
-        };
-    })
-    .filter(Boolean) // Remove matérias sem nota
-    .sort((a, b) => a.average - b.average); // Ordena da menor nota para a maior
+        return { id: sub.id, name: sub.name, color: sub.color, average: avg };
+    }).filter(Boolean).sort((a, b) => a.average - b.average);
   }, [subjects, schoolWorks]);
 
   const statusConfig = {
@@ -486,7 +526,6 @@ export const SchoolView = () => {
     return { label: `${diffDays} dias`, color: "text-emerald-500", border: "border-zinc-200 dark:border-zinc-800", bg: "bg-emerald-500/10" };
   };
 
-  // === CORREÇÃO: MEMOIZAÇÃO DA LISTA ===
   const sortedWorks = useMemo(() => {
     return [...schoolWorks].sort((a, b) => {
         const score = (status) => status === 'pending' ? 0 : status === 'done' ? 1 : 2;
@@ -498,7 +537,6 @@ export const SchoolView = () => {
   const handleAddSubmit = (e) => {
     e.preventDefault();
     if (form.subjectId && form.title && form.dueDate) {
-      // Passa maxGrade junto. Assume que o Context aceita como parâmetro extra ou objeto.
       addWork(form.subjectId, form.title, form.dueDate, form.description, Number(form.maxGrade));
       setForm({ subjectId: "", title: "", dueDate: "", description: "", maxGrade: 10 });
       setIsAddModalOpen(false);
@@ -509,11 +547,7 @@ export const SchoolView = () => {
     if (!selectedWork) return;
     const updates = { status: newStatus };
     if (newStatus !== 'corrected') updates.grade = null;
-    
-    // Atualiza no contexto (Banco de dados)
     updateWork(selectedWork.id, updates);
-    
-    // Atualiza localmente o modal (Feedback instantâneo)
     setSelectedWork(prev => ({ ...prev, ...updates }));
   };
 
@@ -531,24 +565,15 @@ export const SchoolView = () => {
     });
   };
   
-  // Função para Preencher Automático (NOVO)
   const autoFillFromSchedule = () => {
     if (!absForm.date) return alert("Selecione uma data primeiro.");
-    
-    // Constrói a data considerando o timezone local para pegar o dia da semana correto
     const dateObj = new Date(absForm.date + 'T00:00:00'); 
-    const dayOfWeek = dateObj.getDay(); // 0 (Dom) - 6 (Sáb)
-
+    const dayOfWeek = dateObj.getDay(); 
     if (dayOfWeek === 0) return alert("Domingo não tem aula na grade.");
-    
     const lessons = schoolSchedule[dayOfWeek] || [];
     if (lessons.length === 0) return alert("Sem aulas cadastradas para este dia da semana.");
-
     const newCounts = {};
-    lessons.forEach(subId => {
-        newCounts[subId] = (newCounts[subId] || 0) + 1;
-    });
-
+    lessons.forEach(subId => { newCounts[subId] = (newCounts[subId] || 0) + 1; });
     setAbsForm(prev => ({ ...prev, counts: newCounts }));
   };
 
@@ -591,12 +616,9 @@ export const SchoolView = () => {
         </div>
       </header>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <div className="flex-1">
           {activeTab === 'works' && (
               <div className="space-y-4">
-                  
-                  {/* === PAINEL DE MÉDIAS === */}
                   {gradeStats.length > 0 && (
                       <div className="mb-2">
                          <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-2">
@@ -608,7 +630,6 @@ export const SchoolView = () => {
                                 let style = { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20' };
                                 if(val < 6) style = { bg: 'bg-red-500/10', text: 'text-red-500', border: 'border-red-500/20' };
                                 else if(val < 8) style = { bg: 'bg-yellow-500/10', text: 'text-yellow-600', border: 'border-yellow-500/20' };
-
                                 return (
                                     <div key={stat.id} className={`flex-shrink-0 flex flex-col justify-between min-w-[130px] p-3 rounded-2xl border ${style.bg} ${style.border}`}>
                                         <div className="flex items-center gap-2 mb-2">
@@ -668,7 +689,6 @@ export const SchoolView = () => {
                                                 {work.title}
                                             </h3>
                                         </div>
-
                                         <div className="flex flex-col items-end gap-1">
                                             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase border ${badgeColor} ${badgeBg} ${badgeBorder} shadow-sm`}>
                                                 <BadgeIcon size={14} /> {badgeLabel}
@@ -691,93 +711,50 @@ export const SchoolView = () => {
           {activeTab === 'calendar' && <CalendarTab subjects={subjects} schoolWorks={schoolWorks} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} />}
       </div>
 
-      {/* === MODAL DE GRADE HORÁRIA === */}
-      <ScheduleConfigModal 
-        isOpen={isScheduleModalOpen} 
-        onClose={() => setIsScheduleModalOpen(false)} 
-        subjects={subjects} 
-        schoolSchedule={schoolSchedule}
-        updateSchoolSchedule={updateSchoolSchedule}
-      />
-
-      {/* === MODAL DE TRABALHOS === */}
+      {/* MODAIS (MANTIDOS) */}
+      <ScheduleConfigModal isOpen={isScheduleModalOpen} onClose={() => setIsScheduleModalOpen(false)} subjects={subjects} schoolSchedule={schoolSchedule} updateSchoolSchedule={updateSchoolSchedule} />
+      
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Novo Trabalho">
         <form onSubmit={handleAddSubmit} className="space-y-4">
             <div>
                 <label className="text-xs text-zinc-500 font-bold uppercase">Matéria</label>
-                <select 
-                    required 
-                    className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
-                    value={form.subjectId}
-                    onChange={e => setForm({ ...form, subjectId: e.target.value })}
-                >
+                <select required className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary" value={form.subjectId} onChange={e => setForm({ ...form, subjectId: e.target.value })}>
                     <option value="">Selecione...</option>
                     {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
             </div>
             <div>
                 <label className="text-xs text-zinc-500 font-bold uppercase">Título</label>
-                <input 
-                    required 
-                    type="text" 
-                    placeholder="Ex: Redação..." 
-                    className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
-                    value={form.title}
-                    onChange={e => setForm({ ...form, title: e.target.value })}
-                />
+                <input required type="text" placeholder="Ex: Redação..." className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
             </div>
-            
             <div className="grid grid-cols-2 gap-4">
                 <div>
                     <label className="text-xs text-zinc-500 font-bold uppercase">Data de Entrega</label>
-                    <input 
-                        required 
-                        type="date" 
-                        className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
-                        value={form.dueDate}
-                        onChange={e => setForm({ ...form, dueDate: e.target.value })}
-                    />
+                    <input required type="date" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
                 </div>
                 <div>
                     <label className="text-xs text-zinc-500 font-bold uppercase">Vale Quanto?</label>
-                    <input 
-                        required 
-                        type="number" 
-                        min="1"
-                        placeholder="Ex: 10"
-                        className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
-                        value={form.maxGrade}
-                        onChange={e => setForm({ ...form, maxGrade: e.target.value })}
-                    />
+                    <input required type="number" min="1" placeholder="Ex: 10" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary" value={form.maxGrade} onChange={e => setForm({ ...form, maxGrade: e.target.value })} />
                 </div>
             </div>
-
             <div>
                 <label className="text-xs text-zinc-500 font-bold uppercase">Detalhes</label>
-                <textarea 
-                    className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-sm text-zinc-900 dark:text-white h-24 outline-none focus:border-primary resize-none"
-                    value={form.description}
-                    onChange={e => setForm({ ...form, description: e.target.value })}
-                />
+                <textarea className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-sm text-zinc-900 dark:text-white h-24 outline-none focus:border-primary resize-none" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
             </div>
             <Button type="submit" className="w-full mt-2">Salvar</Button>
         </form>
       </Modal>
 
-      {/* === MODAL DE DETALHES DO TRABALHO === */}
       {selectedWork && (
           <Modal isOpen={!!selectedWork} onClose={() => setSelectedWork(null)} title="Gerenciar Trabalho">
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
                     <div className="w-1.5 h-12 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === selectedWork.subjectId)?.color || '#555' }}></div>
                     <div>
-                        <p className="text-xs text-zinc-500 font-bold uppercase">
-                            {subjects.find(s => s.id === selectedWork.subjectId)?.name || 'Matéria Excluída'}
-                        </p>
+                        <p className="text-xs text-zinc-500 font-bold uppercase">{subjects.find(s => s.id === selectedWork.subjectId)?.name || 'Matéria Excluída'}</p>
                         <h2 className="text-xl font-bold text-zinc-900 dark:text-white leading-tight">{selectedWork.title}</h2>
                     </div>
                 </div>
-
                 <div>
                     <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Status Atual</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -785,52 +762,25 @@ export const SchoolView = () => {
                             const conf = statusConfig[st];
                             const isActive = selectedWork.status === st;
                             return (
-                                <button
-                                    key={st}
-                                    onClick={() => handleStatusChange(st)}
-                                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-bold transition-all
-                                        ${isActive 
-                                            ? `bg-primary text-white border-primary shadow-lg shadow-primary/20` 
-                                            : `bg-zinc-50 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:border-primary/50`
-                                        }
-                                    `}
-                                >
+                                <button key={st} onClick={() => handleStatusChange(st)} className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-bold transition-all ${isActive ? `bg-primary text-white border-primary shadow-lg shadow-primary/20` : `bg-zinc-50 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:border-primary/50`}`}>
                                     <conf.icon size={16} /> {conf.label}
                                 </button>
                             );
                         })}
                     </div>
                 </div>
-
                 {selectedWork.status === 'corrected' && (
                     <div className="animate-fadeIn bg-purple-500/5 border border-purple-500/20 p-4 rounded-2xl">
-                        <label className="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase flex items-center gap-2 mb-2">
-                            <ClipboardCheck size={14}/> Nota Final (0 - {selectedWork.maxGrade || 10})
-                        </label>
-                        <input 
-                            type="number" 
-                            step="0.1"
-                            max={selectedWork.maxGrade || 10}
-                            placeholder={`Max: ${selectedWork.maxGrade || 10}`}
-                            className="w-full bg-white dark:bg-black border border-purple-200 dark:border-purple-900/50 rounded-xl p-3 text-2xl font-bold text-center text-purple-700 dark:text-purple-300 outline-none focus:border-purple-500"
-                            value={selectedWork.grade === null ? '' : selectedWork.grade}
-                            onChange={(e) => handleGradeChange(e.target.value)}
-                        />
+                        <label className="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase flex items-center gap-2 mb-2"><ClipboardCheck size={14}/> Nota Final (0 - {selectedWork.maxGrade || 10})</label>
+                        <input type="number" step="0.1" max={selectedWork.maxGrade || 10} placeholder={`Max: ${selectedWork.maxGrade || 10}`} className="w-full bg-white dark:bg-black border border-purple-200 dark:border-purple-900/50 rounded-xl p-3 text-2xl font-bold text-center text-purple-700 dark:text-purple-300 outline-none focus:border-purple-500" value={selectedWork.grade === null ? '' : selectedWork.grade} onChange={(e) => handleGradeChange(e.target.value)} />
                     </div>
                 )}
-
                 <div className="bg-zinc-50 dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 min-h-[80px]">
                     <p className="text-[10px] font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1"><FileText size={10}/> Detalhes</p>
-                    <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                        {selectedWork.description || <span className="text-zinc-400 italic">Sem descrição.</span>}
-                    </p>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">{selectedWork.description || <span className="text-zinc-400 italic">Sem descrição.</span>}</p>
                 </div>
-
                 <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
-                    <button 
-                        onClick={() => { deleteWork(selectedWork.id); setSelectedWork(null); }}
-                        className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 transition-all font-bold text-sm"
-                    >
+                    <button onClick={() => { deleteWork(selectedWork.id); setSelectedWork(null); }} className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 transition-all font-bold text-sm">
                         <Trash2 size={16} /> Excluir Trabalho
                     </button>
                 </div>
@@ -838,17 +788,13 @@ export const SchoolView = () => {
           </Modal>
       )}
 
-      {/* === MODAL DE FALTAS === */}
       <Modal isOpen={isAddAbsenceModalOpen} onClose={() => setIsAddAbsenceModalOpen(false)} title="Registrar Falta">
             <form onSubmit={handleAbsenceSubmit} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="text-xs text-zinc-500 font-bold uppercase">Data</label>
                         <input type="date" required className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2.5 text-zinc-900 dark:text-white outline-none focus:border-primary" value={absForm.date} onChange={e => setAbsForm({...absForm, date: e.target.value})} />
-                        {/* Botão de Preenchimento Automático */}
-                        <button type="button" onClick={autoFillFromSchedule} className="text-xs text-primary hover:underline mt-1 font-medium">
-                            Preencher com grade do dia
-                        </button>
+                        <button type="button" onClick={autoFillFromSchedule} className="text-xs text-primary hover:underline mt-1 font-medium">Preencher com grade do dia</button>
                     </div>
                     <div>
                         <label className="text-xs text-zinc-500 font-bold uppercase">Motivo</label>
@@ -857,7 +803,6 @@ export const SchoolView = () => {
                         </select>
                     </div>
                 </div>
-
                 <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 max-h-[300px] overflow-y-auto custom-scrollbar">
                     <p className="text-xs text-zinc-500 font-bold uppercase mb-3 text-center">Quantas aulas você perdeu?</p>
                     <div className="space-y-3">
@@ -876,7 +821,6 @@ export const SchoolView = () => {
                         ))}
                     </div>
                 </div>
-
                 <div className="flex justify-between items-center px-2">
                     <span className="text-sm text-zinc-500">Total: <b className="text-zinc-900 dark:text-white">{Object.values(absForm.counts).reduce((a,b)=>a+b,0)} aulas</b></span>
                     <Button type="submit" className="px-8">Confirmar</Button>
