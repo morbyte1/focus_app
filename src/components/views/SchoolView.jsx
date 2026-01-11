@@ -1,7 +1,7 @@
 import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { 
     GraduationCap, Plus, Calendar, Clock, Trash2, FileText, CheckCircle, Send, ClipboardCheck, 
-    AlertOctagon, PieChart as PieChartIcon, ChevronLeft, ChevronRight, Minus, Settings, BookOpen, AlertTriangle 
+    AlertOctagon, PieChart as PieChartIcon, ChevronLeft, ChevronRight, Minus, Settings, BookOpen, AlertTriangle, TrendingUp 
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { FocusContext } from '../../context/FocusContext';
@@ -423,6 +423,28 @@ export const SchoolView = () => {
   const [isAddAbsenceModalOpen, setIsAddAbsenceModalOpen] = useState(false);
   const [absForm, setAbsForm] = useState({ date: new Date().toISOString().split('T')[0], reason: "Doença / Médico", counts: {} });
 
+  // --- CÁLCULO DE MÉDIAS (NOVO) ---
+  const gradeStats = useMemo(() => {
+    return subjects.map(sub => {
+        // Pega todos os trabalhos dessa matéria que tenham nota definida
+        const subWorks = schoolWorks.filter(w => w.subjectId === sub.id && w.grade !== null && w.grade !== undefined && w.grade !== "");
+        if (subWorks.length === 0) return null;
+
+        // Calcula média
+        const sum = subWorks.reduce((acc, curr) => acc + Number(curr.grade), 0);
+        const avg = sum / subWorks.length;
+
+        return {
+            id: sub.id,
+            name: sub.name,
+            color: sub.color,
+            average: avg
+        };
+    })
+    .filter(Boolean) // Remove matérias sem nota
+    .sort((a, b) => a.average - b.average); // Ordena da menor nota para a maior (Alerta primeiro)
+  }, [subjects, schoolWorks]);
+
   // --- LÓGICA ORIGINAL RESTAURADA ---
   const statusConfig = {
     pending: { label: 'Pendente', icon: Clock, color: 'text-zinc-500', bg: 'bg-zinc-100 dark:bg-zinc-800', border: 'border-zinc-200' },
@@ -530,6 +552,34 @@ export const SchoolView = () => {
       <div className="flex-1">
           {activeTab === 'works' && (
               <div className="space-y-4">
+                  
+                  {/* === PAINEL DE MÉDIAS (NOVO) === */}
+                  {gradeStats.length > 0 && (
+                      <div className="mb-2">
+                         <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-2">
+                            <TrendingUp size={14}/> Médias Atuais (Baseado em notas lançadas)
+                         </h3>
+                         <div className="flex gap-3 overflow-x-auto pb-4 custom-scrollbar">
+                            {gradeStats.map(stat => {
+                                const val = stat.average;
+                                let style = { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20' };
+                                if(val < 6) style = { bg: 'bg-red-500/10', text: 'text-red-500', border: 'border-red-500/20' };
+                                else if(val < 8) style = { bg: 'bg-yellow-500/10', text: 'text-yellow-600', border: 'border-yellow-500/20' };
+
+                                return (
+                                    <div key={stat.id} className={`flex-shrink-0 flex flex-col justify-between min-w-[130px] p-3 rounded-2xl border ${style.bg} ${style.border}`}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stat.color }}></div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider opacity-80 truncate text-zinc-700 dark:text-zinc-300">{stat.name}</span>
+                                        </div>
+                                        <span className={`text-3xl font-bold ${style.text}`}>{val.toFixed(1)}</span>
+                                    </div>
+                                )
+                            })}
+                         </div>
+                      </div>
+                  )}
+
                   <div className="flex justify-end">
                        <Button onClick={() => setIsAddModalOpen(true)} className="py-1.5 px-3 text-xs"><Plus size={16}/> Novo Trabalho</Button>
                   </div>
