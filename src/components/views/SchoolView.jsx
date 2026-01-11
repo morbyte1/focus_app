@@ -1,8 +1,7 @@
-import React, { useContext, useState, useMemo } from 'react';
-// IMPORTANDO TUDO QUE ERA USADO ORIGINALMENTE + ÍCONES NOVOS
+import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { 
     GraduationCap, Plus, Calendar, Clock, Trash2, FileText, CheckCircle, Send, ClipboardCheck, 
-    AlertOctagon, PieChart as PieChartIcon, ChevronLeft, ChevronRight, X, Minus 
+    AlertOctagon, PieChart as PieChartIcon, ChevronLeft, ChevronRight, Minus 
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { FocusContext } from '../../context/FocusContext';
@@ -17,15 +16,26 @@ const AbsencesTab = ({ subjects, schoolAbsences, deleteAbsenceRecord, setIsAddAb
         const map = {}; 
         let totalLost = 0;
 
+        // Mapa para motivos (Novo Gráfico)
+        const reasonMap = {};
+
         schoolAbsences.forEach(record => {
+            // Contagem por Matéria
             Object.entries(record.lessons).forEach(([subId, count]) => {
                 if (count > 0) {
                     map[subId] = (map[subId] || 0) + count;
                     totalLost += count;
                 }
             });
+
+            // Contagem por Motivo (Ponderado pelas aulas perdidas no dia)
+            const dailyLost = Object.values(record.lessons).reduce((a, b) => a + b, 0);
+            if (dailyLost > 0) {
+                reasonMap[record.reason] = (reasonMap[record.reason] || 0) + dailyLost;
+            }
         });
 
+        // 1. Dados Gráfico Matérias
         const sortedSubs = Object.entries(map)
             .map(([id, count]) => ({ id: Number(id), count }))
             .sort((a, b) => b.count - a.count);
@@ -39,14 +49,25 @@ const AbsencesTab = ({ subjects, schoolAbsences, deleteAbsenceRecord, setIsAddAb
             ? perfectSubs[0] 
             : (sortedSubs.length > 0 ? subjects.find(s => s.id === sortedSubs[sortedSubs.length - 1].id) : null);
 
-        const globalRate = Math.max(0, 100 - ((totalLost / 1000) * 100)).toFixed(1); 
+        // ATUALIZADO: Base de cálculo alterada para 1200 aulas
+        const globalRate = Math.max(0, 100 - ((totalLost / 1200) * 100)).toFixed(1); 
 
         const chartData = sortedSubs.map(item => {
             const sub = subjects.find(s => s.id === item.id);
             return { name: sub?.name || '?', value: item.count, color: sub?.color || '#555' };
         });
 
-        return { totalLost, critical, criticalCount, best, globalRate, chartData };
+        // 2. Dados Gráfico Motivos (Novo)
+        const REASON_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+        const reasonChartData = Object.entries(reasonMap)
+            .map(([reason, count], index) => ({
+                name: reason,
+                value: count,
+                color: REASON_COLORS[index % REASON_COLORS.length]
+            }))
+            .sort((a, b) => b.value - a.value);
+
+        return { totalLost, critical, criticalCount, best, globalRate, chartData, reasonChartData };
     }, [schoolAbsences, subjects]);
 
     return (
@@ -65,13 +86,14 @@ const AbsencesTab = ({ subjects, schoolAbsences, deleteAbsenceRecord, setIsAddAb
                 <Card className="border-l-4 border-blue-500 bg-blue-500/5">
                     <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Taxa Global (Est.)</p>
                     <h3 className="text-xl font-bold text-zinc-900 dark:text-white">{stats.globalRate}%</h3>
-                    <p className="text-sm text-blue-500 font-medium">Base: 1000 aulas/ano</p>
+                    <p className="text-sm text-blue-500 font-medium">Base: 1200 aulas/ano</p>
                 </Card>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Layout atualizado para suportar dois gráficos */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="min-h-[250px] flex flex-col">
-                    <h3 className="text-zinc-900 dark:text-white font-bold mb-4 flex items-center gap-2"><PieChartIcon size={18}/> Distribuição</h3>
+                    <h3 className="text-zinc-900 dark:text-white font-bold mb-4 flex items-center gap-2"><PieChartIcon size={18} className="text-primary"/> Distribuição por Matéria</h3>
                     <div className="flex-1 min-h-[200px]">
                         {stats.chartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
@@ -89,13 +111,39 @@ const AbsencesTab = ({ subjects, schoolAbsences, deleteAbsenceRecord, setIsAddAb
                     </div>
                 </Card>
 
-                <div className="flex flex-col gap-4">
-                    <div className="bg-zinc-100 dark:bg-zinc-900/50 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 text-center flex flex-col items-center justify-center flex-1">
-                        <AlertOctagon size={40} className="text-zinc-400 mb-2"/>
-                        <p className="text-zinc-600 dark:text-zinc-300 font-medium mb-4">Faltou hoje? Registre agora.</p>
-                        <Button onClick={() => setIsAddAbsenceModalOpen(true)} className="w-full"><Plus size={18}/> Registrar Falta</Button>
+                {/* Novo Gráfico de Motivos */}
+                <Card className="min-h-[250px] flex flex-col">
+                    <h3 className="text-zinc-900 dark:text-white font-bold mb-4 flex items-center gap-2"><AlertOctagon size={18} className="text-orange-500"/> Motivos Recorrentes</h3>
+                    <div className="flex-1 min-h-[200px]">
+                        {stats.reasonChartData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={stats.reasonChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                        {stats.reasonChartData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff' }} itemStyle={{ color: '#fff' }} />
+                                    <Legend verticalAlign="bottom" height={36}/>
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : <div className="h-full flex items-center justify-center text-zinc-400 text-sm">Sem dados suficientes.</div>}
+                    </div>
+                </Card>
+            </div>
+
+            {/* Seção de Registro movida para baixo */}
+            <div className="bg-zinc-100 dark:bg-zinc-900/50 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 text-center flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="text-left flex items-center gap-4">
+                    <div className="p-3 bg-white dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700">
+                        <AlertOctagon size={24} className="text-zinc-400"/>
+                    </div>
+                    <div>
+                        <p className="text-zinc-900 dark:text-white font-bold">Gerenciar Faltas</p>
+                        <p className="text-zinc-500 text-sm">Mantenha seu registro atualizado.</p>
                     </div>
                 </div>
+                <Button onClick={() => setIsAddAbsenceModalOpen(true)} className="w-full md:w-auto"><Plus size={18}/> Registrar Nova Falta</Button>
             </div>
 
             <div>
@@ -144,12 +192,19 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences }) => {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const works = schoolWorks.filter(w => w.dueDate === dateStr);
         const absence = schoolAbsences.find(a => a.date === dateStr);
-        if (works.length > 0 || absence) {
-            setSelectedDayInfo({ dateStr, works, absence });
-        } else {
-            setSelectedDayInfo(null);
-        }
+        // ATUALIZADO: Sempre define o objeto, mesmo se vazio, para mostrar a data selecionada
+        setSelectedDayInfo({ dateStr, works, absence });
     };
+
+    // ATUALIZADO: Auto-selecionar o dia atual ao montar o componente
+    useEffect(() => {
+        const today = new Date();
+        // Apenas se o calendário estiver exibindo o mês/ano corrente (comportamento padrão)
+        if (today.getMonth() === month && today.getFullYear() === year) {
+            handleDayClick(today.getDate());
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <div className="flex flex-col md:flex-row gap-6 animate-fadeIn h-full">
@@ -189,30 +244,42 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences }) => {
             <div className="w-full md:w-80 space-y-4">
                 {selectedDayInfo ? (
                     <Card className="animate-fadeIn bg-primary/5 border-primary/20">
+                        {/* ATUALIZADO: Botão de fechar removido */}
                         <div className="flex justify-between items-start mb-4">
-                            <h3 className="font-bold text-lg text-zinc-900 dark:text-white">{new Date(selectedDayInfo.dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}</h3>
-                            <button onClick={() => setSelectedDayInfo(null)}><X size={16} className="text-zinc-400"/></button>
+                            <h3 className="font-bold text-lg text-zinc-900 dark:text-white capitalize">{new Date(selectedDayInfo.dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
                         </div>
-                        {selectedDayInfo.absence && (
+                        
+                        {selectedDayInfo.absence ? (
                             <div className="mb-4 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
                                 <p className="text-xs font-bold text-red-500 uppercase mb-1 flex items-center gap-1"><AlertOctagon size={12}/> Falta Registrada</p>
                                 <p className="text-sm text-zinc-700 dark:text-zinc-300 font-medium mb-1">{selectedDayInfo.absence.reason}</p>
                                 <p className="text-xs text-zinc-500">{Object.entries(selectedDayInfo.absence.lessons).filter(([,c]) => c > 0).map(([id, c]) => `${c}x ${subjects.find(sub => sub.id === Number(id))?.name}`).join(', ')}</p>
                             </div>
+                        ) : (
+                            <div className="mb-4 text-center py-4 border-2 border-dashed border-zinc-200 dark:border-zinc-700 rounded-xl">
+                                <p className="text-xs text-zinc-400 font-bold uppercase">Presença OK</p>
+                            </div>
                         )}
-                        {selectedDayInfo.works.length > 0 && (
+
+                        {selectedDayInfo.works.length > 0 ? (
                             <div className="space-y-2">
-                                <p className="text-xs font-bold text-zinc-500 uppercase">Trabalhos</p>
+                                <p className="text-xs font-bold text-zinc-500 uppercase">Trabalhos do Dia</p>
                                 {selectedDayInfo.works.map(w => (
-                                    <div key={w.id} className="bg-white dark:bg-black p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-sm">
-                                        <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === w.subjectId)?.color }}/> <span className="text-xs text-zinc-500">{subjects.find(s => s.id === w.subjectId)?.name}</span></div>
-                                        <p className="font-medium text-zinc-900 dark:text-white truncate">{w.title}</p>
+                                    <div key={w.id} className="bg-white dark:bg-black p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 text-sm shadow-sm">
+                                        <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === w.subjectId)?.color }}/> <span className="text-xs text-zinc-500 font-bold uppercase">{subjects.find(s => s.id === w.subjectId)?.name}</span></div>
+                                        <p className="font-bold text-zinc-900 dark:text-white truncate mb-1">{w.title}</p>
+                                        <p className="text-xs text-zinc-500 line-clamp-2">{w.description || "Sem descrição."}</p>
                                     </div>
                                 ))}
                             </div>
+                        ) : (
+                             <div className="text-center py-4">
+                                <p className="text-xs text-zinc-400">Nenhum trabalho para este dia.</p>
+                             </div>
                         )}
                     </Card>
                 ) : (
+                    // Estado vazio (tecnicamente inalcançável se o useEffect funcionar e o usuário não navegar para meses vazios, mas mantido por segurança)
                     <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl text-zinc-400">
                         <Calendar size={32} className="mb-2 opacity-50"/>
                         <p className="text-sm">Selecione um dia.</p>
