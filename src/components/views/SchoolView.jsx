@@ -84,6 +84,7 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
 };
 
 // === TAB: FALTAS (REFORMULADA - VISUAL DARK/NEON) ===
+// === TAB: FALTAS (ATUALIZADO) ===
 const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen }) => {
     const stats = useMemo(() => {
         const absencesCountMap = {}; 
@@ -146,6 +147,31 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
         return { totalLost, critical, globalRate, riskData, reasonChartData, subjectChartData };
     }, [schoolAbsences, subjects, schoolSchedule]);
 
+    // === LÓGICA DE CORES DA PRESENÇA GLOBAL ===
+    const getPresenceColors = (rateStr) => {
+        const rate = parseFloat(rateStr);
+        if (rate < 80) {
+            return {
+                text: 'text-red-500',
+                bar: 'bg-red-500',
+                glow: 'bg-red-500/5'
+            };
+        } else if (rate <= 85) {
+            return {
+                text: 'text-yellow-500',
+                bar: 'bg-yellow-500',
+                glow: 'bg-yellow-500/5'
+            };
+        }
+        return {
+            text: 'text-emerald-500 dark:text-emerald-400',
+            bar: 'bg-emerald-500 dark:bg-emerald-400',
+            glow: 'bg-emerald-500/5'
+        };
+    };
+
+    const presenceColors = getPresenceColors(stats.globalRate);
+
     return (
         <div className="space-y-6 animate-fadeIn pb-12">
             
@@ -163,21 +189,21 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
             {/* Grid Principal estilo Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* 1. Card Presença Global (Verde Neon) */}
+                {/* 1. Card Presença Global (Cores Dinâmicas) */}
                 <div className="md:col-span-3 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm relative overflow-hidden">
-                     {/* Glow Effect Background */}
-                     <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-3xl rounded-full pointer-events-none"></div>
+                     {/* Glow Effect Background Dinâmico */}
+                     <div className={`absolute top-0 right-0 w-64 h-64 blur-3xl rounded-full pointer-events-none ${presenceColors.glow}`}></div>
                      
                      <div className="relative z-10">
                         <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2">Presença Global</p>
                         <div className="flex items-end gap-2 mb-4">
-                            <span className="text-5xl font-bold text-emerald-500 dark:text-emerald-400 tracking-tighter">{stats.globalRate}%</span>
+                            <span className={`text-5xl font-bold tracking-tighter ${presenceColors.text}`}>{stats.globalRate}%</span>
                             <span className="text-sm text-zinc-400 mb-2">anual</span>
                         </div>
                         {/* Barra de Progresso Fina */}
                         <div className="h-1.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                             <div 
-                                className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-1000 shadow-[0_0_10px_currentColor]" 
+                                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_currentColor] ${presenceColors.bar}`} 
                                 style={{ width: `${stats.globalRate}%` }}
                             ></div>
                         </div>
@@ -230,7 +256,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                                     <RechartsTooltip 
                                         contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff', borderRadius: '12px' }} 
                                         itemStyle={{ color: '#fff' }} 
-                                        formatter={(val) => `${val} aulas`}
+                                        formatter={(val) => [`${val} aulas`]}
                                     />
                                 </PieChart>
                             </ResponsiveContainer>
@@ -280,7 +306,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                     </div>
                 </div>
 
-                {/* Gráfico de Motivos (Mantido) */}
+                {/* Gráfico de Motivos (CORRIGIDO TOOLTIP) */}
                 <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col">
                     <h3 className="text-zinc-900 dark:text-white font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
                         Motivos das Faltas
@@ -301,7 +327,12 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff' }} />
+                                    {/* Correção do Tooltip aqui */}
+                                    <RechartsTooltip 
+                                        contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff', borderRadius: '12px' }} 
+                                        itemStyle={{ color: '#fff' }}
+                                        formatter={(val) => [`${val} aulas`]}
+                                    />
                                     <Legend verticalAlign="bottom" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle"/>
                                 </PieChart>
                             </ResponsiveContainer>
@@ -310,7 +341,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                 </div>
             </div>
 
-            {/* Histórico Recente (Ajustado ao Visual) */}
+            {/* Histórico Recente (Mantido) */}
             <div>
                 <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-4 mt-2">Histórico Recente</h3>
                 <div className="space-y-3">
