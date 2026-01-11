@@ -47,8 +47,9 @@ export const FocusProvider = ({ children }) => {
   const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
   const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
   
-  // === ESTADO: TRABALHOS ESCOLARES ===
+  // === ESTADO: ESCOLA (Trabalhos e Faltas) ===
   const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
+  const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
 
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
@@ -168,7 +169,6 @@ export const FocusProvider = ({ children }) => {
 
   // === MÉTODOS DE TRABALHOS ESCOLARES ===
   
-  // Adiciona novo trabalho com status 'pending' e grade null
   const addWork = (subjectId, title, dueDate, description) => {
     setSchoolWorks(prev => [...prev, {
       id: Date.now(),
@@ -181,7 +181,6 @@ export const FocusProvider = ({ children }) => {
     }]);
   };
 
-  // Atualiza um trabalho existente (status, nota, etc)
   const updateWork = (id, updates) => {
     setSchoolWorks(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
   };
@@ -192,8 +191,26 @@ export const FocusProvider = ({ children }) => {
     }
   };
 
+  // === MÉTODOS DE FALTAS (NOVO) ===
+  
+  // lessonsMap ex: { 1: 2, 3: 1 } -> Onde chave é ID da matéria e valor é qtd aulas
+  const addAbsenceRecord = (date, reason, lessonsMap) => {
+    setSchoolAbsences(prev => [...prev, {
+        id: Date.now(),
+        date, // YYYY-MM-DD
+        reason,
+        lessons: lessonsMap 
+    }]);
+  };
+
+  const deleteAbsenceRecord = (id) => {
+    if (window.confirm("Remover este registro de falta?")) {
+        setSchoolAbsences(prev => prev.filter(a => a.id !== id));
+    }
+  };
+
+
   const methods = {
-    // Agora aceita isSchool (padrão false)
     addSubject: (n, c, g, isSchool = false) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool }]),
     updateSubject: (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Math.max(0, Number(g)) } : s)),
     deleteSubject: (id) => { 
@@ -252,7 +269,8 @@ export const FocusProvider = ({ children }) => {
         userName, setUserName, 
         selectedHistoryDate, setSelectedHistoryDate, 
         subjects, sessions, tasks, mistakes, themes, 
-        schoolWorks, addWork, updateWork, deleteWork, // <-- EXPORTANDO updateWork AQUI
+        schoolWorks, addWork, updateWork, deleteWork, 
+        schoolAbsences, addAbsenceRecord, deleteAbsenceRecord, // <-- EXPORTANDO NOVOS MÉTODOS
         countdown, setCountdown, 
         userLevel, 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
