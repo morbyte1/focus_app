@@ -49,6 +49,7 @@ export const FocusProvider = ({ children }) => {
   
   // === ESTADO: ESCOLA (Trabalhos e Faltas) ===
   const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
+  // NOVO: Estado de Faltas
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
 
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
@@ -86,7 +87,6 @@ export const FocusProvider = ({ children }) => {
   
   useEffect(() => { if (subjects.length > 0 && !subjects.find(s => s.id === selectedSubjectId)) setSelectedSubjectId(subjects[0].id); }, [subjects, selectedSubjectId]);
   
-  // Correção de IDs de temas antigos (se houver)
   useEffect(() => { 
     if (themes.length > 0) {
         const healed = themes.map(t => ({ ...t, items: t.items.map((i, idx) => ({ ...i, id: i.id + (Math.random() * (idx + 1)) })) }));
@@ -154,8 +154,6 @@ export const FocusProvider = ({ children }) => {
     let xp = (Math.floor(mins / 10) * 50) + (cleanQs * 10);
     
     const sub = subjects.find(s => s.id === sId);
-    
-    // Se for matéria escolar (isSchool), não gera bônus de meta semanal, mas gera XP base
     if (sub && !sub.isSchool) {
       const startW = new Date(); 
       startW.setDate(startW.getDate() - startW.getDay()); 
@@ -167,17 +165,15 @@ export const FocusProvider = ({ children }) => {
     if (xp > 0) gainXP(xp, "Sessão");
   };
 
-  // === MÉTODOS DE TRABALHOS ESCOLARES ===
-  
   const addWork = (subjectId, title, dueDate, description) => {
     setSchoolWorks(prev => [...prev, {
       id: Date.now(),
       subjectId: Number(subjectId),
       title,
-      dueDate, // Formato YYYY-MM-DD
+      dueDate,
       description,
-      status: 'pending', // pending, done, delivered, corrected
-      grade: null        // Nota (number ou null)
+      status: 'pending',
+      grade: null
     }]);
   };
 
@@ -191,13 +187,11 @@ export const FocusProvider = ({ children }) => {
     }
   };
 
-  // === MÉTODOS DE FALTAS (NOVO) ===
-  
-  // lessonsMap ex: { 1: 2, 3: 1 } -> Onde chave é ID da matéria e valor é qtd aulas
+  // === NOVOS MÉTODOS PARA FALTAS ===
   const addAbsenceRecord = (date, reason, lessonsMap) => {
     setSchoolAbsences(prev => [...prev, {
         id: Date.now(),
-        date, // YYYY-MM-DD
+        date,
         reason,
         lessons: lessonsMap 
     }]);
@@ -208,7 +202,6 @@ export const FocusProvider = ({ children }) => {
         setSchoolAbsences(prev => prev.filter(a => a.id !== id));
     }
   };
-
 
   const methods = {
     addSubject: (n, c, g, isSchool = false) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool }]),
@@ -253,7 +246,6 @@ export const FocusProvider = ({ children }) => {
     const now = new Date(), m = now.getMonth(), y = now.getFullYear();
     const monthlyData = Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => ({ name: (i + 1).toString(), minutes: sessions.reduce((acc, s) => { const sd = new Date(s.date); return (sd.getDate() === i + 1 && sd.getMonth() === m && sd.getFullYear() === y) ? acc + s.minutes : acc; }, 0) }));
     
-    // Filtra apenas matérias que NÃO são isSchool para o ranking de estudo
     const activeSubjects = subjects.filter(s => !s.isSchool);
     const ranked = activeSubjects.map(s => ({ ...s, totalMins: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + c.minutes, 0) })).sort((a, b) => b.totalMins - a.totalMins);
     
@@ -270,7 +262,7 @@ export const FocusProvider = ({ children }) => {
         selectedHistoryDate, setSelectedHistoryDate, 
         subjects, sessions, tasks, mistakes, themes, 
         schoolWorks, addWork, updateWork, deleteWork, 
-        schoolAbsences, addAbsenceRecord, deleteAbsenceRecord, // <-- EXPORTANDO NOVOS MÉTODOS
+        schoolAbsences, addAbsenceRecord, deleteAbsenceRecord, // Exportando
         countdown, setCountdown, 
         userLevel, 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
