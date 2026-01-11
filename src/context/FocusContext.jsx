@@ -44,15 +44,14 @@ export const FocusProvider = ({ children }) => {
   const [tasks, setTasks] = useStickyState([], 'focus_tasks');
   const [mistakes, setMistakes] = useStickyState([], 'focus_mistakes');
   const [themes, setThemes] = useStickyState([], 'focus_themes');
-  const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
-  const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
   
-  // === ESTADO: ESCOLA (Trabalhos, Faltas e Grade) ===
+  // === ESTADOS NOVOS (ESCOLA) ===
   const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
-  // NOVO: Grade Horária (1=Seg, 2=Ter, ..., 5=Sex). Valor: Array de IDs de matérias
-  const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [] }, 'focus_school_schedule');
-
+  const [schoolSchedule, setSchoolSchedule] = useStickyState({}, 'focus_school_schedule');
+  
+  const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
+  const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [flowStoredTime, setFlowStoredTime] = useState(0);
@@ -64,7 +63,6 @@ export const FocusProvider = ({ children }) => {
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark'); 
-
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
@@ -87,14 +85,12 @@ export const FocusProvider = ({ children }) => {
   }, [theme]);
   
   useEffect(() => { if (subjects.length > 0 && !subjects.find(s => s.id === selectedSubjectId)) setSelectedSubjectId(subjects[0].id); }, [subjects, selectedSubjectId]);
-  
   useEffect(() => { 
     if (themes.length > 0) {
         const healed = themes.map(t => ({ ...t, items: t.items.map((i, idx) => ({ ...i, id: i.id + (Math.random() * (idx + 1)) })) }));
         if (JSON.stringify(themes) !== JSON.stringify(healed)) setThemes(healed);
     }
   }, []);
-
   useEffect(() => { document.title = timerState.active ? `${formatTime(timerState.timeLeft)} - ${timerState.mode === 'WORK' ? 'Foco' : 'Pausa'}` : "Focus App - Estudos & Produtividade"; }, [timerState.active, timerState.timeLeft, timerState.mode]);
 
   useEffect(() => {
@@ -147,78 +143,22 @@ export const FocusProvider = ({ children }) => {
     const sId = mSubId ? Number(mSubId) : selectedSubjectId;
     let cleanQs = Math.max(0, parseInt(qs) || 0);
     let cleanErrs = Math.max(0, parseInt(errs) || 0);
-    if (cleanErrs > cleanQs) {
-        alert(`Atenção: Você informou mais erros (${cleanErrs}) do que questões feitas (${cleanQs}). Ajustando o número de erros para ser igual ao total.`);
-        cleanErrs = cleanQs;
-    }
+    if (cleanErrs > cleanQs) cleanErrs = cleanQs;
     setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: cleanQs, errors: cleanErrs }]);
     let xp = (Math.floor(mins / 10) * 50) + (cleanQs * 10);
-    
     const sub = subjects.find(s => s.id === sId);
     if (sub && !sub.isSchool) {
-      const startW = new Date(); 
-      startW.setDate(startW.getDate() - startW.getDay()); 
-      startW.setHours(0,0,0,0);
+      const startW = new Date(); startW.setDate(startW.getDate() - startW.getDay()); startW.setHours(0,0,0,0);
       const prev = sessions.filter(s => s.subjectId === sId && new Date(s.date) >= startW).reduce((a, s) => a + s.minutes, 0);
       if (prev < sub.goalHours * 60 && (prev + mins) >= sub.goalHours * 60) { xp += 500; alert(`🏆 Meta semanal de ${sub.name} atingida! +500 XP`); }
     }
-    
     if (xp > 0) gainXP(xp, "Sessão");
-  };
-
-  const addWork = (subjectId, title, dueDate, description) => {
-    setSchoolWorks(prev => [...prev, {
-      id: Date.now(),
-      subjectId: Number(subjectId),
-      title,
-      dueDate,
-      description,
-      status: 'pending',
-      grade: null
-    }]);
-  };
-
-  const updateWork = (id, updates) => {
-    setSchoolWorks(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
-  };
-
-  const deleteWork = (id) => {
-    if (window.confirm("Remover este trabalho?")) {
-      setSchoolWorks(prev => prev.filter(w => w.id !== id));
-    }
-  };
-
-  // === MÉTODOS PARA FALTAS E GRADE ===
-  const addAbsenceRecord = (date, reason, lessonsMap) => {
-    setSchoolAbsences(prev => [...prev, {
-        id: Date.now(),
-        date,
-        reason,
-        lessons: lessonsMap 
-    }]);
-  };
-
-  const deleteAbsenceRecord = (id) => {
-    if (window.confirm("Remover este registro de falta?")) {
-        setSchoolAbsences(prev => prev.filter(a => a.id !== id));
-    }
-  };
-
-  // Método para atualizar a grade (recebe dia 1-5 e array de ids de matérias)
-  const updateSchoolSchedule = (dayIndex, lessonsArray) => {
-    setSchoolSchedule(prev => ({ ...prev, [dayIndex]: lessonsArray }));
   };
 
   const methods = {
     addSubject: (n, c, g, isSchool = false) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool }]),
     updateSubject: (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Math.max(0, Number(g)) } : s)),
-    deleteSubject: (id) => { 
-        if (subjects.length > 1 && window.confirm("Excluir?")) { 
-            const r = subjects.filter(s => s.id !== id); 
-            setSubjects(r); 
-            if (selectedSubjectId === id) setSelectedSubjectId(r[0].id); 
-        } else if(subjects.length<=1) alert("Mantenha uma matéria."); 
-    },
+    deleteSubject: (id) => { if (subjects.length > 1 && window.confirm("Excluir?")) { const r = subjects.filter(s => s.id !== id); setSubjects(r); if (selectedSubjectId === id) setSelectedSubjectId(r[0].id); } else if(subjects.length<=1) alert("Mantenha uma matéria."); },
     addTask: (t, sId) => setTasks(p => [...p, { id: Date.now(), text: t, completed: false, subjectId: sId }]),
     toggleTask: (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t)),
     deleteTask: (id) => window.confirm("Excluir?") && setTasks(p => p.filter(t => t.id !== id)),
@@ -230,6 +170,28 @@ export const FocusProvider = ({ children }) => {
     addThemeItem: (tId, txt) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text: txt, completed: false }] } : t)),
     toggleThemeItem: (tId, iId) => setThemes(p => { const t = p.find(x => x.id === tId), i = t?.items.find(x => x.id === iId); if(i && !i.completed) gainXP(20); return p.map(x => x.id === tId ? { ...x, items: x.items.map(y => y.id === iId ? { ...y, completed: !y.completed } : y) } : x); }),
     deleteThemeItem: (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.filter(i => i.id !== iId) } : t)),
+    
+    // === MÉTODOS ESCOLARES (ATUALIZADOS) ===
+    addWork: (subjectId, title, dueDate, description, maxGrade) => setSchoolWorks(p => [...p, { 
+        id: Date.now(), 
+        subjectId: Number(subjectId), 
+        title, 
+        dueDate, 
+        description, 
+        status: 'pending', 
+        grade: null, 
+        maxGrade: Number(maxGrade) || 10 // AQUI ESTÁ A CORREÇÃO: Salva o valor máximo ou usa 10 como padrão
+    }]),
+    updateWork: (id, updates) => setSchoolWorks(p => p.map(w => w.id === id ? { ...w, ...updates } : w)),
+    deleteWork: (id) => window.confirm("Excluir trabalho?") && setSchoolWorks(p => p.filter(w => w.id !== id)),
+    
+    addAbsenceRecord: (date, reason, lessonsMap) => { // lessonsMap: { subjectId: count }
+        setSchoolAbsences(p => [...p, { id: Date.now(), date, reason, lessons: lessonsMap }]);
+    },
+    deleteAbsenceRecord: (id) => window.confirm("Excluir registro de falta?") && setSchoolAbsences(p => p.filter(a => a.id !== id)),
+    
+    updateSchoolSchedule: (dayId, lessonsArray) => setSchoolSchedule(p => ({ ...p, [dayId]: lessonsArray })),
+
     resetXPOnly: () => window.confirm("Resetar nível?") && (setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }) || alert("Nível resetado.")),
     resetAllData: () => window.confirm("Apagar TUDO?") && (localStorage.clear() || window.location.reload()),
     deleteDayHistory: (d) => window.confirm(`Apagar ${d}?`) && setSessions(p => p.filter(s => new Date(s.date).toDateString() !== d))
@@ -269,7 +231,7 @@ export const FocusProvider = ({ children }) => {
         subjects, sessions, tasks, mistakes, themes, 
         schoolWorks, addWork, updateWork, deleteWork, 
         schoolAbsences, addAbsenceRecord, deleteAbsenceRecord, 
-        schoolSchedule, updateSchoolSchedule, // Exportando Grade Horária
+        schoolSchedule, updateSchoolSchedule,
         countdown, setCountdown, 
         userLevel, 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
@@ -279,12 +241,7 @@ export const FocusProvider = ({ children }) => {
         cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), 
         selectedSubjectId, setSelectedSubjectId, 
         flowStoredTime, setFlowStoredTime, 
-        elapsedTime, setElapsedTime, 
-        kpiData, weeklyChartData, advancedStats, 
-        addSession, 
-        theme, setTheme, 
-        ...methods 
-    }}>
+        elapsedTime, setElapsedTime, kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, ...methods }}>
       {children}
     </FocusContext.Provider>
   );

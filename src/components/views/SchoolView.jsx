@@ -9,6 +9,12 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 
+// === CONSTANTES DE CONFIGURAÇÃO ===
+const GRADE_THRESHOLDS = {
+    WARNING: 6.0,   // Abaixo disso é vermelho
+    ATTENTION: 8.0  // Abaixo disso é amarelo, acima é verde
+};
+
 // === SUB-COMPONENTES NOVOS (FALTAS, CALENDÁRIO, GRADE) ===
 
 // Modal de Configuração da Grade Horária
@@ -31,50 +37,55 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
         updated.splice(index, 1);
         updateSchoolSchedule(dayId, updated);
     };
+    
+    // NOVO: Função para limpar o dia inteiro
+    const clearDay = (dayId) => {
+        if(window.confirm("Limpar todas as aulas deste dia?")) {
+            updateSchoolSchedule(dayId, []);
+        }
+    }
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Configurar Grade Horária">
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar p-1">
-                <p className="text-sm text-zinc-500">Defina suas aulas semanais para calcular os limites de faltas e organizar o calendário.</p>
-                
-                <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
+                <p className="text-sm text-zinc-500">Defina suas aulas para calcular corretamente os riscos de faltas.</p>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     {days.map(d => (
-                        <div key={d.id} className="min-w-[160px] flex-1 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-3 flex flex-col">
-                            <h4 className="font-bold text-center text-zinc-900 dark:text-white mb-3 uppercase text-xs tracking-wider">{d.name}</h4>
+                        <div key={d.id} className="bg-zinc-50 dark:bg-zinc-900 rounded-xl p-3 border border-zinc-200 dark:border-zinc-800 flex flex-col h-full min-h-[200px]">
+                            <div className="flex justify-between items-center mb-3">
+                                <h4 className="font-bold text-zinc-700 dark:text-zinc-300">{d.name}</h4>
+                                <button onClick={() => clearDay(d.id)} className="text-xs text-red-400 hover:text-red-500">Limpar</button>
+                            </div>
                             
                             <div className="flex-1 space-y-2 mb-3">
-                                {(schoolSchedule[d.id] || []).map((lessonSubId, idx) => {
-                                    const sub = subjects.find(s => s.id === lessonSubId);
+                                {(schoolSchedule[d.id] || []).map((sId, idx) => {
+                                    const sub = subjects.find(s => s.id === sId);
                                     return (
-                                        <div key={idx} className="flex items-center justify-between bg-white dark:bg-black p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs shadow-sm">
+                                        <div key={idx} className="flex justify-between items-center bg-white dark:bg-black p-2 rounded-lg border border-zinc-100 dark:border-zinc-800 text-xs shadow-sm">
                                             <div className="flex items-center gap-2 truncate">
-                                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub?.color || '#555' }}></div>
-                                                <span className="truncate text-zinc-700 dark:text-zinc-300 font-medium">{sub?.name || '?'}</span>
+                                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub?.color || '#ccc' }}></div>
+                                                <span className="truncate max-w-[80px] text-zinc-700 dark:text-zinc-300">{sub?.name || '???'}</span>
                                             </div>
                                             <button onClick={() => removeLesson(d.id, idx)} className="text-zinc-400 hover:text-red-500"><Trash2 size={12}/></button>
                                         </div>
-                                    )
+                                    );
                                 })}
-                                {(schoolSchedule[d.id] || []).length === 0 && <p className="text-center text-zinc-400 text-[10px] italic py-2">Sem aulas</p>}
+                                {(!schoolSchedule[d.id] || schoolSchedule[d.id].length === 0) && <p className="text-xs text-zinc-400 text-center py-4">Sem aulas</p>}
                             </div>
 
                             {addingToDay === d.id ? (
-                                <div className="animate-fadeIn">
-                                    <select 
-                                        autoFocus
-                                        className="w-full text-xs bg-white dark:bg-black border border-primary rounded-xl p-2 outline-none mb-2"
-                                        onChange={(e) => e.target.value && addLesson(d.id, e.target.value)}
-                                        onBlur={() => setAddingToDay(null)}
-                                        defaultValue=""
-                                    >
-                                        <option value="">Escolha...</option>
-                                        {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
+                                <div className="animate-fadeIn space-y-1">
+                                    <div className="grid grid-cols-1 gap-1 max-h-32 overflow-y-auto">
+                                        {subjects.map(s => (
+                                            <button key={s.id} onClick={() => addLesson(d.id, s.id)} className="text-left text-xs p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 truncate">
+                                                {s.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <button onClick={() => setAddingToDay(null)} className="w-full text-xs text-red-500 mt-1">Cancelar</button>
                                 </div>
                             ) : (
-                                <button onClick={() => setAddingToDay(d.id)} className="w-full py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-xl text-zinc-600 dark:text-zinc-400 text-xs font-bold transition-colors">
-                                    + Adicionar
-                                </button>
+                                <Button onClick={() => setAddingToDay(d.id)} className="w-full text-xs py-1"><Plus size={12}/> Aula</Button>
                             )}
                         </div>
                     ))}
@@ -84,190 +95,341 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
     );
 };
 
-const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen }) => {
-    // Cálculo avançado de estatísticas e limites baseados na Grade Horária
-    const stats = useMemo(() => {
-        const absencesCountMap = {}; 
-        let totalLost = 0;
-        const reasonMap = {};
+// Componente Interno: Calendário Escolar
+const CalendarTab = ({ schoolWorks, schoolAbsences, schoolSchedule, subjects }) => {
+    const today = new Date();
+    const [currDate, setCurrDate] = useState(today);
+    const [selectedDay, setSelectedDay] = useState(null);
 
-        // 1. Contar Faltas Reais
-        schoolAbsences.forEach(record => {
-            Object.entries(record.lessons).forEach(([subId, count]) => {
-                if (count > 0) {
-                    absencesCountMap[subId] = (absencesCountMap[subId] || 0) + count;
-                    totalLost += count;
-                }
-            });
-            const dailyLost = Object.values(record.lessons).reduce((a, b) => a + b, 0);
-            if (dailyLost > 0) {
-                reasonMap[record.reason] = (reasonMap[record.reason] || 0) + dailyLost;
-            }
-        });
-
-        // 2. Calcular Limites Baseados na Grade (40 Semanas Letivas)
-        const SCHOOL_WEEKS = 40;
-        const MAX_ABSENCE_PERCENTAGE = 0.25;
+    // Auto-selecionar o dia atual ao carregar
+    useEffect(() => {
+        const tStr = new Date().toISOString().split('T')[0];
+        const works = schoolWorks.filter(w => w.dueDate.split('T')[0] === tStr);
+        const absence = schoolAbsences.find(a => a.date === tStr);
+        const dayOfWeek = new Date().getDay(); // 0=Dom, 1=Seg...
+        const lessons = schoolSchedule[dayOfWeek] || [];
         
-        // Frequência semanal por matéria
-        const weeklyFreq = {};
-        Object.values(schoolSchedule).flat().forEach(subId => {
-            weeklyFreq[subId] = (weeklyFreq[subId] || 0) + 1;
+        setSelectedDay({
+            date: tStr,
+            works,
+            absence,
+            lessons
         });
+    }, [schoolWorks, schoolAbsences, schoolSchedule]);
 
-        // Total de aulas no ano (soma de todas as frequencias * 40)
-        const totalAnnualClassesGlobal = Object.values(weeklyFreq).reduce((a, b) => a + b, 0) * SCHOOL_WEEKS;
+    const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+    const daysInMonth = getDaysInMonth(currDate.getFullYear(), currDate.getMonth());
+    const firstDay = new Date(currDate.getFullYear(), currDate.getMonth(), 1).getDay();
 
-        // Montar dados de Risco por Matéria
-        const riskData = subjects.map(sub => {
-            const freq = weeklyFreq[sub.id] || 0;
-            const totalAnnual = freq * SCHOOL_WEEKS;
-            const limit = Math.floor(totalAnnual * MAX_ABSENCE_PERCENTAGE);
-            const current = absencesCountMap[sub.id] || 0;
-            const percentageUsed = limit > 0 ? (current / limit) * 100 : 0;
-            
-            return {
-                ...sub,
-                freq,
-                totalAnnual,
-                limit,
-                current,
-                percentageUsed
-            };
-        }).filter(d => d.freq > 0).sort((a, b) => b.percentageUsed - a.percentageUsed);
-
-        // Identificar Crítico e Melhor
-        const critical = riskData.length > 0 && riskData[0].current > 0 ? riskData[0] : null;
+    const handleDayClick = (day) => {
+        const d = new Date(currDate.getFullYear(), currDate.getMonth(), day);
+        const dStr = d.toISOString().split('T')[0];
+        const works = schoolWorks.filter(w => w.dueDate.split('T')[0] === dStr);
+        const absence = schoolAbsences.find(a => a.date === dStr);
+        const dayOfWeek = d.getDay(); // 0-6
+        const lessons = schoolSchedule[dayOfWeek] || [];
         
-        // Taxa Global Real (Baseada na Grade)
-        const globalRate = totalAnnualClassesGlobal > 0 
-            ? Math.max(0, 100 - ((totalLost / totalAnnualClassesGlobal) * 100)).toFixed(1)
-            : "100.0";
-
-        // Gráfico de Pizza (Motivos)
-        const REASON_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
-        const reasonChartData = Object.entries(reasonMap)
-            .map(([reason, count], index) => ({
-                name: reason,
-                value: count,
-                color: REASON_COLORS[index % REASON_COLORS.length]
-            }))
-            .sort((a, b) => b.value - a.value);
-
-        return { totalLost, critical, globalRate, riskData, reasonChartData, totalAnnualClassesGlobal };
-    }, [schoolAbsences, subjects, schoolSchedule]);
+        setSelectedDay({ date: dStr, works, absence, lessons });
+    };
 
     return (
-        <div className="space-y-6 animate-fadeIn">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-l-4 border-red-500 bg-red-500/5">
-                    <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Risco Crítico</p>
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white truncate">{stats.critical?.name || "Nenhuma"}</h3>
-                    <p className="text-sm text-red-500 font-medium">
-                        {stats.critical ? `${stats.critical.current} / ${stats.critical.limit} faltas` : "Tudo sob controle"}
-                    </p>
-                </Card>
-                <Card className="border-l-4 border-blue-500 bg-blue-500/5">
-                    <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Frequência Global</p>
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white">{stats.globalRate}%</h3>
-                    <p className="text-sm text-blue-500 font-medium">Base: {stats.totalAnnualClassesGlobal} aulas/ano</p>
-                </Card>
-                <Card className="border-l-4 border-orange-500 bg-orange-500/5 cursor-pointer hover:bg-orange-500/10 transition-colors" onClick={() => setIsAddAbsenceModalOpen(true)}>
-                    <p className="text-xs text-zinc-500 uppercase font-bold mb-1">Ação Rápida</p>
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2"><Plus size={20}/> Registrar</h3>
-                    <p className="text-sm text-orange-500 font-medium">Adicionar falta</p>
-                </Card>
+        <div className="flex flex-col lg:flex-row gap-6 h-full">
+            <div className="flex-1 bg-white dark:bg-zinc-900/50 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-zinc-900 dark:text-white capitalize">
+                        {currDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                    </h2>
+                    <div className="flex gap-2">
+                        <button onClick={() => setCurrDate(new Date(currDate.getFullYear(), currDate.getMonth() - 1))} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-600 dark:text-zinc-400"><ChevronLeft size={20}/></button>
+                        <button onClick={() => setCurrDate(new Date(currDate.getFullYear(), currDate.getMonth() + 1))} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-600 dark:text-zinc-400"><ChevronRight size={20}/></button>
+                    </div>
+                </div>
+                <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-bold text-zinc-400 uppercase">
+                    {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                    {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const dStr = new Date(currDate.getFullYear(), currDate.getMonth(), day).toISOString().split('T')[0];
+                        const hasWork = schoolWorks.some(w => w.dueDate.split('T')[0] === dStr);
+                        const hasAbsence = schoolAbsences.some(a => a.date === dStr);
+                        const isSelected = selectedDay?.date === dStr;
+                        
+                        let classes = "h-14 rounded-2xl flex flex-col items-center justify-center text-sm font-medium transition-all relative border border-transparent ";
+                        if (isSelected) classes += "bg-primary/10 border-primary text-primary ";
+                        else classes += "hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 ";
+                        
+                        // Lógica visual de Falta: Vermelho + Sublinhado
+                        if (hasAbsence) classes += "text-red-500 font-bold underline decoration-2 underline-offset-4 decoration-red-500 ";
+
+                        return (
+                            <button key={day} onClick={() => handleDayClick(day)} className={classes}>
+                                {day}
+                                {hasWork && <div className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Monitor de Risco (Barra de Progresso) */}
-                <div className="lg:col-span-2">
-                    <Card className="h-full">
-                        <h3 className="text-zinc-900 dark:text-white font-bold mb-6 flex items-center gap-2">
-                            <AlertTriangle size={18} className="text-yellow-500"/> Monitor de Risco (Limite 25%)
+            {/* Painel Lateral do Calendário */}
+            <div className="w-full lg:w-80 bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 flex flex-col">
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <span className="text-xs font-bold text-zinc-400 uppercase">Detalhes do Dia</span>
+                        <h3 className="text-2xl font-bold text-zinc-900 dark:text-white mt-1">
+                            {selectedDay ? new Date(selectedDay.date).toLocaleDateString() : 'Selecione'}
                         </h3>
-                        <div className="space-y-5">
-                            {stats.riskData.length === 0 ? (
-                                <p className="text-center text-zinc-400 text-sm py-10">Configure sua Grade Horária para ver os limites de faltas.</p>
-                            ) : (
-                                stats.riskData.map(d => {
-                                    const percentage = Math.min(100, (d.current / d.limit) * 100);
-                                    let barColor = 'bg-emerald-500';
-                                    if (percentage >= 75) barColor = 'bg-red-500';
-                                    else if (percentage >= 50) barColor = 'bg-yellow-500';
-
-                                    return (
-                                        <div key={d.id}>
-                                            <div className="flex justify-between items-end mb-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-bold text-zinc-900 dark:text-white">{d.name}</span>
-                                                    <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">{d.freq} aulas/sem</span>
-                                                </div>
-                                                <span className={`text-xs font-bold ${percentage >= 75 ? 'text-red-500' : 'text-zinc-500'}`}>
-                                                    {d.current} / {d.limit} ({percentage.toFixed(0)}%)
-                                                </span>
-                                            </div>
-                                            <div className="w-full h-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full rounded-full transition-all duration-1000 ${barColor}`} 
-                                                    style={{ width: `${percentage}%` }}
-                                                ></div>
-                                            </div>
-                                        </div>
-                                    )
-                                })
-                            )}
-                        </div>
-                    </Card>
+                    </div>
+                    {/* Botão de fechar removido conforme solicitado */}
                 </div>
+                
+                {selectedDay ? (
+                    <div className="space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                        {/* Grade do Dia */}
+                        <div>
+                            <h4 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-2"><Clock size={14}/> Grade de Aulas</h4>
+                            {selectedDay.lessons.length > 0 ? (
+                                <div className="space-y-2">
+                                    {selectedDay.lessons.map((sId, idx) => {
+                                        const sub = subjects.find(s => s.id === sId);
+                                        return (
+                                            <div key={idx} className="flex items-center gap-3 p-2 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                                                <span className="text-xs font-mono text-zinc-400 w-4">{idx+1}º</span>
+                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sub?.color }}></div>
+                                                <span className="text-sm text-zinc-700 dark:text-zinc-300">{sub?.name}</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            ) : <p className="text-sm text-zinc-400 italic">Sem aulas registradas.</p>}
+                        </div>
 
-                {/* Gráfico de Motivos */}
-                <Card className="min-h-[300px] flex flex-col">
-                    <h3 className="text-zinc-900 dark:text-white font-bold mb-4 flex items-center gap-2"><AlertOctagon size={18} className="text-orange-500"/> Motivos</h3>
-                    <div className="flex-1 min-h-[200px]">
-                        {stats.reasonChartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie data={stats.reasonChartData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value">
-                                        {stats.reasonChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Pie>
-                                    <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff' }} itemStyle={{ color: '#fff' }} />
-                                    <Legend verticalAlign="bottom" wrapperStyle={{fontSize: '10px'}}/>
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-zinc-400 text-sm">Sem dados.</div>}
+                        {/* Trabalhos */}
+                        <div>
+                            <h4 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-2"><BookOpen size={14}/> Entregas</h4>
+                            {selectedDay.works.length > 0 ? (
+                                <div className="space-y-2">
+                                    {selectedDay.works.map(w => {
+                                        const sub = subjects.find(s => s.id === w.subjectId);
+                                        return (
+                                            <div key={w.id} className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/20">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: sub?.color }} />
+                                                    <span className="text-xs font-bold text-zinc-500 uppercase">{sub?.name}</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-blue-700 dark:text-blue-300">{w.title}</p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : <p className="text-sm text-zinc-400 italic">Nada para entregar.</p>}
+                        </div>
+
+                        {/* Faltas */}
+                        <div>
+                            <h4 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-2"><AlertOctagon size={14}/> Faltas</h4>
+                            {selectedDay.absence ? (
+                                <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/20">
+                                    <p className="font-bold text-red-700 dark:text-red-400">{selectedDay.absence.reason}</p>
+                                    <div className="mt-3 space-y-1">
+                                        {Object.entries(selectedDay.absence.lessons).map(([sId, count]) => {
+                                            if(count === 0) return null;
+                                            const sub = subjects.find(s => s.id === Number(sId));
+                                            return (
+                                                <div key={sId} className="flex justify-between text-xs text-red-600/80">
+                                                    <span>{sub?.name}</span>
+                                                    <span>{count} aulas</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            ) : <p className="text-sm text-zinc-400 italic">Presença confirmada.</p>}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-zinc-400">
+                        <Calendar size={48} className="mb-4 opacity-20" />
+                        <p>Selecione um dia</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// Componente Interno: Painel de Faltas
+const AbsencesTab = ({ schoolAbsences, deleteAbsenceRecord, subjects, schoolSchedule }) => {
+    // KPI 1: Taxa Global (Base 1200 aulas)
+    const totalLost = schoolAbsences.reduce((acc, abs) => {
+        return acc + Object.values(abs.lessons).reduce((a, b) => a + b, 0);
+    }, 0);
+    const globalRate = Math.max(0, 100 - ((totalLost / 1200) * 100)).toFixed(1);
+
+    // KPI 2: Por Matéria
+    const bySubject = useMemo(() => {
+        const counts = {};
+        schoolAbsences.forEach(abs => {
+            Object.entries(abs.lessons).forEach(([sId, count]) => {
+                counts[sId] = (counts[sId] || 0) + count;
+            });
+        });
+        return Object.entries(counts).map(([id, qtd]) => {
+            const sub = subjects.find(s => s.id === Number(id));
+            return { name: sub?.name || '?', value: qtd, color: sub?.color || '#ccc', id: Number(id) };
+        }).sort((a, b) => b.value - a.value);
+    }, [schoolAbsences, subjects]);
+
+    // KPI 3: Por Motivo
+    const byReason = useMemo(() => {
+        const counts = {};
+        schoolAbsences.forEach(abs => {
+            counts[abs.reason] = (counts[abs.reason] || 0) + 1;
+        });
+        const COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+        return Object.entries(counts).map(([r, q], i) => ({ name: r, value: q, color: COLORS[i % COLORS.length] }));
+    }, [schoolAbsences]);
+
+    const activeSubjects = subjects.filter(s => !s.isSchool);
+
+    return (
+        <div className="space-y-6">
+            {/* KPIs Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                    <span className="text-xs font-bold text-zinc-500 uppercase">Presença Global</span>
+                    <div className="mt-2 flex items-end gap-2">
+                        <span className={`text-3xl font-bold ${Number(globalRate) < 75 ? 'text-red-500' : 'text-emerald-500'}`}>{globalRate}%</span>
+                        <span className="text-xs text-zinc-400 mb-1">anual</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full mt-3 overflow-hidden">
+                        <div className={`h-full rounded-full ${Number(globalRate) < 75 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${globalRate}%` }} />
+                    </div>
+                </Card>
+                <Card>
+                    <span className="text-xs font-bold text-zinc-500 uppercase">Mais Faltas</span>
+                    <div className="mt-2">
+                        <span className="text-xl font-bold text-zinc-900 dark:text-white truncate block">{bySubject[0]?.name || 'Nenhuma'}</span>
+                        <span className="text-sm text-red-500 font-medium">{bySubject[0]?.value || 0} aulas perdidas</span>
+                    </div>
+                </Card>
+                <Card>
+                    <span className="text-xs font-bold text-zinc-500 uppercase">Total Acumulado</span>
+                    <div className="mt-2">
+                        <span className="text-3xl font-bold text-zinc-900 dark:text-white">{totalLost}</span>
+                        <span className="text-xs text-zinc-500"> aulas</span>
                     </div>
                 </Card>
             </div>
 
-            {/* Lista Histórico */}
+            {/* Gráficos */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="min-h-[300px] flex flex-col">
+                    <h3 className="font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><PieChartIcon size={18}/> Faltas por Matéria</h3>
+                    <div className="flex-1 min-h-[200px]">
+                        {bySubject.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={bySubject} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                        {bySubject.map((entry, index) => <Cell key={index} fill={entry.color} />)}
+                                    </Pie>
+                                    <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', borderRadius: '12px', border: '1px solid #333' }} itemStyle={{ color: '#fff' }} />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : <div className="h-full flex items-center justify-center text-zinc-400 text-sm">Sem dados</div>}
+                    </div>
+                </Card>
+                <Card className="min-h-[300px] flex flex-col">
+                    <h3 className="font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><AlertOctagon size={18}/> Motivos Recorrentes</h3>
+                    <div className="flex-1 min-h-[200px]">
+                        {byReason.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={byReason} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                        {byReason.map((entry, index) => <Cell key={index} fill={entry.color} />)}
+                                    </Pie>
+                                    <RechartsTooltip contentStyle={{ backgroundColor: '#09090b', borderRadius: '12px', border: '1px solid #333' }} itemStyle={{ color: '#fff' }} />
+                                    <Legend verticalAlign="bottom" height={36}/>
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : <div className="h-full flex items-center justify-center text-zinc-400 text-sm">Sem dados</div>}
+                    </div>
+                </Card>
+            </div>
+
+            {/* Monitor de Risco (Limite 25%) */}
+            <Card>
+                <h3 className="font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2"><TrendingUp size={18}/> Risco de Reprovação (Limite 25%)</h3>
+                
+                {/* AVISO SE A GRADE ESTIVER VAZIA */}
+                {Object.keys(schoolSchedule).length === 0 ? (
+                    <div className="p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl flex items-center gap-3 mb-4">
+                        <AlertTriangle className="text-yellow-600 dark:text-yellow-500 flex-shrink-0" />
+                        <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                            Configure sua <b>Grade Horária</b> (botão de engrenagem no topo) para calcular seus limites de falta corretamente.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {activeSubjects.map(s => {
+                            // 1. Calcular quantas aulas dessa matéria tem na semana
+                            let lessonsPerWeek = 0;
+                            Object.values(schoolSchedule).forEach(dayLessons => {
+                                lessonsPerWeek += dayLessons.filter(id => id === s.id).length;
+                            });
+
+                            if (lessonsPerWeek === 0) return null; // Não mostra matérias que não estão na grade
+
+                            // 2. Calcular limite anual (40 semanas letivas)
+                            const totalAnnualLessons = lessonsPerWeek * 40;
+                            const limitAbsences = Math.floor(totalAnnualLessons * 0.25);
+                            
+                            // 3. Faltas atuais
+                            const currentAbsences = bySubject.find(x => x.id === s.id)?.value || 0;
+                            const percentageUsed = (currentAbsences / limitAbsences) * 100;
+
+                            // 4. Cor do risco
+                            let barColor = 'bg-emerald-500';
+                            if (percentageUsed > 50) barColor = 'bg-yellow-500';
+                            if (percentageUsed > 80) barColor = 'bg-red-500';
+
+                            return (
+                                <div key={s.id}>
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="font-medium text-zinc-700 dark:text-zinc-300">{s.name}</span>
+                                        <span className="text-zinc-500">{currentAbsences} / {limitAbsences} permitidas</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(100, percentageUsed)}%` }} />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </Card>
+
+            {/* Histórico Recente */}
             <div>
-                <h3 className="text-zinc-900 dark:text-white font-bold mb-4">Histórico Recente</h3>
+                <h3 className="text-sm font-bold text-zinc-500 uppercase mb-3">Histórico Recente</h3>
                 <div className="space-y-3">
-                    {schoolAbsences.length === 0 ? <p className="text-zinc-500 italic text-sm">Nenhum registro.</p> : 
-                    [...schoolAbsences].sort((a,b) => new Date(b.date) - new Date(a.date)).map(record => (
-                        <div key={record.id} className="bg-white dark:bg-[#09090b] p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex justify-between items-center hover:border-red-500/30 transition-colors group">
-                            <div>
-                                <p className="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                                    {new Date(record.date + 'T00:00:00').toLocaleDateString('pt-BR')}
-                                    <span className="text-zinc-400 font-normal text-xs">• {record.reason}</span>
-                                </p>
-                                <div className="flex gap-2 mt-1 flex-wrap">
-                                    {Object.entries(record.lessons).filter(([,c]) => c > 0).map(([sId, count]) => {
-                                        const sub = subjects.find(s => s.id === Number(sId));
-                                        return (
-                                            <span key={sId} className="text-[10px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
-                                                {count}x {sub?.name}
-                                            </span>
-                                        )
-                                    })}
+                    {schoolAbsences.slice().reverse().slice(0, 5).map(abs => (
+                        <div key={abs.id} className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center text-red-500 font-bold text-xs">
+                                    {new Date(abs.date).getDate()}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-zinc-900 dark:text-white">{abs.reason}</p>
+                                    <p className="text-xs text-zinc-500">
+                                        {Object.values(abs.lessons).reduce((a,b)=>a+b,0)} aulas perdidas
+                                    </p>
                                 </div>
                             </div>
-                            <button onClick={() => deleteAbsenceRecord(record.id)} className="p-2 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+                            <button onClick={() => deleteAbsenceRecord(abs.id)} className="text-zinc-400 hover:text-red-500"><Trash2 size={16}/></button>
                         </div>
                     ))}
                 </div>
@@ -276,573 +438,292 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
     );
 };
 
-const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) => {
-    const [date, setDate] = useState(new Date());
-    const [selectedDayInfo, setSelectedDayInfo] = useState(null); 
+export const SchoolView = () => {
+    const { subjects, schoolWorks, addWork, updateWork, deleteWork, schoolAbsences, addAbsenceRecord, deleteAbsenceRecord, schoolSchedule, updateSchoolSchedule } = useContext(FocusContext);
+    
+    const [activeTab, setActiveTab] = useState('works'); // works, absences, calendar
+    const [modalOpen, setModalOpen] = useState(false);
+    const [absModalOpen, setAbsModalOpen] = useState(false);
+    const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+    
+    // Form States
+    const [newWork, setNewWork] = useState({ subjectId: subjects[0]?.id, title: '', dueDate: '', description: '', maxGrade: 10 });
+    const [absForm, setAbsForm] = useState({ date: new Date().toISOString().split('T')[0], reason: 'Doença', counts: {} });
+    const [viewWork, setViewWork] = useState(null);
 
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDay = new Date(year, month, 1).getDay();
-    const monthName = date.toLocaleDateString('pt-BR', { month: 'long' });
-
-    const handleDayClick = (day) => {
-        const dateObj = new Date(year, month, day);
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const works = schoolWorks.filter(w => w.dueDate === dateStr);
-        const absence = schoolAbsences.find(a => a.date === dateStr);
-        
-        // Lógica de Grade Diária
-        const dayOfWeek = dateObj.getDay(); // 0 (Dom) a 6 (Sab)
-        const dailyScheduleIds = (dayOfWeek >= 1 && dayOfWeek <= 5) ? schoolSchedule[dayOfWeek] : [];
-        const dailyLessons = dailyScheduleIds.map(id => subjects.find(s => s.id === id)).filter(Boolean);
-
-        setSelectedDayInfo({ dateStr, works, absence, dailyLessons, dayOfWeek });
+    // Helpers
+    const getUrgency = (date) => {
+        const diff = Math.ceil((new Date(date) - new Date()) / (1000 * 60 * 60 * 24));
+        if (diff < 0) return { color: 'text-red-500', border: 'border-red-500', text: 'Atrasado' };
+        if (diff === 0) return { color: 'text-red-500 animate-pulse', border: 'border-red-500', text: 'É Hoje!' };
+        if (diff <= 1) return { color: 'text-orange-500', border: 'border-orange-500', text: 'Amanhã' };
+        if (diff <= 3) return { color: 'text-yellow-500', border: 'border-yellow-500', text: `${diff} dias` };
+        return { color: 'text-emerald-500', border: 'border-zinc-200 dark:border-zinc-800', text: `${diff} dias` };
     };
 
-    useEffect(() => {
-        const today = new Date();
-        if (today.getMonth() === month && today.getFullYear() === year) {
-            handleDayClick(today.getDate());
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [date]);
+    // Ordenação de Trabalhos
+    const sortedWorks = useMemo(() => {
+        return [...schoolWorks].sort((a, b) => {
+            if (a.status === 'pending' && b.status !== 'pending') return -1;
+            if (a.status !== 'pending' && b.status === 'pending') return 1;
+            return new Date(a.dueDate) - new Date(b.dueDate);
+        });
+    }, [schoolWorks]);
+
+    // Cálculo de Médias (Grade Stats) - CORRIGIDO
+    const gradeStats = useMemo(() => {
+        return subjects.map(s => {
+            // Pega apenas trabalhos corrigidos desta matéria
+            const gradedWorks = schoolWorks.filter(w => w.subjectId === s.id && (w.status === 'corrected' || w.status === 'delivered') && typeof w.grade === 'number');
+            
+            // PREVENÇÃO DE BUG: Se não houver notas, retorna nulo para não quebrar a conta
+            if (gradedWorks.length === 0) return null;
+
+            // Média Aritmética Normalizada (Base 10)
+            // Fórmula: (Nota Tirada / Nota Máxima) * 10
+            const sum = gradedWorks.reduce((acc, w) => {
+                const max = w.maxGrade || 10;
+                const normalized = (w.grade / max) * 10;
+                return acc + normalized;
+            }, 0);
+            
+            const avg = sum / gradedWorks.length;
+            
+            return { id: s.id, name: s.name, color: s.color, average: avg };
+        })
+        .filter(Boolean) // Remove os nulos (matérias sem nota)
+        .sort((a, b) => a.average - b.average); // Ordena: piores médias primeiro (alerta)
+    }, [subjects, schoolWorks]);
+
+    const updateAbsCount = (sId, delta) => {
+        setAbsForm(p => ({ ...p, counts: { ...p.counts, [sId]: Math.max(0, (p.counts[sId] || 0) + delta) } }));
+    };
+
+    const handleCreateWork = (e) => {
+        e.preventDefault();
+        // ENVIA maxGrade PARA O CONTEXTO
+        addWork(newWork.subjectId, newWork.title, newWork.dueDate, newWork.description, newWork.maxGrade);
+        setModalOpen(false);
+        setNewWork({ subjectId: subjects[0]?.id, title: '', dueDate: '', description: '', maxGrade: 10 });
+    };
 
     return (
-        <div className="flex flex-col md:flex-row gap-6 animate-fadeIn h-full">
-            <div className="flex-1">
-                <div className="flex items-center justify-between mb-6 bg-zinc-100 dark:bg-zinc-900/50 p-4 rounded-3xl border border-zinc-200 dark:border-zinc-800">
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white capitalize flex items-center gap-2">
-                        <Calendar size={20} className="text-primary"/> {monthName} <span className="text-zinc-400">{year}</span>
-                    </h3>
-                    <div className="flex gap-2">
-                        <button onClick={() => setDate(new Date(year, month - 1))} className="p-2 hover:bg-white dark:hover:bg-black rounded-xl transition-colors"><ChevronLeft size={20}/></button>
-                        <button onClick={() => setDate(new Date(year, month + 1))} className="p-2 hover:bg-white dark:hover:bg-black rounded-xl transition-colors"><ChevronRight size={20}/></button>
-                    </div>
+        <div className="animate-fadeIn pb-24 md:pb-0">
+            {/* Header com Navegação */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2"><GraduationCap className="text-primary"/> Escola</h1>
+                    <p className="text-zinc-500 text-sm">Gerencie trabalhos, provas e faltas.</p>
                 </div>
-
-                <div className="grid grid-cols-7 gap-2">
-                    {['D','S','T','Q','Q','S','S'].map(d => <span key={d} className="text-center text-xs font-bold text-zinc-400 py-2">{d}</span>)}
-                    {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
-                    {Array.from({ length: daysInMonth }).map((_, i) => {
-                        const day = i + 1;
-                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                        const works = schoolWorks.filter(w => w.dueDate === dateStr);
-                        const absence = schoolAbsences.find(a => a.date === dateStr);
-                        const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
-
-                        return (
-                            <button key={day} onClick={() => handleDayClick(day)} className={`h-14 md:h-20 rounded-2xl border transition-all flex flex-col items-start justify-between p-2 relative ${isToday ? 'border-primary bg-primary/5' : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#09090b] hover:border-zinc-300 dark:hover:border-zinc-700'} ${selectedDayInfo?.dateStr === dateStr ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-black' : ''}`}>
-                                <span className={`text-sm font-bold ${absence ? 'text-red-500 underline decoration-red-500 decoration-2' : 'text-zinc-700 dark:text-zinc-300'}`}>{day}</span>
-                                <div className="flex flex-wrap gap-1 w-full">
-                                    {works.map((w, idx) => idx <= 2 ? <div key={w.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === w.subjectId)?.color || '#555' }} /> : null)}
-                                    {works.length > 3 && <span className="text-[8px] text-zinc-400">+</span>}
-                                </div>
-                            </button>
-                        );
-                    })}
+                <div className="flex gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl">
+                    {['works', 'absences', 'calendar'].map(t => (
+                        <button key={t} onClick={() => setActiveTab(t)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === t ? 'bg-white dark:bg-zinc-800 text-primary shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}>
+                            {t === 'works' ? 'Trabalhos' : t === 'absences' ? 'Faltas' : 'Calendário'}
+                        </button>
+                    ))}
                 </div>
+                <Button onClick={() => setScheduleModalOpen(true)} className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-200 border-none"><Settings size={18}/></Button>
             </div>
-            <div className="w-full md:w-80 space-y-4">
-                {selectedDayInfo ? (
-                    <Card className="animate-fadeIn bg-primary/5 border-primary/20 h-full flex flex-col">
-                        <div className="flex justify-between items-start mb-4">
-                            <h3 className="font-bold text-lg text-zinc-900 dark:text-white capitalize">{new Date(selectedDayInfo.dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
-                        </div>
-                        
-                        {/* Seção 1: Faltas */}
-                        {selectedDayInfo.absence ? (
-                            <div className="mb-4 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
-                                <p className="text-xs font-bold text-red-500 uppercase mb-1 flex items-center gap-1"><AlertOctagon size={12}/> Falta Registrada</p>
-                                <p className="text-sm text-zinc-700 dark:text-zinc-300 font-medium mb-1">{selectedDayInfo.absence.reason}</p>
-                                <p className="text-xs text-zinc-500">{Object.entries(selectedDayInfo.absence.lessons).filter(([,c]) => c > 0).map(([id, c]) => `${c}x ${subjects.find(sub => sub.id === Number(id))?.name}`).join(', ')}</p>
-                            </div>
-                        ) : null}
 
-                        {/* Seção 2: Grade Horária do Dia (NOVO) */}
-                        <div className="mb-4 flex-1">
-                            <p className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1"><BookOpen size={12}/> Aulas do Dia</p>
-                            {selectedDayInfo.dailyLessons && selectedDayInfo.dailyLessons.length > 0 ? (
-                                <div className="space-y-2">
-                                    {selectedDayInfo.dailyLessons.map((sub, idx) => (
-                                        <div key={idx} className="flex items-center gap-3 bg-white dark:bg-black/50 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                                            <span className="text-[10px] text-zinc-400 font-mono w-4">{idx + 1}º</span>
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sub.color }}></div>
-                                            <span className="text-sm text-zinc-900 dark:text-white font-medium">{sub.name}</span>
+            {/* CONTEÚDO DAS ABAS */}
+            
+            {/* 1. ABA TRABALHOS */}
+            {activeTab === 'works' && (
+                <div className="space-y-6">
+                    
+                    {/* Painel de Médias Acadêmicas (NOVO) */}
+                    {gradeStats.length > 0 ? (
+                        <div className="mb-2">
+                            <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 px-1">Desempenho Acadêmico (Médias)</h3>
+                            <div className="flex gap-3 overflow-x-auto custom-scrollbar pb-2">
+                                {gradeStats.map(stat => (
+                                    <div key={stat.id} className="min-w-[140px] bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-3 rounded-2xl flex flex-col justify-between shadow-sm">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stat.color }}></div>
+                                            <span className="text-xs font-bold text-zinc-500 truncate">{stat.name}</span>
                                         </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed">
-                                    <p className="text-xs text-zinc-400 italic">
-                                        {[0,6].includes(selectedDayInfo.dayOfWeek) ? "Final de Semana" : "Sem aulas na grade."}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Seção 3: Trabalhos */}
-                        {selectedDayInfo.works.length > 0 && (
-                            <div className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800/50">
-                                <p className="text-xs font-bold text-zinc-500 uppercase">Entregas</p>
-                                {selectedDayInfo.works.map(w => (
-                                    <div key={w.id} className="bg-white dark:bg-black p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 text-sm shadow-sm">
-                                        <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === w.subjectId)?.color }}/> <span className="text-xs text-zinc-500 font-bold uppercase">{subjects.find(s => s.id === w.subjectId)?.name}</span></div>
-                                        <p className="font-bold text-zinc-900 dark:text-white truncate mb-1">{w.title}</p>
+                                        <div className="flex items-end gap-1">
+                                            <span className={`text-2xl font-bold ${stat.average < GRADE_THRESHOLDS.WARNING ? 'text-red-500' : stat.average < GRADE_THRESHOLDS.ATTENTION ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                                {stat.average.toFixed(1)}
+                                            </span>
+                                            <span className="text-[10px] text-zinc-400 mb-1">/ 10</span>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
-                        )}
-                    </Card>
-                ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl text-zinc-400">
-                        <Calendar size={32} className="mb-2 opacity-50"/>
-                        <p className="text-sm">Selecione um dia.</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-// === VIEW PRINCIPAL ===
-
-export const SchoolView = () => {
-  const { 
-    subjects, schoolWorks, addWork, updateWork, deleteWork, 
-    schoolAbsences, addAbsenceRecord, deleteAbsenceRecord,
-    schoolSchedule, updateSchoolSchedule 
-  } = useContext(FocusContext);
-  
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false); // Modal da Grade
-  const [selectedWork, setSelectedWork] = useState(null); 
-  const [form, setForm] = useState({ subjectId: "", title: "", dueDate: "", description: "", maxGrade: 10 }); // ADICIONADO: maxGrade
-
-  const [activeTab, setActiveTab] = useState('works');
-  const [isAddAbsenceModalOpen, setIsAddAbsenceModalOpen] = useState(false);
-  const [absForm, setAbsForm] = useState({ date: new Date().toISOString().split('T')[0], reason: "Doença / Médico", counts: {} });
-
-  // --- CÁLCULO DE MÉDIAS (ATUALIZADO) ---
-  const gradeStats = useMemo(() => {
-    return subjects.map(sub => {
-        // Pega todos os trabalhos dessa matéria que tenham nota definida
-        const subWorks = schoolWorks.filter(w => w.subjectId === sub.id && w.grade !== null && w.grade !== undefined && w.grade !== "");
-        
-        // CORREÇÃO: Evita divisão por zero se não houver trabalhos
-        if (subWorks.length === 0) return null;
-
-        // Calcula média NORMALIZADA (Considerando o valor da atividade)
-        const sum = subWorks.reduce((acc, curr) => {
-            const max = curr.maxGrade || 10; // Se não tiver maxGrade, assume 10
-            const normalizedGrade = (Number(curr.grade) / max) * 10; // Converte para base 10
-            return acc + normalizedGrade;
-        }, 0);
-        
-        const avg = sum / subWorks.length;
-
-        return {
-            id: sub.id,
-            name: sub.name,
-            color: sub.color,
-            average: avg
-        };
-    })
-    .filter(Boolean) // Remove matérias sem nota
-    .sort((a, b) => a.average - b.average); // Ordena da menor nota para a maior
-  }, [subjects, schoolWorks]);
-
-  const statusConfig = {
-    pending: { label: 'Pendente', icon: Clock, color: 'text-zinc-500', bg: 'bg-zinc-100 dark:bg-zinc-800', border: 'border-zinc-200' },
-    done: { label: 'Feito', icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    delivered: { label: 'Entregue', icon: Send, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-    corrected: { label: 'Corrigido', icon: ClipboardCheck, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/20' }
-  };
-
-  const getUrgency = (dateString, status) => {
-    if (status === 'delivered' || status === 'corrected') return { label: "Entregue", color: "text-zinc-400", border: "border-zinc-200 dark:border-zinc-800", bg: "bg-zinc-100" };
-    if (status === 'done') return { label: "Pronto", color: "text-emerald-500", border: "border-emerald-500", bg: "bg-emerald-500/10" };
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const due = new Date(dateString + 'T00:00:00');
-    const diffTime = due - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return { label: "Atrasado", color: "text-red-500", border: "border-red-500 animate-pulse", bg: "bg-red-500/10" };
-    if (diffDays === 0) return { label: "É Hoje!", color: "text-red-600", border: "border-red-600 animate-pulse", bg: "bg-red-600/10" };
-    if (diffDays === 1) return { label: "Amanhã", color: "text-orange-500", border: "border-orange-500", bg: "bg-orange-500/10" };
-    if (diffDays <= 3) return { label: `${diffDays} dias`, color: "text-orange-500", border: "border-orange-500", bg: "bg-orange-500/10" };
-    if (diffDays <= 7) return { label: `${diffDays} dias`, color: "text-yellow-500", border: "border-yellow-500", bg: "bg-yellow-500/10" };
-    
-    return { label: `${diffDays} dias`, color: "text-emerald-500", border: "border-zinc-200 dark:border-zinc-800", bg: "bg-emerald-500/10" };
-  };
-
-  const sortedWorks = [...schoolWorks].sort((a, b) => {
-    const score = (status) => status === 'pending' ? 0 : status === 'done' ? 1 : 2;
-    if (score(a.status) !== score(b.status)) return score(a.status) - score(b.status);
-    return new Date(a.dueDate) - new Date(b.dueDate);
-  });
-
-  const handleAddSubmit = (e) => {
-    e.preventDefault();
-    if (form.subjectId && form.title && form.dueDate) {
-      // Passa maxGrade junto. Assume que o Context aceita como parâmetro extra ou objeto.
-      addWork(form.subjectId, form.title, form.dueDate, form.description, Number(form.maxGrade));
-      setForm({ subjectId: "", title: "", dueDate: "", description: "", maxGrade: 10 });
-      setIsAddModalOpen(false);
-    }
-  };
-
-  const handleStatusChange = (newStatus) => {
-    if (!selectedWork) return;
-    const updates = { status: newStatus };
-    if (newStatus !== 'corrected') updates.grade = null;
-    updateWork(selectedWork.id, updates);
-    setSelectedWork(prev => ({ ...prev, ...updates }));
-  };
-
-  const handleGradeChange = (val) => {
-    const num = parseFloat(val);
-    updateWork(selectedWork.id, { grade: isNaN(num) ? null : num });
-    setSelectedWork(prev => ({ ...prev, grade: isNaN(num) ? null : num }));
-  };
-
-  const updateAbsCount = (subId, delta) => {
-    setAbsForm(prev => {
-        const current = prev.counts[subId] || 0;
-        const next = Math.max(0, current + delta);
-        return { ...prev, counts: { ...prev.counts, [subId]: next } };
-    });
-  };
-
-  const handleAbsenceSubmit = (e) => {
-    e.preventDefault();
-    const total = Object.values(absForm.counts).reduce((a, b) => a + b, 0);
-    if (total === 0) return alert("Selecione pelo menos uma aula perdida.");
-    addAbsenceRecord(absForm.date, absForm.reason, absForm.counts);
-    setAbsForm({ date: new Date().toISOString().split('T')[0], reason: "Doença / Médico", counts: {} });
-    setIsAddAbsenceModalOpen(false);
-  };
-
-  return (
-    <div className="space-y-6 animate-fadeIn pb-24 md:pb-0 h-full flex flex-col">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1">Escola & Acadêmico</h1>
-            <p className="text-zinc-500 dark:text-zinc-400">Gestão completa de tarefas e presença.</p>
-        </div>
-        
-        <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setIsScheduleModalOpen(true)} className="py-2 text-xs">
-                <Settings size={16}/> Grade Horária
-            </Button>
-            <div className="bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl flex gap-1">
-                {[
-                    { id: 'works', label: 'Trabalhos', icon: GraduationCap },
-                    { id: 'absences', label: 'Faltas', icon: AlertOctagon },
-                    { id: 'calendar', label: 'Calendário', icon: Calendar },
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
-                    >
-                        <tab.icon size={16} /> <span className="hidden sm:inline">{tab.label}</span>
-                    </button>
-                ))}
-            </div>
-        </div>
-      </header>
-
-      {/* CONTEÚDO PRINCIPAL */}
-      <div className="flex-1">
-          {activeTab === 'works' && (
-              <div className="space-y-4">
-                  
-                  {/* === PAINEL DE MÉDIAS === */}
-                  {gradeStats.length > 0 && (
-                      <div className="mb-2">
-                         <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-2">
-                            <TrendingUp size={14}/> Médias Atuais (Normalizadas 0-10)
-                         </h3>
-                         <div className="flex gap-3 overflow-x-auto pb-4 custom-scrollbar">
-                            {gradeStats.map(stat => {
-                                const val = stat.average;
-                                let style = { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20' };
-                                if(val < 6) style = { bg: 'bg-red-500/10', text: 'text-red-500', border: 'border-red-500/20' };
-                                else if(val < 8) style = { bg: 'bg-yellow-500/10', text: 'text-yellow-600', border: 'border-yellow-500/20' };
-
-                                return (
-                                    <div key={stat.id} className={`flex-shrink-0 flex flex-col justify-between min-w-[130px] p-3 rounded-2xl border ${style.bg} ${style.border}`}>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stat.color }}></div>
-                                            <span className="text-[10px] font-bold uppercase tracking-wider opacity-80 truncate text-zinc-700 dark:text-zinc-300">{stat.name}</span>
-                                        </div>
-                                        <span className={`text-3xl font-bold ${style.text}`}>{val.toFixed(1)}</span>
-                                    </div>
-                                )
-                            })}
-                         </div>
-                      </div>
-                  )}
-
-                  <div className="flex justify-end">
-                       <Button onClick={() => setIsAddModalOpen(true)} className="py-1.5 px-3 text-xs"><Plus size={16}/> Novo Trabalho</Button>
-                  </div>
-
-                  {sortedWorks.length === 0 ? (
-                    <div className="text-center py-12 opacity-50">
-                        <GraduationCap size={48} className="mx-auto mb-3 text-zinc-400" />
-                        <p className="text-zinc-500">Nenhum trabalho registrado.</p>
-                    </div>
+                        </div>
                     ) : (
-                        sortedWorks.map(work => {
-                            const subject = subjects.find(s => s.id === work.subjectId);
-                            const urgency = getUrgency(work.dueDate, work.status);
-                            const stConfig = statusConfig[work.status] || statusConfig.pending;
-                            const isPending = work.status === 'pending';
-                            const badgeLabel = isPending ? urgency.label : stConfig.label;
-                            const BadgeIcon = isPending ? Clock : stConfig.icon;
-                            const badgeColor = isPending ? urgency.color : stConfig.color;
-                            const badgeBg = isPending ? urgency.bg : stConfig.bg;
-                            const badgeBorder = isPending ? urgency.border : stConfig.border;
-
-                            return (
-                                <Card 
-                                    key={work.id} 
-                                    onClick={() => setSelectedWork(work)}
-                                    className={`cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all group border-l-4 ${urgency.border.replace('animate-pulse', '')}`}
-                                >
-                                    <div className="flex justify-between items-center gap-4">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span 
-                                                    className="text-[10px] font-bold px-2 py-0.5 rounded text-white uppercase tracking-wider"
-                                                    style={{ backgroundColor: subject?.color || '#71717a' }}
-                                                >
-                                                    {subject?.name || 'Geral'}
-                                                </span>
-                                                <span className="text-xs text-zinc-400 flex items-center gap-1">
-                                                    <Calendar size={12} />
-                                                    {new Date(work.dueDate + 'T00:00:00').toLocaleDateString('pt-BR')}
-                                                </span>
-                                            </div>
-                                            <h3 className={`text-lg font-bold truncate ${work.status === 'corrected' || work.status === 'delivered' ? 'text-zinc-500 line-through' : 'text-zinc-900 dark:text-white'}`}>
-                                                {work.title}
-                                            </h3>
-                                        </div>
-
-                                        <div className="flex flex-col items-end gap-1">
-                                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase border ${badgeColor} ${badgeBg} ${badgeBorder} shadow-sm`}>
-                                                <BadgeIcon size={14} /> {badgeLabel}
-                                            </div>
-                                            {work.grade !== null && work.grade !== undefined && (
-                                                <span className="text-sm font-bold text-zinc-900 dark:text-white mt-1">
-                                                    Nota: {work.grade} <span className="text-zinc-400 font-normal">/ {work.maxGrade || 10}</span>
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </Card>
-                            );
-                        })
+                        <div className="mb-4 p-4 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center">
+                            <p className="text-sm text-zinc-400 italic">Conclua e atribua notas aos seus trabalhos para ver suas médias aqui.</p>
+                        </div>
                     )}
-              </div>
-          )}
 
-          {activeTab === 'absences' && <AbsencesTab subjects={subjects} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} deleteAbsenceRecord={deleteAbsenceRecord} setIsAddAbsenceModalOpen={setIsAddAbsenceModalOpen} />}
-          {activeTab === 'calendar' && <CalendarTab subjects={subjects} schoolWorks={schoolWorks} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} />}
-      </div>
-
-      {/* === MODAL DE GRADE HORÁRIA === */}
-      <ScheduleConfigModal 
-        isOpen={isScheduleModalOpen} 
-        onClose={() => setIsScheduleModalOpen(false)} 
-        subjects={subjects} 
-        schoolSchedule={schoolSchedule}
-        updateSchoolSchedule={updateSchoolSchedule}
-      />
-
-      {/* === MODAL DE TRABALHOS === */}
-      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Novo Trabalho">
-        <form onSubmit={handleAddSubmit} className="space-y-4">
-            <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase">Matéria</label>
-                <select 
-                    required 
-                    className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
-                    value={form.subjectId}
-                    onChange={e => setForm({ ...form, subjectId: e.target.value })}
-                >
-                    <option value="">Selecione...</option>
-                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-            </div>
-            <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase">Título</label>
-                <input 
-                    required 
-                    type="text" 
-                    placeholder="Ex: Redação..." 
-                    className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
-                    value={form.title}
-                    onChange={e => setForm({ ...form, title: e.target.value })}
-                />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="text-xs text-zinc-500 font-bold uppercase">Data de Entrega</label>
-                    <input 
-                        required 
-                        type="date" 
-                        className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
-                        value={form.dueDate}
-                        onChange={e => setForm({ ...form, dueDate: e.target.value })}
-                    />
-                </div>
-                <div>
-                    <label className="text-xs text-zinc-500 font-bold uppercase">Vale Quanto?</label>
-                    <input 
-                        required 
-                        type="number" 
-                        min="1"
-                        placeholder="Ex: 10"
-                        className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary"
-                        value={form.maxGrade}
-                        onChange={e => setForm({ ...form, maxGrade: e.target.value })}
-                    />
-                </div>
-            </div>
-
-            <div>
-                <label className="text-xs text-zinc-500 font-bold uppercase">Detalhes</label>
-                <textarea 
-                    className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-sm text-zinc-900 dark:text-white h-24 outline-none focus:border-primary resize-none"
-                    value={form.description}
-                    onChange={e => setForm({ ...form, description: e.target.value })}
-                />
-            </div>
-            <Button type="submit" className="w-full mt-2">Salvar</Button>
-        </form>
-      </Modal>
-
-      {/* === MODAL DE DETALHES DO TRABALHO === */}
-      {selectedWork && (
-          <Modal isOpen={!!selectedWork} onClose={() => setSelectedWork(null)} title="Gerenciar Trabalho">
-              <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-1.5 h-12 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === selectedWork.subjectId)?.color || '#555' }}></div>
-                    <div>
-                        <p className="text-xs text-zinc-500 font-bold uppercase">
-                            {subjects.find(s => s.id === selectedWork.subjectId)?.name || 'Matéria Excluída'}
-                        </p>
-                        <h2 className="text-xl font-bold text-zinc-900 dark:text-white leading-tight">{selectedWork.title}</h2>
-                    </div>
-                </div>
-
-                <div>
-                    <label className="text-xs text-zinc-500 font-bold uppercase mb-2 block">Status Atual</label>
-                    <div className="grid grid-cols-2 gap-2">
-                        {['pending', 'done', 'delivered', 'corrected'].map((st) => {
-                            const conf = statusConfig[st];
-                            const isActive = selectedWork.status === st;
+                    <Button onClick={() => setModalOpen(true)} className="w-full md:w-auto"><Plus size={18}/> Novo Trabalho</Button>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {sortedWorks.map(w => {
+                            const sub = subjects.find(s => s.id === w.subjectId);
+                            const urg = getUrgency(w.dueDate);
+                            
                             return (
-                                <button
-                                    key={st}
-                                    onClick={() => handleStatusChange(st)}
-                                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-bold transition-all
-                                        ${isActive 
-                                            ? `bg-primary text-white border-primary shadow-lg shadow-primary/20` 
-                                            : `bg-zinc-50 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:border-primary/50`
-                                        }
-                                    `}
-                                >
-                                    <conf.icon size={16} /> {conf.label}
-                                </button>
+                                <div key={w.id} onClick={() => setViewWork(w)} className={`bg-white dark:bg-[#09090b] p-4 rounded-2xl border transition-all cursor-pointer hover:shadow-lg group relative ${w.status === 'pending' ? urg.border : 'border-zinc-200 dark:border-zinc-800 opacity-75'}`}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase text-white" style={{ backgroundColor: sub?.color || '#ccc' }}>{sub?.name}</span>
+                                        {w.status === 'pending' && <span className={`text-xs font-bold ${urg.color} flex items-center gap-1`}><Clock size={12}/> {urg.text}</span>}
+                                        {w.status === 'completed' && <span className="text-xs font-bold text-blue-500 flex items-center gap-1"><CheckCircle size={12}/> Feito</span>}
+                                        {w.status === 'delivered' && <span className="text-xs font-bold text-purple-500 flex items-center gap-1"><Send size={12}/> Entregue</span>}
+                                        {w.status === 'corrected' && <span className="text-xs font-bold text-emerald-500 flex items-center gap-1"><ClipboardCheck size={12}/> Corrigido</span>}
+                                    </div>
+                                    <h3 className="font-bold text-zinc-900 dark:text-white mb-1 line-clamp-1">{w.title}</h3>
+                                    <p className="text-xs text-zinc-500 mb-3">{new Date(w.dueDate).toLocaleDateString()}</p>
+                                    
+                                    {/* Exibição da Nota no Card */}
+                                    {w.status === 'corrected' && typeof w.grade === 'number' && (
+                                        <div className="mt-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-2 flex justify-between items-center">
+                                            <span className="text-xs font-bold text-zinc-500 uppercase">Nota</span>
+                                            <div className="flex items-end gap-1">
+                                                <span className="text-lg font-bold text-zinc-900 dark:text-white">{w.grade}</span>
+                                                <span className="text-xs text-zinc-400 mb-1">/ {w.maxGrade || 10}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             );
                         })}
                     </div>
                 </div>
+            )}
 
-                {selectedWork.status === 'corrected' && (
-                    <div className="animate-fadeIn bg-purple-500/5 border border-purple-500/20 p-4 rounded-2xl">
-                        <label className="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase flex items-center gap-2 mb-2">
-                            <ClipboardCheck size={14}/> Nota Final (0 - {selectedWork.maxGrade || 10})
-                        </label>
-                        <input 
-                            type="number" 
-                            step="0.1"
-                            max={selectedWork.maxGrade || 10}
-                            placeholder={`Max: ${selectedWork.maxGrade || 10}`}
-                            className="w-full bg-white dark:bg-black border border-purple-200 dark:border-purple-900/50 rounded-xl p-3 text-2xl font-bold text-center text-purple-700 dark:text-purple-300 outline-none focus:border-purple-500"
-                            value={selectedWork.grade === null ? '' : selectedWork.grade}
-                            onChange={(e) => handleGradeChange(e.target.value)}
-                        />
+            {/* 2. ABA FALTAS */}
+            {activeTab === 'absences' && (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Controle de Faltas</h2>
+                        <Button onClick={() => setAbsModalOpen(true)} className="bg-red-500 hover:bg-red-600 text-white"><Plus size={18}/> Registrar Falta</Button>
                     </div>
-                )}
-
-                <div className="bg-zinc-50 dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 min-h-[80px]">
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1"><FileText size={10}/> Detalhes</p>
-                    <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                        {selectedWork.description || <span className="text-zinc-400 italic">Sem descrição.</span>}
-                    </p>
+                    <AbsencesTab schoolAbsences={schoolAbsences} deleteAbsenceRecord={deleteAbsenceRecord} subjects={subjects} schoolSchedule={schoolSchedule} />
                 </div>
+            )}
 
-                <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
-                    <button 
-                        onClick={() => { deleteWork(selectedWork.id); setSelectedWork(null); }}
-                        className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 transition-all font-bold text-sm"
-                    >
-                        <Trash2 size={16} /> Excluir Trabalho
-                    </button>
+            {/* 3. ABA CALENDÁRIO */}
+            {activeTab === 'calendar' && (
+                <div className="h-[600px]">
+                    <CalendarTab schoolWorks={schoolWorks} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} subjects={subjects} />
                 </div>
-              </div>
-          </Modal>
-      )}
+            )}
 
-      {/* === MODAL DE FALTAS === */}
-      <Modal isOpen={isAddAbsenceModalOpen} onClose={() => setIsAddAbsenceModalOpen(false)} title="Registrar Falta">
-            <form onSubmit={handleAbsenceSubmit} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+            {/* MODAIS */}
+            <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Novo Trabalho">
+                <form onSubmit={handleCreateWork} className="space-y-4">
                     <div>
-                        <label className="text-xs text-zinc-500 font-bold uppercase">Data</label>
-                        <input type="date" required className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2.5 text-zinc-900 dark:text-white outline-none focus:border-primary" value={absForm.date} onChange={e => setAbsForm({...absForm, date: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="text-xs text-zinc-500 font-bold uppercase">Motivo</label>
-                        <select className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2.5 text-zinc-900 dark:text-white outline-none focus:border-primary" value={absForm.reason} onChange={e => setAbsForm({...absForm, reason: e.target.value})}>
-                            {["Doença / Médico", "Transporte / Trânsito", "Clima / Chuva", "Preguiça / Cansaço", "Atraso", "Evento Familiar", "Outro"].map(r => <option key={r} value={r}>{r}</option>)}
+                        <label className="text-sm text-zinc-500">Matéria</label>
+                        <select className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 text-zinc-900 dark:text-white" value={newWork.subjectId} onChange={e => setNewWork({ ...newWork, subjectId: e.target.value })}>
+                            {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>
-                </div>
-
-                <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 max-h-[300px] overflow-y-auto custom-scrollbar">
-                    <p className="text-xs text-zinc-500 font-bold uppercase mb-3 text-center">Quantas aulas você perdeu?</p>
-                    <div className="space-y-3">
-                        {subjects.map(s => (
-                            <div key={s.id} className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full" style={{backgroundColor: s.color}}></div>
-                                    <span className="text-sm font-medium text-zinc-900 dark:text-white truncate max-w-[120px]">{s.name}</span>
-                                </div>
-                                <div className="flex items-center gap-3 bg-white dark:bg-black rounded-xl p-1 border border-zinc-200 dark:border-zinc-800">
-                                    <button type="button" onClick={() => updateAbsCount(s.id, -1)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"><Minus size={14}/></button>
-                                    <span className="w-4 text-center text-sm font-bold text-zinc-900 dark:text-white">{absForm.counts[s.id] || 0}</span>
-                                    <button type="button" onClick={() => updateAbsCount(s.id, 1)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary hover:text-white text-primary transition-colors"><Plus size={14}/></button>
-                                </div>
-                            </div>
-                        ))}
+                    <div>
+                        <label className="text-sm text-zinc-500">Título</label>
+                        <input required className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 text-zinc-900 dark:text-white" value={newWork.title} onChange={e => setNewWork({ ...newWork, title: e.target.value })} />
                     </div>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-sm text-zinc-500">Data Entrega</label>
+                            <input required type="date" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 text-zinc-900 dark:text-white" value={newWork.dueDate} onChange={e => setNewWork({ ...newWork, dueDate: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="text-sm text-zinc-500">Valor da Atividade</label>
+                            {/* Input com min="1" para evitar divisão por zero */}
+                            <input type="number" min="1" required className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 text-zinc-900 dark:text-white" value={newWork.maxGrade} onChange={e => setNewWork({ ...newWork, maxGrade: e.target.value })} />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-sm text-zinc-500">Sobre o trabalho</label>
+                        <textarea className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 text-zinc-900 dark:text-white h-24" value={newWork.description} onChange={e => setNewWork({ ...newWork, description: e.target.value })} />
+                    </div>
+                    <Button type="submit" className="w-full">Criar</Button>
+                </form>
+            </Modal>
 
-                <div className="flex justify-between items-center px-2">
-                    <span className="text-sm text-zinc-500">Total: <b className="text-zinc-900 dark:text-white">{Object.values(absForm.counts).reduce((a,b)=>a+b,0)} aulas</b></span>
-                    <Button type="submit" className="px-8">Confirmar</Button>
-                </div>
-            </form>
-      </Modal>
-    </div>
-  );
+            <Modal isOpen={!!viewWork} onClose={() => setViewWork(null)} title="Detalhes">
+                {viewWork && (
+                    <div className="space-y-4">
+                        <div>
+                            <span className="text-xs font-bold text-zinc-500 uppercase">Status</span>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {['pending', 'completed', 'delivered', 'corrected'].map(s => (
+                                    <button key={s} onClick={() => updateWork(viewWork.id, { status: s })} className={`px-3 py-1 rounded-full text-xs font-bold border ${viewWork.status === s ? 'bg-primary text-white border-primary' : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'}`}>
+                                        {s === 'pending' && 'Pendente'}
+                                        {s === 'completed' && 'Feito'}
+                                        {s === 'delivered' && 'Entregue'}
+                                        {s === 'corrected' && 'Corrigido'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {viewWork.status === 'corrected' && (
+                            <div className="animate-fadeIn p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                                <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300">Nota Obtida (de 0 a {viewWork.maxGrade || 10})</label>
+                                <input 
+                                    type="number" 
+                                    autoFocus
+                                    className="w-full mt-2 bg-white dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl p-2 text-zinc-900 dark:text-white font-bold text-lg" 
+                                    value={viewWork.grade || ''} 
+                                    onChange={e => updateWork(viewWork.id, { grade: Number(e.target.value) })} 
+                                    placeholder="Digite a nota..."
+                                />
+                            </div>
+                        )}
+
+                        <div>
+                            <span className="text-xs font-bold text-zinc-500 uppercase">Descrição</span>
+                            <p className="mt-1 text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-900/50 p-3 rounded-xl">{viewWork.description || 'Sem descrição.'}</p>
+                        </div>
+                        <div className="flex justify-end pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                            <button onClick={() => { deleteWork(viewWork.id); setViewWork(null); }} className="text-red-500 hover:text-red-600 text-sm font-bold flex items-center gap-2"><Trash2 size={16}/> Excluir Trabalho</button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            <Modal isOpen={absModalOpen} onClose={() => setAbsModalOpen(false)} title="Registrar Falta">
+                <form onSubmit={e => { e.preventDefault(); if(Object.values(absForm.counts).some(v=>v>0)) { addAbsenceRecord(absForm.date, absForm.reason, absForm.counts); setAbsModalOpen(false); setAbsForm({ date: new Date().toISOString().split('T')[0], reason: 'Doença', counts: {} }); } }} className="space-y-4">
+                    <div>
+                        <label className="text-sm text-zinc-500">Data</label>
+                        <input required type="date" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 text-zinc-900 dark:text-white" value={absForm.date} onChange={e => setAbsForm({ ...absForm, date: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="text-sm text-zinc-500">Motivo</label>
+                        <select className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 text-zinc-900 dark:text-white" value={absForm.reason} onChange={e => setAbsForm({ ...absForm, reason: e.target.value })}>
+                            {['Doença', 'Transporte', 'Clima', 'Preguiça', 'Atraso', 'Evento Familiar', 'Outro'].map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                        <label className="text-sm text-zinc-500 mb-2 block">Aulas Perdidas</label>
+                        <div className="space-y-2">
+                            {subjects.map(s => (
+                                <div key={s.id} className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-900 p-2 rounded-xl">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }}/>
+                                        <span className="text-sm font-medium text-zinc-900 dark:text-white truncate max-w-[120px]">{s.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-white dark:bg-black rounded-xl p-1 border border-zinc-200 dark:border-zinc-800">
+                                        <button type="button" onClick={() => updateAbsCount(s.id, -1)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500"><Minus size={14}/></button>
+                                        <span className="w-4 text-center text-sm font-bold text-zinc-900 dark:text-white">{absForm.counts[s.id] || 0}</span>
+                                        <button type="button" onClick={() => updateAbsCount(s.id, 1)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-primary hover:text-white text-primary transition-colors"><Plus size={14}/></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex justify-between items-center px-2">
+                        <span className="text-sm text-zinc-500">Total: <b className="text-zinc-900 dark:text-white">{Object.values(absForm.counts).reduce((a,b)=>a+b,0)} aulas</b></span>
+                        <Button type="submit" className="px-8">Salvar</Button>
+                    </div>
+                </form>
+            </Modal>
+
+            <ScheduleConfigModal isOpen={scheduleModalOpen} onClose={() => setScheduleModalOpen(false)} subjects={subjects} schoolSchedule={schoolSchedule} updateSchoolSchedule={updateSchoolSchedule} />
+        </div>
+    );
 };
