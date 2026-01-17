@@ -44,13 +44,25 @@ export const StatsView = () => {
   }, [activeSubjects, sessions, themes]);
 
   // NOVO: Cálculo de estatísticas de provas para os cards
+// NOVO: Cálculo de estatísticas de provas para os cards
   const examStats = useMemo(() => {
     if (!exams || exams.length === 0) return null;
     
-    // Agrupa notas por matéria
+    // Agrupa notas por matéria e calcula tempo
     const subjectGrades = {};
+    let totalMinutes = 0;
+    let examsWithDuration = 0;
 
     exams.forEach(exam => {
+        // Cálculo do tempo médio
+        if (exam.duration) {
+            const [h, m] = exam.duration.split(':').map(Number);
+            if (!isNaN(h) && !isNaN(m)) {
+                totalMinutes += (h * 60) + m;
+                examsWithDuration++;
+            }
+        }
+
         if (exam.subjects) {
             exam.subjects.forEach(sub => {
                 if (sub.grade && sub.max && sub.subjectId) {
@@ -64,6 +76,12 @@ export const StatsView = () => {
         }
     });
 
+    // Formatação do tempo médio
+    const avgMins = examsWithDuration > 0 ? totalMinutes / examsWithDuration : 0;
+    const avgH = Math.floor(avgMins / 60);
+    const avgM = Math.round(avgMins % 60);
+    const formattedAvgTime = `${avgH}h ${avgM}m`;
+
     const results = Object.entries(subjectGrades).map(([id, stats]) => {
         const subject = subjects.find(s => s.id === Number(id));
         if (!subject) return null;
@@ -71,13 +89,15 @@ export const StatsView = () => {
         return { name: subject.name, percentage };
     }).filter(Boolean);
 
-    if (results.length === 0) return null;
+    // Se não houver matérias, mas houver tempo, retorna null para best/worst mas manda o tempo
+    if (results.length === 0 && examsWithDuration === 0) return null;
 
     results.sort((a, b) => b.percentage - a.percentage);
 
     return {
         best: results[0],
-        worst: results[results.length - 1]
+        worst: results[results.length - 1],
+        avgTime: formattedAvgTime // Novo dado retornado
     };
   }, [exams, subjects]);
 
@@ -100,11 +120,20 @@ export const StatsView = () => {
       }
 
       // Novos cards de provas (se existirem dados)
+// Novos cards de provas (se existirem dados)
       if (examStats) {
-          cards.push(
-            { l: 'Melhor em Provas', v: examStats.best.name, s: `${examStats.best.percentage.toFixed(0)}% aproveitamento`, i: Trophy, c: 'yellow-500' },
-            { l: 'Pior em Provas', v: examStats.worst.name, s: `${examStats.worst.percentage.toFixed(0)}% aproveitamento`, i: AlertTriangle, c: 'orange-500' }
-          );
+          if (examStats.best) {
+             cards.push(
+                { l: 'Melhor em Provas', v: examStats.best.name, s: `${examStats.best.percentage.toFixed(0)}% aproveitamento`, i: Trophy, c: 'yellow-500' },
+                { l: 'Pior em Provas', v: examStats.worst.name, s: `${examStats.worst.percentage.toFixed(0)}% aproveitamento`, i: AlertTriangle, c: 'orange-500' }
+             );
+          }
+          // Card de Tempo Médio
+          if (examStats.avgTime) {
+             cards.push(
+                { l: 'Tempo Médio Provas', v: examStats.avgTime, s: 'estimativa por prova', i: Clock, c: 'blue-400' }
+             );
+          }
       }
 
       return cards;
