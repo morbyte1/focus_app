@@ -1,5 +1,5 @@
 import React, { useContext, useState } from 'react';
-import { ClipboardList, Plus, Calendar, Clock, Award, Trash2, ChevronRight, X } from 'lucide-react';
+import { ClipboardList, Plus, Calendar, Clock, Award, Trash2, ChevronRight, PieChart } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -15,7 +15,8 @@ export const ExamsView = () => {
     date: new Date().toISOString().split('T')[0],
     duration: '',
     generalGrade: '',
-    subjects: [] // Array de { id, subjectId, grade }
+    generalMax: '', // Novo campo: Nota Máxima ou Total de Questões Geral
+    subjects: [] // Array de { id, subjectId, grade, max }
   });
 
   // Estado para o Modal de Detalhes
@@ -27,7 +28,7 @@ export const ExamsView = () => {
   const addSubjectRow = () => {
     setForm(prev => ({
       ...prev,
-      subjects: [...prev.subjects, { id: Date.now(), subjectId: '', grade: '' }]
+      subjects: [...prev.subjects, { id: Date.now(), subjectId: '', grade: '', max: '' }]
     }));
   };
 
@@ -49,18 +50,32 @@ export const ExamsView = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name || !form.generalGrade) return alert("Preencha o nome e a nota geral.");
+    if (!form.name || !form.generalGrade || !form.generalMax) return alert("Preencha o nome, nota obtida e nota máxima.");
 
     addExam({
       name: form.name,
       date: form.date,
       duration: form.duration,
       generalGrade: form.generalGrade,
-      subjects: form.subjects.filter(s => s.subjectId && s.grade) // Salva apenas linhas completas
+      generalMax: form.generalMax, // Salvando o máximo geral
+      subjects: form.subjects.filter(s => s.subjectId && s.grade) // Salva apenas linhas preenchidas (max é opcional, mas recomendado)
     });
 
     setIsModalOpen(false);
-    setForm({ name: '', date: new Date().toISOString().split('T')[0], duration: '', generalGrade: '', subjects: [] });
+    setForm({ name: '', date: new Date().toISOString().split('T')[0], duration: '', generalGrade: '', generalMax: '', subjects: [] });
+  };
+
+  // Helper para calcular porcentagem
+  const getPercentage = (val, max) => {
+    if (!val || !max) return 0;
+    return Math.round((Number(val) / Number(max)) * 100);
+  };
+
+  // Helper para cor da porcentagem
+  const getScoreColor = (pct) => {
+    if (pct >= 80) return 'text-emerald-500';
+    if (pct >= 50) return 'text-blue-500';
+    return 'text-red-500';
   };
 
   return (
@@ -92,14 +107,17 @@ export const ExamsView = () => {
               onClick={() => setSelectedExam(exam)}
             >
               <div className="flex justify-between items-start mb-4">
-                <div>
-                   <h3 className="text-lg font-bold text-zinc-900 dark:text-white line-clamp-1">{exam.name}</h3>
+                <div className="flex-1 min-w-0 pr-4">
+                   <h3 className="text-lg font-bold text-zinc-900 dark:text-white truncate">{exam.name}</h3>
                    <div className="flex items-center gap-2 text-xs text-zinc-500 mt-1">
                       <Calendar size={12}/> {new Date(exam.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                    </div>
                 </div>
-                <div className="bg-primary/10 text-primary-light px-3 py-1 rounded-xl text-lg font-bold border border-primary/20">
-                  {exam.generalGrade}
+                {/* Badge de Nota x/x */}
+                <div className="flex flex-col items-end">
+                    <div className="bg-primary/10 text-primary-light px-3 py-1 rounded-xl text-sm font-bold border border-primary/20">
+                    {exam.generalGrade} <span className="text-primary-light/60 text-xs">/ {exam.generalMax}</span>
+                    </div>
                 </div>
               </div>
               
@@ -138,11 +156,20 @@ export const ExamsView = () => {
                </div>
             </div>
 
-            <div>
-              <label className="text-xs text-zinc-500 font-bold uppercase flex items-center gap-2">
-                 <Award size={14}/> Nota Geral
-              </label>
-              <input required type="number" step="0.1" placeholder="Ex: 750" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary text-lg font-bold" value={form.generalGrade} onChange={e => setForm({ ...form, generalGrade: e.target.value })} />
+            {/* Linha de Nota Geral e Nota Máxima */}
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <label className="text-xs text-zinc-500 font-bold uppercase flex items-center gap-2">
+                        <Award size={14}/> Nota Obtida
+                    </label>
+                    <input required type="number" step="0.1" placeholder="Ex: 75" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary text-lg font-bold" value={form.generalGrade} onChange={e => setForm({ ...form, generalGrade: e.target.value })} />
+                </div>
+                <div>
+                    <label className="text-xs text-zinc-500 font-bold uppercase flex items-center gap-2">
+                        <PieChart size={14}/> Total / Máx
+                    </label>
+                    <input required type="number" step="0.1" placeholder="Ex: 90" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary text-lg font-bold" value={form.generalMax} onChange={e => setForm({ ...form, generalMax: e.target.value })} />
+                </div>
             </div>
           </div>
 
@@ -151,14 +178,14 @@ export const ExamsView = () => {
           {/* Seção Dinâmica de Matérias */}
           <div>
             <div className="flex justify-between items-center mb-3">
-               <label className="text-xs text-zinc-500 font-bold uppercase">Notas por Matéria (Opcional)</label>
+               <label className="text-xs text-zinc-500 font-bold uppercase">Notas por Matéria</label>
                <button type="button" onClick={addSubjectRow} className="text-xs text-primary font-bold hover:underline flex items-center gap-1">
                  <Plus size={12}/> Adicionar Matéria
                </button>
             </div>
             
             <div className="space-y-3 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
-               {form.subjects.map((item, index) => (
+               {form.subjects.map((item) => (
                  <div key={item.id} className="flex gap-2 items-center animate-fadeIn">
                     <select 
                         className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary"
@@ -168,13 +195,27 @@ export const ExamsView = () => {
                         <option value="">Selecione...</option>
                         {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
+                    
+                    {/* Nota Obtida */}
                     <input 
                         type="number" 
                         placeholder="Nota" 
-                        className="w-20 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary text-center"
+                        className="w-16 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary text-center"
                         value={item.grade}
                         onChange={(e) => updateSubjectRow(item.id, 'grade', e.target.value)}
                     />
+                    
+                    <span className="text-zinc-400 text-sm">/</span>
+
+                    {/* Nota Máxima */}
+                    <input 
+                        type="number" 
+                        placeholder="Max" 
+                        className="w-16 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary text-center"
+                        value={item.max}
+                        onChange={(e) => updateSubjectRow(item.id, 'max', e.target.value)}
+                    />
+
                     <button type="button" onClick={() => removeSubjectRow(item.id)} className="p-2 text-zinc-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 transition-colors">
                         <Trash2 size={16}/>
                     </button>
@@ -204,9 +245,19 @@ export const ExamsView = () => {
                     <span className="w-1 h-1 bg-zinc-300 dark:bg-zinc-700 rounded-full"/>
                     <span className="flex items-center gap-1"><Clock size={14}/> {selectedExam.duration || 'N/A'}</span>
                  </div>
+                 
+                 {/* Placar Principal com Porcentagem */}
                  <div className="inline-flex flex-col items-center">
-                    <span className="text-[10px] font-bold uppercase text-zinc-400 tracking-wider">Nota Geral</span>
-                    <span className="text-4xl font-black text-primary-light drop-shadow-sm">{selectedExam.generalGrade}</span>
+                    <span className="text-[10px] font-bold uppercase text-zinc-400 tracking-wider mb-1">Desempenho Geral</span>
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-black text-zinc-900 dark:text-white">{selectedExam.generalGrade}</span>
+                        <span className="text-xl font-medium text-zinc-400">/ {selectedExam.generalMax}</span>
+                    </div>
+                    {selectedExam.generalMax && (
+                        <div className={`mt-2 px-3 py-1 rounded-full text-xs font-bold border ${getPercentage(selectedExam.generalGrade, selectedExam.generalMax) >= 50 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+                            {getPercentage(selectedExam.generalGrade, selectedExam.generalMax)}% de aproveitamento
+                        </div>
+                    )}
                  </div>
               </div>
 
@@ -215,17 +266,37 @@ export const ExamsView = () => {
                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-3 flex items-center gap-2">
                     <ClipboardList size={16} className="text-zinc-400"/> Desempenho por Matéria
                  </h3>
-                 <div className="space-y-2">
+                 <div className="space-y-3">
                     {selectedExam.subjects && selectedExam.subjects.length > 0 ? (
                         selectedExam.subjects.map((item, idx) => {
                             const sub = subjects.find(s => s.id === Number(item.subjectId));
+                            const pct = item.max ? getPercentage(item.grade, item.max) : 0;
+                            
                             return (
-                                <div key={idx} className="flex justify-between items-center p-3 bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sub?.color || '#555' }}></div>
-                                        <span className="font-medium text-zinc-700 dark:text-zinc-300 text-sm">{sub?.name || 'Matéria Excluída'}</span>
+                                <div key={idx} className="bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sub?.color || '#555' }}></div>
+                                            <span className="font-medium text-zinc-700 dark:text-zinc-300 text-sm">{sub?.name || 'Matéria Excluída'}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="font-bold text-zinc-900 dark:text-white">{item.grade}</span>
+                                            {item.max && <span className="text-xs text-zinc-400"> / {item.max}</span>}
+                                        </div>
                                     </div>
-                                    <span className="font-bold text-zinc-900 dark:text-white">{item.grade}</span>
+                                    
+                                    {/* Barra de Progresso por Matéria */}
+                                    {item.max && (
+                                        <div className="w-full flex items-center gap-3">
+                                            <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full rounded-full ${pct >= 70 ? 'bg-emerald-500' : pct >= 50 ? 'bg-blue-500' : 'bg-red-500'}`} 
+                                                    style={{ width: `${pct}%` }}
+                                                />
+                                            </div>
+                                            <span className={`text-[10px] font-bold ${getScoreColor(pct)}`}>{pct}%</span>
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })
