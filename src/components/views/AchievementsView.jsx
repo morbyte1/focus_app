@@ -1,5 +1,5 @@
 import React, { useContext, useMemo, useEffect } from 'react';
-import { Trophy, Lock, Star, Medal, Target, Zap, BookOpen, AlertTriangle, Crown, Flame, Sun, Moon, Crosshair, Sparkles } from 'lucide-react';
+import { Trophy, Lock, Star, Medal, Target, Zap, BookOpen, AlertTriangle, Layers, Crown, Flame, Sun, Moon, Crosshair, Sparkles } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 
