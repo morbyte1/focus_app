@@ -149,7 +149,8 @@ export const FocusProvider = ({ children }) => {
     if (reason) console.log(`${amt > 0 ? '+' : ''}${amt} XP: ${reason}`);
   };
 
-  const addSession = (mins, notes, mSubId = null, qs = 0, errs = 0) => {
+  // --- FUNÇÃO ADDSESSION ATUALIZADA ---
+  const addSession = (mins, notes, mSubId = null, qs = 0, errs = 0, topic = null) => {
     const sId = mSubId ? Number(mSubId) : selectedSubjectId;
     let cleanQs = Math.max(0, parseInt(qs) || 0);
     let cleanErrs = Math.max(0, parseInt(errs) || 0);
@@ -157,7 +158,9 @@ export const FocusProvider = ({ children }) => {
         alert(`Atenção: Você informou mais erros (${cleanErrs}) do que questões feitas (${cleanQs}). Ajustando o número de erros para ser igual ao total.`);
         cleanErrs = cleanQs;
     }
-    setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: cleanQs, errors: cleanErrs }]);
+    // Adicionado parâmetro 'topic' no objeto salvo
+    setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: cleanQs, errors: cleanErrs, topic }]);
+    
     let xp = (Math.floor(mins / 10) * 50) + (cleanQs * 10);
     
     const sub = subjects.find(s => s.id === sId);

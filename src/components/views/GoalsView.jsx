@@ -104,7 +104,7 @@ export const GoalsView = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Metas Semanais</h1><Button onClick={() => setModal(true)}><Plus size={18} /> Nova</Button></header>
+      <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Matérias e Metas</h1><Button onClick={() => setModal(true)}><Plus size={18} /> Nova</Button></header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {subjects.map(s => { 
           const { h, p } = getProg(s.id, s.goalHours); 

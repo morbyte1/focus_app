@@ -79,7 +79,12 @@ export const HistoryView = () => {
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                               <div className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]" style={{ color: subject?.color || '#555', backgroundColor: subject?.color || '#555' }}></div>
-                              <span className="text-zinc-700 dark:text-zinc-200 font-medium">{subject?.name || 'Matéria Excluída'}</span>
+                              
+                              {/* ATUALIZAÇÃO AQUI: Mostra Tópico se existir */}
+                              <span className="text-zinc-700 dark:text-zinc-200 font-medium">
+                                {subject?.name || 'Matéria Excluída'}
+                                {s.topic && ` - ${s.topic}`}
+                              </span>
                             </div>
 
                             <div className="flex items-center gap-4 text-sm bg-black/5 dark:bg-black/20 p-2 rounded-xl sm:bg-transparent sm:p-0 self-start sm:self-auto">

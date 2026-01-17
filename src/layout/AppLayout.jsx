@@ -34,7 +34,7 @@ export const AppLayout = () => {
     { id: 'achievements', l: 'Conquistas', i: Trophy },
     { id: 'mistakes', l: 'Erros', i: AlertTriangle }, 
     { id: 'calendar', l: 'Calendário', i: Calendar }, 
-    { id: 'goals', l: 'Metas', i: Target }, 
+    { id: 'goals', l: 'Matérias', i: Target }, 
     { id: 'stats', l: 'Estatísticas', i: BarChart2 }, 
     { id: 'history', l: 'Histórico', i: History }, 
     { id: 'settings', l: 'Configurações', i: Settings }

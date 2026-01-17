@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 // 1. Ícones usados especificamente nesta tela
 import { Play, Pause, RotateCcw, Coffee, CheckCircle, Plus, Clock, Trash2 } from 'lucide-react';
 
@@ -22,7 +22,8 @@ export const FocusView = () => {
     cycles, setCycles, 
     tasks, addTask, toggleTask, deleteTask, 
     addSession, elapsedTime, setElapsedTime, 
-    flowStoredTime, setFlowStoredTime 
+    flowStoredTime, setFlowStoredTime,
+    themes // ADICIONADO: Importando themes para listar tópicos
   } = useContext(FocusContext);
 
   const [taskT, setTaskT] = useState(""); 
@@ -31,13 +32,28 @@ export const FocusView = () => {
   const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); 
   const [mForm, setMForm] = useState({ t: "", n: "", s: "", q: "", e: "" });
   
-  if (!subjects.length) return <div className="text-center mt-20 text-zinc-400">Adicione matérias em Metas.</div>;
+  // NOVO ESTADO: Controle do tópico selecionado
+  const [selectedTopic, setSelectedTopic] = useState("");
+
+  // NOVA LÓGICA: Filtrar tópicos pendentes da matéria selecionada
+  const availableTopics = useMemo(() => {
+    if (!selectedSubjectId) return [];
+    // Filtra themes da matéria -> pega os items -> filtra os não completados -> pega o nome
+    return themes
+      .filter(t => t.subjectId === selectedSubjectId)
+      .flatMap(t => t.items)
+      .filter(i => !i.completed)
+      .map(i => i.text);
+  }, [themes, selectedSubjectId]);
+
+  if (!subjects.length) return <div className="text-center mt-20 text-zinc-400">Adicione matérias em Matérias.</div>;
   
   const finish = (e) => { 
       e.preventDefault(); 
       const mins = Math.round(elapsedTime / 60); 
       if (mins > 0) { 
-          addSession(mins, fForm.n, null, fForm.q, fForm.e); 
+          // ATUALIZADO: Passando selectedTopic
+          addSession(mins, fForm.n, null, fForm.q, fForm.e, selectedTopic); 
           triggerCelebration(); 
       } else {
           alert("Tempo insuficiente para salvar.");
@@ -49,13 +65,15 @@ export const FocusView = () => {
       setCycles(0); 
       setFinMod(false); 
       setFForm({ n: "", q: "", e: "" }); 
+      setSelectedTopic(""); // Resetar tópico após salvar
   };
   
   const manual = (e) => { 
       e.preventDefault(); 
       if (!mForm.t || !mForm.s) return alert("Preencha tempo e matéria."); 
       const tValid = Math.max(1, parseInt(mForm.t) || 0);
-      addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e); 
+      // ATUALIZADO: Passando selectedTopic
+      addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e, selectedTopic); 
       setMForm({ t: "", n: "", s: "", q: "", e: "" }); 
       setManMod(false); 
       triggerCelebration();
@@ -79,11 +97,33 @@ export const FocusView = () => {
             <button onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-primary text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Flow</button>
           </div>
           
-          <div className="w-full max-w-xs mb-8 z-10 text-center">
-            <label className="text-xs font-semibold text-zinc-500 uppercase block mb-2">Matéria</label>
-            <select disabled={isActive} value={selectedSubjectId || ''} onChange={(e) => setSelectedSubjectId(Number(e.target.value))} className="w-full bg-zinc-100 dark:bg-[#18181B] text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 rounded-2xl py-3 px-4 outline-none cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+          <div className="w-full max-w-xs mb-8 z-10 text-center space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-zinc-500 uppercase block mb-2">Matéria</label>
+              <select disabled={isActive} value={selectedSubjectId || ''} onChange={(e) => setSelectedSubjectId(Number(e.target.value))} className="w-full bg-zinc-100 dark:bg-[#18181B] text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 rounded-2xl py-3 px-4 outline-none cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
+                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+
+            {/* NOVO SELECT: TÓPICO */}
+            <div>
+              <label className="text-xs font-semibold text-zinc-500 uppercase block mb-2">Tópico</label>
+              <select 
+                disabled={isActive || !selectedSubjectId || availableTopics.length === 0}
+                value={selectedTopic}
+                onChange={(e) => setSelectedTopic(e.target.value)}
+                className="w-full bg-zinc-100 dark:bg-[#18181B] text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 rounded-2xl py-3 px-4 outline-none cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors disabled:opacity-50"
+              >
+                <option value="">
+                  {selectedSubjectId 
+                    ? (availableTopics.length === 0 ? "Sem tópicos pendentes" : "Selecione um tópico...") 
+                    : "Selecione uma matéria primeiro"}
+                </option>
+                {availableTopics.map((topic, idx) => (
+                  <option key={idx} value={topic}>{topic}</option>
+                ))}
+              </select>
+            </div>
           </div>
           
           <div className="z-10 text-center">

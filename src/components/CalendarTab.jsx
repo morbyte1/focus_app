@@ -122,7 +122,7 @@ export function CalendarTab() {
       
       {/* HEADER ADICIONADO (Mantém harmonia com as outras páginas) */}
       <header>
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Calendário Acadêmico</h1>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Calendário</h1>
       </header>
 
       <div className="flex flex-col lg:flex-row gap-6 h-full">
@@ -224,7 +224,7 @@ export function CalendarTab() {
                     <div className="pl-2">
                         <div className="flex justify-between items-start mb-1">
                             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide">
-                                {subject.isExam ? 'Prova / Simulado' : (index === 0 ? 'Foco Principal' : 'Revisão / Secundário')}
+                                {subject.isExam ? 'Prova / Simulado' : (index === 0 ? 'Primeira Matéria' : 'Segunda Matéria')}
                             </p>
                             {index === 0 && <span className="bg-primary/10 text-primary-light p-1 rounded-lg"><Check size={12}/></span>}
                         </div>
