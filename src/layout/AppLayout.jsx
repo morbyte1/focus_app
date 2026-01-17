@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
-// 1. Importar Trophy
-import { LayoutDashboard, Zap, Target, BarChart2, History, Settings, Menu, X, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap, Trophy } from 'lucide-react';
+// 1. Importar Trophy e ClipboardList (Novo ícone para provas)
+import { LayoutDashboard, Zap, Target, BarChart2, History, Settings, Menu, X, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap, Trophy, ClipboardList } from 'lucide-react';
 import { FocusContext, getXP, getRank } from '../context/FocusContext';
 
 import { DashboardView } from '../components/views/DashboardView';
@@ -12,8 +12,9 @@ import { HistoryView } from '../components/views/HistoryView';
 import { SettingsView } from '../components/views/SettingsView';
 import { CalendarTab } from '../components/CalendarTab'; 
 import { SchoolView } from '../components/views/SchoolView'; 
-// 2. Importar AchievementsView
 import { AchievementsView } from '../components/views/AchievementsView';
+// 2. Importar ExamsView
+import { ExamsView } from '../components/views/ExamsView';
 
 export const AppLayout = () => {
   const { currentView, setCurrentView, userLevel } = useContext(FocusContext);
@@ -24,12 +25,13 @@ export const AppLayout = () => {
   const xpP = Math.min(100, (userLevel.currentXP / xpN) * 100);
   const rk = getRank(userLevel.level);
   
-  // 3. Adicionar item 'achievements' na navegação
+  // 3. Adicionar item 'exams' na navegação
   const nav = [
     { id: 'dashboard', l: 'Painel', i: LayoutDashboard }, 
     { id: 'school', l: 'Escola', i: GraduationCap },
     { id: 'focus', l: 'Focar', i: Zap }, 
-    { id: 'achievements', l: 'Conquistas', i: Trophy }, // <--- NOVO ITEM AQUI
+    { id: 'exams', l: 'Provas', i: ClipboardList }, // <--- NOVO ITEM AQUI
+    { id: 'achievements', l: 'Conquistas', i: Trophy },
     { id: 'mistakes', l: 'Erros', i: AlertTriangle }, 
     { id: 'calendar', l: 'Calendário', i: Calendar }, 
     { id: 'goals', l: 'Metas', i: Target }, 
@@ -84,8 +86,9 @@ export const AppLayout = () => {
                 {currentView === 'history' && <HistoryView />} 
                 {currentView === 'settings' && <SettingsView />}
                 {currentView === 'school' && <SchoolView />}
-                {/* 4. Renderizar AchievementsView */}
                 {currentView === 'achievements' && <AchievementsView />}
+                {/* 4. Renderizar ExamsView */}
+                {currentView === 'exams' && <ExamsView />}
             </div>
         </main>
     </div>

@@ -56,6 +56,9 @@ export const FocusProvider = ({ children }) => {
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
   const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, 'focus_school_schedule');
 
+  // === ESTADO: PROVAS (NOVO) ===
+  const [exams, setExams] = useStickyState([], 'focus_exams');
+
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [flowStoredTime, setFlowStoredTime] = useState(0);
@@ -248,6 +251,17 @@ export const FocusProvider = ({ children }) => {
             alert(`🏆 CONQUISTA DESBLOQUEADA: ${title}\n+${xpAmount} XP`);
             return [...prev, id];
         });
+    },
+
+    // === MÉTODOS PROVAS (NOVO) ===
+    addExam: (examData) => {
+      setExams(prev => [{ ...examData, id: Date.now() }, ...prev]);
+      gainXP(200, "Prova Registrada");
+    },
+    deleteExam: (id) => {
+      if (window.confirm("Apagar histórico desta prova?")) {
+        setExams(prev => prev.filter(e => e.id !== id));
+      }
     }
   };
 
@@ -287,7 +301,8 @@ export const FocusProvider = ({ children }) => {
         countdown, setCountdown, 
         userLevel, 
         // EXPORTAÇÃO OBRIGATÓRIA PARA A PÁGINA FUNCIONAR
-        unlockedAchievements, 
+        unlockedAchievements,
+        exams, // <--- NOVO: ESTADO PROVAS
         
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
         timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), 
