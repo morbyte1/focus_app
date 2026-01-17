@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
-// 1. Adicionar GraduationCap nos imports
-import { LayoutDashboard, Zap, Target, BarChart2, History, Settings, Menu, X, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap } from 'lucide-react';
+// 1. Importar Trophy
+import { LayoutDashboard, Zap, Target, BarChart2, History, Settings, Menu, X, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap, Trophy } from 'lucide-react';
 import { FocusContext, getXP, getRank } from '../context/FocusContext';
 
 import { DashboardView } from '../components/views/DashboardView';
@@ -11,8 +11,9 @@ import { StatsView } from '../components/views/StatsView';
 import { HistoryView } from '../components/views/HistoryView';
 import { SettingsView } from '../components/views/SettingsView';
 import { CalendarTab } from '../components/CalendarTab'; 
-// 2. Importar a SchoolView
 import { SchoolView } from '../components/views/SchoolView'; 
+// 2. Importar AchievementsView
+import { AchievementsView } from '../components/views/AchievementsView';
 
 export const AppLayout = () => {
   const { currentView, setCurrentView, userLevel } = useContext(FocusContext);
@@ -23,11 +24,12 @@ export const AppLayout = () => {
   const xpP = Math.min(100, (userLevel.currentXP / xpN) * 100);
   const rk = getRank(userLevel.level);
   
-  // 3. Adicionar item 'school' na navegação
+  // 3. Adicionar item 'achievements' na navegação
   const nav = [
     { id: 'dashboard', l: 'Painel', i: LayoutDashboard }, 
-    { id: 'school', l: 'Escola', i: GraduationCap }, // <--- NOVO ITEM
+    { id: 'school', l: 'Escola', i: GraduationCap },
     { id: 'focus', l: 'Focar', i: Zap }, 
+    { id: 'achievements', l: 'Conquistas', i: Trophy }, // <--- NOVO ITEM AQUI
     { id: 'mistakes', l: 'Erros', i: AlertTriangle }, 
     { id: 'calendar', l: 'Calendário', i: Calendar }, 
     { id: 'goals', l: 'Metas', i: Target }, 
@@ -62,7 +64,7 @@ export const AppLayout = () => {
                 {!col && <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full bg-gradient-to-r ${rk.b}`} style={{ width: `${xpP}%` }} /></div>}
             </div>
             
-            <nav className="flex-1 px-4 space-y-2">
+            <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
                 {nav.map(i => (
                     <button key={i.id} onClick={() => { setCurrentView(i.id); setMenu(false) }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${currentView === i.id ? 'bg-primary/10 text-primary-light font-medium' : 'hover:bg-zinc-100 dark:hover:bg-[#09090b] hover:text-zinc-900 dark:hover:text-white'} ${col ? 'justify-center' : ''}`} title={col ? i.l : ''}>
                         <i.i size={20} />{!col && i.l}
@@ -81,8 +83,9 @@ export const AppLayout = () => {
                 {currentView === 'stats' && <StatsView />} 
                 {currentView === 'history' && <HistoryView />} 
                 {currentView === 'settings' && <SettingsView />}
-                {/* 4. Renderizar SchoolView */}
                 {currentView === 'school' && <SchoolView />}
+                {/* 4. Renderizar AchievementsView */}
+                {currentView === 'achievements' && <AchievementsView />}
             </div>
         </main>
     </div>
