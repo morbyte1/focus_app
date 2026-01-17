@@ -5,16 +5,15 @@ import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 
 export const StatsView = () => {
-  const { sessions, subjects, mistakes, themes, advancedStats } = useContext(FocusContext);
+  // ADICIONADO: 'exams' desestruturado do contexto
+  const { sessions, subjects, mistakes, themes, advancedStats, exams } = useContext(FocusContext);
   const { monthlyData } = advancedStats;
   
-  // ATUALIZADO: Filtramos para pegar apenas matérias que não são "apenas escolares"
   const activeSubjects = subjects.filter(s => !s.isSchool);
 
   const totQ = sessions.reduce((a, s) => a + (s.questions || 0), 0);
   const totE = sessions.reduce((a, s) => a + (s.errors || 0), 0);
   
-  // Usamos activeSubjects aqui para os gráficos de performance
   const perfData = activeSubjects.map(s => { 
       const ss = sessions.filter(x => x.subjectId === s.id);
       const q = ss.reduce((a, c) => a + (c.questions || 0), 0);
@@ -24,10 +23,8 @@ export const StatsView = () => {
   
   const misReasons = Object.entries(mistakes.reduce((a, m) => ({ ...a, [m.reason]: (a[m.reason] || 0) + 1 }), {})).map(([k, v]) => ({ name: k, quantidade: v }));
   
-  // Usamos activeSubjects aqui também
   const compTopics = activeSubjects.map(s => ({ name: s.name, value: themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0), color: s.color })).filter(d => d.value > 0);
   
-  // E aqui
   const wrnQ = activeSubjects.map(s => ({ name: s.name, value: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + (c.errors || 0), 0), color: s.color })).filter(d => d.value > 0);
   
   const heat = useMemo(() => { 
@@ -46,6 +43,73 @@ export const StatsView = () => {
     return { ms: sMin[0], ls: sMin[sMin.length - 1], mt: sTop[0], lt: sTop[sTop.length - 1], mq: sQ[0], lq: sQ[sQ.length - 1], mc: [...agg].sort((a, b) => (b.q - b.e) - (a.q - a.e))[0], me: [...agg].sort((a, b) => b.e - a.e)[0] };
   }, [activeSubjects, sessions, themes]);
 
+  // NOVO: Cálculo de estatísticas de provas para os cards
+  const examStats = useMemo(() => {
+    if (!exams || exams.length === 0) return null;
+    
+    // Agrupa notas por matéria
+    const subjectGrades = {};
+
+    exams.forEach(exam => {
+        if (exam.subjects) {
+            exam.subjects.forEach(sub => {
+                if (sub.grade && sub.max && sub.subjectId) {
+                    if (!subjectGrades[sub.subjectId]) {
+                        subjectGrades[sub.subjectId] = { totalObtained: 0, totalMax: 0 };
+                    }
+                    subjectGrades[sub.subjectId].totalObtained += parseFloat(sub.grade);
+                    subjectGrades[sub.subjectId].totalMax += parseFloat(sub.max);
+                }
+            });
+        }
+    });
+
+    const results = Object.entries(subjectGrades).map(([id, stats]) => {
+        const subject = subjects.find(s => s.id === Number(id));
+        if (!subject) return null;
+        const percentage = stats.totalMax > 0 ? (stats.totalObtained / stats.totalMax) * 100 : 0;
+        return { name: subject.name, percentage };
+    }).filter(Boolean);
+
+    if (results.length === 0) return null;
+
+    results.sort((a, b) => b.percentage - a.percentage);
+
+    return {
+        best: results[0],
+        worst: results[results.length - 1]
+    };
+  }, [exams, subjects]);
+
+  // COMBINAÇÃO: Cria a lista final de cards mesclando estudo e provas
+  const displayCards = useMemo(() => {
+      const cards = [];
+      
+      // Cards originais de estudo (se existirem dados)
+      if (hi) {
+          cards.push(
+            { l: 'Mais Estudada', v: hi.ms.name, s: `${Math.round(hi.ms.min / 60)}h`, i: Clock, c: '#1100ab' },
+            { l: 'Menos Estudada', v: hi.ls.name, s: `${Math.round(hi.ls.min / 60)}h`, i: Clock, c: 'zinc-500' },
+            { l: 'Mais Tópicos', v: hi.mt.name, s: `${hi.mt.t} feitos`, i: CheckSquare, c: 'emerald-500' },
+            { l: 'Menos Tópicos', v: hi.lt.name, s: `${hi.lt.t} feitos`, i: CheckSquare, c: 'zinc-500' },
+            { l: 'Mais Questões', v: hi.mq.name, s: `${hi.mq.q} total`, i: Activity, c: 'blue-500' },
+            { l: 'Menos Questões', v: hi.lq.name, s: `${hi.lq.q} total`, i: Activity, c: 'zinc-500' },
+            { l: 'Melhor Precisão', v: hi.mc.name, s: `${hi.mc.q - hi.mc.e} certas`, i: CheckCircle, c: 'emerald-500' },
+            { l: 'Mais Erros', v: hi.me.name, s: `${hi.me.e} erros`, i: AlertTriangle, c: 'red-500' }
+          );
+      }
+
+      // Novos cards de provas (se existirem dados)
+      if (examStats) {
+          cards.push(
+            { l: 'Melhor em Provas', v: examStats.best.name, s: `${examStats.best.percentage.toFixed(0)}% aproveitamento`, i: Trophy, c: 'yellow-500' },
+            { l: 'Pior em Provas', v: examStats.worst.name, s: `${examStats.worst.percentage.toFixed(0)}% aproveitamento`, i: AlertTriangle, c: 'orange-500' }
+          );
+      }
+
+      return cards;
+  }, [hi, examStats]);
+
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white mb-6">Central de Dados</h1>
@@ -57,20 +121,13 @@ export const StatsView = () => {
           </Card>
         ))}
       </div>
+      
       <Card>
         <h3 className="text-zinc-900 dark:text-white font-semibold mb-4 flex items-center gap-2"><Trophy size={18} className="text-yellow-500" /> Destaques de Performance</h3>
-        {hi ? (
+        
+        {displayCards.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
-            {[ 
-               { l: 'Mais Estudada', v: hi.ms.name, s: `${Math.round(hi.ms.min / 60)}h`, i: Clock, c: '#1100ab' },
-               { l: 'Menos Estudada', v: hi.ls.name, s: `${Math.round(hi.ls.min / 60)}h`, i: Clock, c: 'zinc-500' },
-               { l: 'Mais Tópicos', v: hi.mt.name, s: `${hi.mt.t} feitos`, i: CheckSquare, c: 'emerald-500' },
-               { l: 'Menos Tópicos', v: hi.lt.name, s: `${hi.lt.t} feitos`, i: CheckSquare, c: 'zinc-500' },
-               { l: 'Mais Questões', v: hi.mq.name, s: `${hi.mq.q} total`, i: Activity, c: 'blue-500' },
-               { l: 'Menos Questões', v: hi.lq.name, s: `${hi.lq.q} total`, i: Activity, c: 'zinc-500' },
-               { l: 'Melhor Precisão', v: hi.mc.name, s: `${hi.mc.q - hi.mc.e} certas`, i: CheckCircle, c: 'emerald-500' },
-               { l: 'Mais Erros', v: hi.me.name, s: `${hi.me.e} erros`, i: AlertTriangle, c: 'red-500' }
-            ].map((x, i) => (
+            {displayCards.map((x, i) => (
               <div key={i} className="bg-zinc-50 dark:bg-zinc-900/50 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between h-full">
                 <p className="text-xs text-zinc-500 uppercase font-bold flex items-center gap-1"><x.i size={12} className={`text-${x.c.replace('#', '')}`} /> {x.l}</p>
                 <p className="text-zinc-900 dark:text-white font-bold truncate mt-1 text-lg">{x.v}</p>
@@ -78,7 +135,7 @@ export const StatsView = () => {
               </div>
             ))}
           </div>
-        ) : <p className="text-zinc-500">Estude mais para gerar destaques.</p>}
+        ) : <p className="text-zinc-500">Estude mais ou registre provas para gerar destaques.</p>}
       </Card>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
