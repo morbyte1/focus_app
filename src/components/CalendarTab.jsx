@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Settings, Calendar as CalIcon, BookOpen, Lay
 // Importamos o contexto do App para pegar as matérias salvas
 import { FocusContext } from '../context/FocusContext';
 
-// Hook simples para persistir o cronograma no LocalStorage
+// Hook para persistir o cronograma no LocalStorage (Usado pelo Dashboard também)
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
     try {
@@ -59,11 +59,13 @@ export function CalendarTab() {
     let calcDate = new Date(dateObj.getTime());
     
     // Se for Domingo (0), volta 1 dia para alinhar com o Sábado da mesma "janela" de fim de semana
+    // Isso garante que Sábado e Domingo mostrem o mesmo simulado (ou a lógica que você preferir)
     if (currentDay === 0) {
         calcDate = new Date(calcDate.getTime() - oneDay);
     }
 
     const oneWeekMs = oneDay * 7;
+    // Usa timestamp absoluto para calcular semanas corridas desde 1970
     const absoluteWeekIndex = Math.floor(calcDate.getTime() / oneWeekMs);
     const cycleIndex = absoluteWeekIndex % examCycle.length;
     
@@ -120,7 +122,6 @@ export function CalendarTab() {
   return (
     <div className="flex flex-col h-full animate-fadeIn pb-24 md:pb-0 gap-6">
       
-      {/* HEADER ADICIONADO (Mantém harmonia com as outras páginas) */}
       <header>
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Calendário</h1>
       </header>

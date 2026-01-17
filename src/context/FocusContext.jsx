@@ -56,6 +56,9 @@ export const FocusProvider = ({ children }) => {
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
   const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, 'focus_school_schedule');
 
+  const [studySchedule, setStudySchedule] = useStickyState({}, 'my_study_schedule');
+  const [examCycle, setExamCycle] = useStickyState([], 'my_exam_cycle');
+
   // === ESTADO: PROVAS (NOVO) ===
   const [exams, setExams] = useStickyState([], 'focus_exams');
 
