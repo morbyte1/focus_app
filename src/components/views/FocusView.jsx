@@ -5,6 +5,7 @@ import { Play, Pause, RotateCcw, Coffee, CheckCircle, Plus, Clock, Trash2 } from
 // 2. Importando o Contexto e as constantes (POMODORO) e helpers (formatTime)
 // Nota: O caminho volta duas pastas (../../) para achar a pasta context
 import { FocusContext, POMODORO, formatTime } from '../../context/FocusContext';
+import { triggerCelebration } from '../../utils/celebration';
 
 // 3. Componentes visuais que criamos antes
 import { Card } from '../ui/Card';
@@ -37,6 +38,7 @@ export const FocusView = () => {
       const mins = Math.round(elapsedTime / 60); 
       if (mins > 0) { 
           addSession(mins, fForm.n, null, fForm.q, fForm.e); 
+          triggerCelebration();
           alert(`Sessão salva: ${mins} min.`); 
       } else {
           alert("Tempo insuficiente para salvar.");
@@ -57,6 +59,7 @@ export const FocusView = () => {
       addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e); 
       setMForm({ t: "", n: "", s: "", q: "", e: "" }); 
       setManMod(false); 
+      triggerCelebration();
       alert("Salvo!"); 
   };
 

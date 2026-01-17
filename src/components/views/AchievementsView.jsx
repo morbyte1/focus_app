@@ -188,7 +188,7 @@ export const AchievementsView = () => {
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
           <div>
             <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
-              <Trophy className="text-yellow-400 drop-shadow-lg" size={40} /> Hall da Fama
+              <Trophy className="text-yellow-400 drop-shadow-lg" size={40} /> Troféus conquistados
             </h1>
             <p className="text-zinc-400 text-lg">Sua jornada épica de estudos imortalizada aqui.</p>
           </div>
