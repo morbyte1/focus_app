@@ -1,20 +1,17 @@
 import confetti from 'canvas-confetti';
 
-/**
- * Dispara uma celebração visual (confetes) e auditiva (som de sucesso).
- */
-export const triggerCelebration = () => {
-  // 1. Efeito Sonoro (Short Success Pop)
-  // Usando um som curto e agradável de domínio público/CDN confiável
-  try {
-    const audio = new Audio('https://cdn.pixabay.com/audio/2021/08/04/audio_12b0c7443c.mp3');
-    audio.volume = 0.5; // Volume a 50% para não assustar o usuário
-    audio.play().catch((e) => console.warn("Reprodução automática de áudio bloqueada pelo navegador", e));
-  } catch (error) {
-    console.error("Erro ao tocar som de celebração", error);
-  }
+// 1. Pré-carregamento do áudio (Singleton)
+// Criar a instância fora da função garante que o arquivo seja baixado antes do clique.
+const successAudio = new Audio('https://cdn.pixabay.com/audio/2021/08/04/audio_12b0c7443c.mp3');
+successAudio.volume = 0.5;
 
-  // 2. Efeito de Confete (Explosão Realista)
+export const triggerCelebration = () => {
+  // 2. Reset e Play imediato
+  // Reinicia o áudio caso o usuário clique várias vezes rápido
+  successAudio.currentTime = 0;
+  successAudio.play().catch((e) => console.warn("Áudio bloqueado pelo navegador", e));
+
+  // 3. Disparo dos Confetes (Sincronizado)
   const count = 200;
   const defaults = { origin: { y: 0.7 } };
 

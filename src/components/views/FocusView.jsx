@@ -38,8 +38,7 @@ export const FocusView = () => {
       const mins = Math.round(elapsedTime / 60); 
       if (mins > 0) { 
           addSession(mins, fForm.n, null, fForm.q, fForm.e); 
-          triggerCelebration();
-          alert(`Sessão salva: ${mins} min.`); 
+          triggerCelebration(); 
       } else {
           alert("Tempo insuficiente para salvar.");
       }
@@ -60,7 +59,6 @@ export const FocusView = () => {
       setMForm({ t: "", n: "", s: "", q: "", e: "" }); 
       setManMod(false); 
       triggerCelebration();
-      alert("Salvo!"); 
   };
 
   return (
