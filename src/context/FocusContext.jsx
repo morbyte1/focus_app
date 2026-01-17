@@ -25,16 +25,8 @@ function useStickyState(defaultValue, key) {
   return [value, setValue];
 }
 
-export const TITLES = [
-    { l: 60, t: "Divindade do Foco" }, // Adicionado para o nível Divino
-    { l: 50, t: "Sábio do Fluxo" }, 
-    { l: 30, t: "Arquivista Mestre" }, 
-    { l: 20, t: "Guardião da Disciplina" }, 
-    { l: 10, t: "Explorador do Conhecimento" }, 
-    { l: 5, t: "Aprendiz Focado" }, 
-    { l: 1, t: "Novato Curioso" }
-];
-
+// === ALTERAÇÃO MÍNIMA: Adicionado nível 60 para a conquista Divina ===
+export const TITLES = [{ l: 60, t: "Divindade do Foco" }, { l: 50, t: "Sábio do Fluxo" }, { l: 30, t: "Arquivista Mestre" }, { l: 20, t: "Guardião da Disciplina" }, { l: 10, t: "Explorador do Conhecimento" }, { l: 5, t: "Aprendiz Focado" }, { l: 1, t: "Novato Curioso" }];
 export const RANKS = [{ m: 50, i: Crown, b: "from-primary to-blue-500", c: "text-blue-300" }, { m: 30, i: Scroll, b: "from-slate-400 to-gray-200", c: "text-slate-300" }, { m: 20, i: Shield, b: "from-orange-500 to-amber-600", c: "text-amber-400" }, { m: 10, i: Compass, b: "from-blue-500 to-cyan-500", c: "text-cyan-400" }, { m: 5, i: Feather, b: "from-emerald-500 to-green-600", c: "text-emerald-400" }, { m: 1, i: Sprout, b: "from-gray-500 to-slate-600", c: "text-gray-400" }];
 export const getTitle = l => TITLES.find(t => l >= t.l)?.t || "Novato Curioso";
 export const getRank = l => RANKS.find(s => l >= s.m) || RANKS[RANKS.length - 1];
@@ -56,9 +48,10 @@ export const FocusProvider = ({ children }) => {
   const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
   const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
   
-  // === NOVO: ESTADO PARA CONQUISTAS DESBLOQUEADAS ===
+  // === NOVO: ESTADO PARA CONQUISTAS (Adição Obrigatória para a página funcionar) ===
   const [unlockedAchievements, setUnlockedAchievements] = useStickyState([], 'focus_unlocked_achievements');
 
+  // === ESTADO: ESCOLA (Trabalhos, Faltas e Grade) ===
   const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
   const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, 'focus_school_schedule');
@@ -74,6 +67,7 @@ export const FocusProvider = ({ children }) => {
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark'); 
+
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
@@ -103,6 +97,8 @@ export const FocusProvider = ({ children }) => {
         if (JSON.stringify(themes) !== JSON.stringify(healed)) setThemes(healed);
     }
   }, []);
+
+  useEffect(() => { document.title = timerState.active ? `${formatTime(timerState.timeLeft)} - ${timerState.mode === 'WORK' ? 'Foco' : 'Pausa'}` : "Focus App - Estudos & Produtividade"; }, [timerState.active, timerState.timeLeft, timerState.mode]);
 
   useEffect(() => {
     let interval = null;
@@ -147,42 +143,42 @@ export const FocusProvider = ({ children }) => {
       while (cx >= nx && amt > 0) { cx -= nx; level++; nx = getXP(level); alert(`🎉 LEVEL UP! Nível ${level}: ${getTitle(level)}`); }
       return { level, currentXP: cx, totalXP: tx, title: getTitle(level) };
     });
-    // Opcional: Log ou Toast aqui
-    if (reason) console.log(`+${amt} XP: ${reason}`);
-  };
-
-  // === NOVA FUNÇÃO: DESBLOQUEAR CONQUISTA ===
-  const unlockAchievement = (id, xpAmount, title) => {
-    setUnlockedAchievements(prev => {
-        if (prev.includes(id)) return prev; // Já desbloqueada
-        
-        // Se não desbloqueada, adiciona e dá XP
-        gainXP(xpAmount, `Conquista: ${title}`);
-        alert(`🏆 CONQUISTA DESBLOQUEADA: ${title}\n+${xpAmount} XP`);
-        return [...prev, id];
-    });
+    if (reason) console.log(`${amt > 0 ? '+' : ''}${amt} XP: ${reason}`);
   };
 
   const addSession = (mins, notes, mSubId = null, qs = 0, errs = 0) => {
     const sId = mSubId ? Number(mSubId) : selectedSubjectId;
     let cleanQs = Math.max(0, parseInt(qs) || 0);
     let cleanErrs = Math.max(0, parseInt(errs) || 0);
-    if (cleanErrs > cleanQs) cleanErrs = cleanQs;
+    if (cleanErrs > cleanQs) {
+        alert(`Atenção: Você informou mais erros (${cleanErrs}) do que questões feitas (${cleanQs}). Ajustando o número de erros para ser igual ao total.`);
+        cleanErrs = cleanQs;
+    }
     setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: cleanQs, errors: cleanErrs }]);
     let xp = (Math.floor(mins / 10) * 50) + (cleanQs * 10);
+    
     const sub = subjects.find(s => s.id === sId);
     if (sub && !sub.isSchool) {
-      const startW = new Date(); startW.setDate(startW.getDate() - startW.getDay()); startW.setHours(0,0,0,0);
+      const startW = new Date(); 
+      startW.setDate(startW.getDate() - startW.getDay()); 
+      startW.setHours(0,0,0,0);
       const prev = sessions.filter(s => s.subjectId === sId && new Date(s.date) >= startW).reduce((a, s) => a + s.minutes, 0);
       if (prev < sub.goalHours * 60 && (prev + mins) >= sub.goalHours * 60) { xp += 500; alert(`🏆 Meta semanal de ${sub.name} atingida! +500 XP`); }
     }
+    
     if (xp > 0) gainXP(xp, "Sessão");
   };
 
   const methods = {
     addSubject: (n, c, g, isSchool = false) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool }]),
     updateSubject: (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Math.max(0, Number(g)) } : s)),
-    deleteSubject: (id) => { if (subjects.length > 1 && window.confirm("Excluir?")) { const r = subjects.filter(s => s.id !== id); setSubjects(r); if (selectedSubjectId === id) setSelectedSubjectId(r[0].id); } else if(subjects.length<=1) alert("Mantenha uma matéria."); },
+    deleteSubject: (id) => { 
+        if (subjects.length > 1 && window.confirm("Excluir?")) { 
+            const r = subjects.filter(s => s.id !== id); 
+            setSubjects(r); 
+            if (selectedSubjectId === id) setSelectedSubjectId(r[0].id); 
+        } else if(subjects.length<=1) alert("Mantenha uma matéria."); 
+    },
     addTask: (t, sId) => setTasks(p => [...p, { id: Date.now(), text: t, completed: false, subjectId: sId }]),
     toggleTask: (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t)),
     deleteTask: (id) => window.confirm("Excluir?") && setTasks(p => p.filter(t => t.id !== id)),
@@ -194,32 +190,65 @@ export const FocusProvider = ({ children }) => {
     addThemeItem: (tId, txt) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text: txt, completed: false }] } : t)),
     toggleThemeItem: (tId, iId) => setThemes(p => { const t = p.find(x => x.id === tId), i = t?.items.find(x => x.id === iId); if(i && !i.completed) gainXP(20); return p.map(x => x.id === tId ? { ...x, items: x.items.map(y => y.id === iId ? { ...y, completed: !y.completed } : y) } : x); }),
     deleteThemeItem: (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.filter(i => i.id !== iId) } : t)),
-    resetXPOnly: () => window.confirm("Resetar nível?") && (setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }) || setUnlockedAchievements([]) || alert("Nível resetado.")),
+    resetXPOnly: () => window.confirm("Resetar nível?") && (setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }) || alert("Nível resetado.")),
     resetAllData: () => window.confirm("Apagar TUDO?") && (localStorage.clear() || window.location.reload()),
     deleteDayHistory: (d) => window.confirm(`Apagar ${d}?`) && setSessions(p => p.filter(s => new Date(s.date).toDateString() !== d)),
-    addWork: (subjectId, title, dueDate, description, maxGrade) => setSchoolWorks(p => [...p, { id: Date.now(), subjectId: Number(subjectId), title, dueDate, description, status: 'pending', grade: null, maxGrade: Number(maxGrade) || 10 }]),
+    
+    // === MÉTODOS ESCOLARES (UNIFICADOS AQUI) ===
+    addWork: (subjectId, title, dueDate, description, maxGrade) => setSchoolWorks(p => [...p, { 
+        id: Date.now(), 
+        subjectId: Number(subjectId), 
+        title, 
+        dueDate, 
+        description, 
+        status: 'pending', 
+        grade: null, 
+        maxGrade: Number(maxGrade) || 10
+    }]),
     updateWork: (id, updates) => setSchoolWorks(p => p.map(w => w.id === id ? { ...w, ...updates } : w)),
     deleteWork: (id) => window.confirm("Excluir trabalho?") && setSchoolWorks(p => p.filter(w => w.id !== id)),
+    
     addAbsenceRecord: (date, reason, lessonsMap) => {
         setSchoolAbsences(prev => {
             const existingIndex = prev.findIndex(a => a.date === date);
             if (existingIndex >= 0) {
+                // Mesclar com registro existente
                 const updated = [...prev];
                 const oldRecord = updated[existingIndex];
                 const newLessons = { ...oldRecord.lessons };
-                Object.entries(lessonsMap).forEach(([subId, count]) => { newLessons[subId] = (newLessons[subId] || 0) + count; });
+                
+                Object.entries(lessonsMap).forEach(([subId, count]) => {
+                    newLessons[subId] = (newLessons[subId] || 0) + count;
+                });
+                
                 let newReason = oldRecord.reason;
-                if (reason && !oldRecord.reason.includes(reason)) { newReason = `${oldRecord.reason} + ${reason}`; }
+                if (reason && !oldRecord.reason.includes(reason)) {
+                    newReason = `${oldRecord.reason} + ${reason}`;
+                }
+
                 updated[existingIndex] = { ...oldRecord, lessons: newLessons, reason: newReason };
                 return updated;
-            } else { return [...prev, { id: Date.now(), date, reason, lessons: lessonsMap }]; }
+            } else {
+                // Criar novo registro
+                return [...prev, { id: Date.now(), date, reason, lessons: lessonsMap }];
+            }
         });
     },
     deleteAbsenceRecord: (id) => window.confirm("Excluir registro de falta?") && setSchoolAbsences(p => p.filter(a => a.id !== id)),
-    updateSchoolSchedule: (dayId, lessonsArray) => setSchoolSchedule(p => ({ ...p, [dayId]: lessonsArray })),
     
-    // Exportamos a função de desbloquear
-    unlockAchievement
+    updateSchoolSchedule: (dayId, lessonsArray) => setSchoolSchedule(p => ({ ...p, [dayId]: lessonsArray })),
+
+    // === NOVO MÉTODO (NECESSÁRIO PARA CONQUISTAS) ===
+    unlockAchievement: (id, xpAmount, title) => {
+        setUnlockedAchievements(prev => {
+            if (prev.includes(id)) return prev; // Já desbloqueada
+            
+            // Se não desbloqueada, adiciona e dá XP
+            gainXP(xpAmount, `Conquista: ${title}`);
+            alert(`🏆 CONQUISTA DESBLOQUEADA: ${title}\n+${xpAmount} XP`);
+            return [...prev, id];
+        });
+    }
   };
 
   const kpiData = useMemo(() => {
@@ -238,10 +267,13 @@ export const FocusProvider = ({ children }) => {
   const advancedStats = useMemo(() => {
     const now = new Date(), m = now.getMonth(), y = now.getFullYear();
     const monthlyData = Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => ({ name: (i + 1).toString(), minutes: sessions.reduce((acc, s) => { const sd = new Date(s.date); return (sd.getDate() === i + 1 && sd.getMonth() === m && sd.getFullYear() === y) ? acc + s.minutes : acc; }, 0) }));
+    
     const activeSubjects = subjects.filter(s => !s.isSchool);
     const ranked = activeSubjects.map(s => ({ ...s, totalMins: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + c.minutes, 0) })).sort((a, b) => b.totalMins - a.totalMins);
+    
     const dates = [...new Set(sessions.map(s => new Date(s.date).toDateString()))].map(d => new Date(d)).sort((a, b) => a - b);
     let maxS = 0, currS = 0; dates.forEach((d, i) => { if (i === 0) currS = 1; else currS = (d - dates[i - 1] <= 86400000) ? currS + 1 : 1; maxS = Math.max(maxS, currS); });
+    
     return { monthlyData, bestSubject: ranked[0], worstSubject: ranked[ranked.length - 1], maxStreak: maxS };
   }, [sessions, subjects]);
 
@@ -253,7 +285,10 @@ export const FocusProvider = ({ children }) => {
         subjects, sessions, tasks, mistakes, themes, 
         schoolWorks, schoolAbsences, schoolSchedule,
         countdown, setCountdown, 
-        userLevel, unlockedAchievements, // Exportando unlockedAchievements
+        userLevel, 
+        // EXPORTAÇÃO OBRIGATÓRIA PARA A PÁGINA FUNCIONAR
+        unlockedAchievements, 
+        
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
         timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), 
         timeLeft: timerState.timeLeft, setTimeLeft: t => setTimerState(p => ({ ...p, timeLeft: t })), 
