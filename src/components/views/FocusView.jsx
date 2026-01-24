@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo } from 'react';
-import { Play, Pause, RotateCcw, Coffee, CheckCircle, Plus, Clock, Trash2 } from 'lucide-react';
+import { Play, Pause, RotateCcw, Coffee, CheckCircle, Plus, Clock, Trash2, Watch } from 'lucide-react';
 import { FocusContext, POMODORO, formatTime } from '../../context/FocusContext';
 import { triggerCelebration } from '../../utils/celebration';
 import { Card } from '../ui/Card';
@@ -17,20 +17,22 @@ export const FocusView = () => {
     tasks, addTask, toggleTask, deleteTask, 
     addSession, elapsedTime, setElapsedTime, 
     flowStoredTime, setFlowStoredTime,
-    themes // Importando themes para listar tópicos
+    themes 
   } = useContext(FocusContext);
+
+  // --- NOVOS ESTADOS PARA CONFIGURAÇÃO DE TEMPO ---
+  const [workTime, setWorkTime] = useState(25); // Padrão 25 min
+  const [breakTime, setBreakTime] = useState(5); // Padrão 5 min
+  // ------------------------------------------------
 
   const [taskT, setTaskT] = useState(""); 
   const [finMod, setFinMod] = useState(false); 
   const [manMod, setManMod] = useState(false);
   const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); 
-  // ATUALIZADO: mForm agora tem campo 'topic'
   const [mForm, setMForm] = useState({ t: "", n: "", s: "", q: "", e: "", topic: "" });
   
-  // ESTADO: Tópico Selecionado (Timer Principal)
   const [selectedTopic, setSelectedTopic] = useState("");
 
-  // LÓGICA 1: Tópicos para o Timer Principal (baseado em selectedSubjectId)
   const availableTopics = useMemo(() => {
     if (!selectedSubjectId) return [];
     return themes
@@ -40,10 +42,8 @@ export const FocusView = () => {
       .map(i => i.text);
   }, [selectedSubjectId, themes]);
 
-  // LÓGICA 2: Tópicos para o Modal Manual (baseado em mForm.s)
   const manualAvailableTopics = useMemo(() => {
     if (!mForm.s) return [];
-    // Converte mForm.s para número pois vem do value do select como string/number
     const sId = Number(mForm.s);
     return themes
       .filter(t => t.subjectId === sId)
@@ -52,14 +52,34 @@ export const FocusView = () => {
       .map(i => i.text);
   }, [mForm.s, themes]);
 
+  // --- FUNÇÕES DE CONTROLE DE TEMPO (NOVAS) ---
+  const handleWorkTimeChange = (minutes) => {
+    setWorkTime(minutes);
+    // Se estiver no modo Pomodoro e atualmente em Trabalho, reseta para o novo tempo imediatamente
+    if (timerType === 'POMODORO' && timerMode === 'WORK') {
+      setIsActive(false);
+      setTimeLeft(minutes * 60);
+      setElapsedTime(0); // Reseta progresso para integridade dos dados
+    }
+  };
+
+  const handleBreakTimeChange = (minutes) => {
+    setBreakTime(minutes);
+    // Se estiver no modo Pomodoro e atualmente em Pausa, reseta para o novo tempo imediatamente
+    if (timerType === 'POMODORO' && timerMode === 'BREAK') {
+      setIsActive(false);
+      setTimeLeft(minutes * 60);
+      setElapsedTime(0);
+    }
+  };
+  // --------------------------------------------
+
   if (!subjects.length) return <div className="text-center mt-20 text-zinc-400">Adicione matérias em Matérias.</div>;
   
-  // Função Finish (Timer Principal)
   const finish = (e) => { 
       e.preventDefault(); 
       const mins = Math.round(elapsedTime / 60); 
       if (mins > 0) { 
-          // Passando selectedTopic
           addSession(mins, fForm.n, null, fForm.q, fForm.e, selectedTopic); 
           triggerCelebration(); 
       } else {
@@ -67,21 +87,20 @@ export const FocusView = () => {
       }
       setIsActive(false); 
       setTimerMode('WORK'); 
-      setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO.WORK); 
+      // ATUALIZADO: Usa workTime selecionado em vez da constante fixa
+      setTimeLeft(timerType === 'FLOW' ? 0 : workTime * 60); 
       setElapsedTime(0); 
       setCycles(0); 
       setFinMod(false); 
       setFForm({ n: "", q: "", e: "" }); 
-      setSelectedTopic(""); // Resetar tópico
+      setSelectedTopic(""); 
   };
   
-  // Função Manual (Modal Manual)
   const manual = (e) => { 
       e.preventDefault(); 
       if (!mForm.t || !mForm.s) return alert("Preencha tempo e matéria."); 
       const tValid = Math.max(1, parseInt(mForm.t) || 0);
       
-      // ATUALIZADO: Passando mForm.topic
       addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e, mForm.topic); 
       
       setMForm({ t: "", n: "", s: "", q: "", e: "", topic: "" }); 
@@ -100,11 +119,12 @@ export const FocusView = () => {
           <div className={`absolute w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-all duration-1000 ${isActive ? (timerMode === 'WORK' ? 'bg-primary/20 animate-pulse' : 'bg-emerald-500/20 animate-pulse') : 'bg-zinc-200/50 dark:bg-zinc-800/30'}`}></div>
           
           <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-6 z-10 shadow-sm">
-            <button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(POMODORO.WORK); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Pomodoro</button>
+            {/* ATUALIZADO: Ao trocar para Pomodoro, usa o workTime atual */}
+            <button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(workTime * 60); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Pomodoro</button>
             <button onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-primary text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Flow</button>
           </div>
           
-          <div className="w-full max-w-xs mb-8 z-10 text-center space-y-4">
+          <div className="w-full max-w-xs mb-6 z-10 text-center space-y-4">
             <div>
               <label className="text-xs font-semibold text-zinc-500 uppercase block mb-2">Matéria</label>
               <select disabled={isActive} value={selectedSubjectId || ''} onChange={(e) => setSelectedSubjectId(Number(e.target.value))} className="w-full bg-zinc-100 dark:bg-[#18181B] text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 rounded-2xl py-3 px-4 outline-none cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
@@ -112,7 +132,6 @@ export const FocusView = () => {
               </select>
             </div>
 
-            {/* SELECT TÓPICO (PRINCIPAL) */}
             <div>
               <label className="text-xs font-semibold text-zinc-500 uppercase block mb-2">Tópico</label>
               <select 
@@ -133,6 +152,48 @@ export const FocusView = () => {
             </div>
           </div>
           
+          {/* --- NOVA SEÇÃO: CONTROLES DE TEMPO --- */}
+          {timerType === 'POMODORO' && (
+            <div className="grid grid-cols-2 gap-8 mb-6 z-10 w-full max-w-xs px-2">
+              {/* Coluna Trabalho */}
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-1.5 mb-2 text-primary dark:text-primary-light">
+                    <Clock size={14} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Trabalho</span>
+                </div>
+                <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                    <button 
+                        onClick={() => handleWorkTimeChange(25)}
+                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${workTime === 25 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
+                    >25</button>
+                    <button 
+                        onClick={() => handleWorkTimeChange(50)}
+                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${workTime === 50 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
+                    >50</button>
+                </div>
+              </div>
+
+              {/* Coluna Descanso */}
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-1.5 mb-2 text-emerald-600 dark:text-emerald-400">
+                    <Coffee size={14} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Descanso</span>
+                </div>
+                <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                    <button 
+                        onClick={() => handleBreakTimeChange(5)}
+                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${breakTime === 5 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
+                    >5</button>
+                    <button 
+                        onClick={() => handleBreakTimeChange(10)}
+                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${breakTime === 10 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
+                    >10</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* ------------------------------------- */}
+
           <div className="z-10 text-center">
             <div className="mb-6">
               <span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase border ${timerMode === 'WORK' ? 'bg-primary/10 text-primary-light border-primary/20' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20'}`}>{timerMode === 'WORK' ? 'Foco Total' : 'Pausa'}</span>
@@ -147,7 +208,13 @@ export const FocusView = () => {
                 {isActive ? <Pause size={24} /> : <Play size={24} />} <span>{isActive ? 'Pausar' : 'Iniciar'}</span>
               </button>
               
-              <button onClick={() => { setIsActive(false); setTimeLeft(timerType === 'FLOW' ? 0 : POMODORO.WORK); setElapsedTime(0); }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"><RotateCcw size={24} /></button>
+              {/* ATUALIZADO: Reset respeita a configuração atual de workTime/breakTime */}
+              <button onClick={() => { 
+                  setIsActive(false); 
+                  const resetTime = timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? workTime * 60 : breakTime * 60);
+                  setTimeLeft(resetTime); 
+                  setElapsedTime(0); 
+              }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"><RotateCcw size={24} /></button>
               
               {timerType === 'FLOW' && timerMode === 'WORK' && <button onClick={() => { setFlowStoredTime(timeLeft); setTimerMode('BREAK'); setTimeLeft(Math.floor(timeLeft * 0.2)); setIsActive(true); }} className="p-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-colors"><Coffee size={24} /></button>}
               
@@ -162,10 +229,8 @@ export const FocusView = () => {
       
       <div className="lg:col-span-3 mt-12 mb-8 flex flex-col items-center justify-center border-t border-zinc-200 dark:border-zinc-800/50 pt-10"><div className="bg-white dark:bg-[#09090b] p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full text-center"><Clock size={24} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-500 opacity-50" /><p className="text-zinc-500 dark:text-zinc-400 text-sm mb-4">Esqueceu de ligar o timer ou estudou fora do app?</p><button onClick={() => { setMForm({ ...mForm, s: subjects[0]?.id }); setManMod(true); }} className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-primary/10 hover:bg-primary text-primary-light hover:text-white rounded-2xl border border-primary/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-primary/5"><Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> Lançar Estudo Manual</button></div></div>
       
-      {/* Modal Resumo Sessão */}
       <Modal isOpen={finMod} onClose={() => setFinMod(false)} title="Resumo da Sessão"><form onSubmit={finish} className="space-y-4"><div><label className="text-xs text-zinc-500 font-bold uppercase">O que você estudou?</label><textarea className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-sm text-zinc-900 dark:text-white h-24 outline-none focus:border-primary resize-none" value={fForm.n} onChange={e => setFForm({ ...fForm, n: e.target.value })} /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-zinc-500 font-bold uppercase">Questões Feitas</label><input type="number" min="0" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-blue-500" value={fForm.q} onChange={e => setFForm({ ...fForm, q: e.target.value })} /></div><div><label className="text-xs text-zinc-500 font-bold uppercase">Erradas</label><input type="number" min="0" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-red-500" value={fForm.e} onChange={e => setFForm({ ...fForm, e: e.target.value })} /></div></div><div className="pt-2 flex gap-2"><Button type="button" variant="secondary" onClick={() => setFinMod(false)} className="flex-1">Cancelar</Button><Button type="submit" className="flex-[2]">Salvar Sessão</Button></div></form></Modal>
       
-      {/* Modal Registro Manual - ATUALIZADO */}
       <Modal isOpen={manMod} onClose={() => setManMod(false)} title="Registro Manual">
         <form onSubmit={manual} className="space-y-5">
             <div className="space-y-2">
@@ -175,7 +240,6 @@ export const FocusView = () => {
                 </select>
             </div>
             
-            {/* NOVO CAMPO: Tópico Manual */}
             <div className="space-y-2">
                 <label className="text-xs font-bold text-zinc-500 uppercase">Tópico</label>
                 <select 
