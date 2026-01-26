@@ -2,6 +2,7 @@ import React, { useState, useEffect, createContext, useMemo, useRef } from 'reac
 import { Crown, Scroll, Shield, Compass, Feather, Sprout } from 'lucide-react';
 
 // --- Constantes e Helpers ---
+// Mantivemos LONG aqui para o ciclo longo, mas WORK e SHORT agora virão do estado dinâmico
 export const POMODORO = { WORK: 25 * 60, SHORT: 5 * 60, LONG: 15 * 60 };
 
 const DEFAULT_SUB = [
@@ -48,10 +49,10 @@ export const FocusProvider = ({ children }) => {
   const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
   const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
   
-  // === NOVO: ESTADO PARA CONQUISTAS (Adição Obrigatória para a página funcionar) ===
+  // === NOVO: ESTADO PARA CONQUISTAS ===
   const [unlockedAchievements, setUnlockedAchievements] = useStickyState([], 'focus_unlocked_achievements');
 
-  // === ESTADO: ESCOLA (Trabalhos, Faltas e Grade) ===
+  // === ESTADO: ESCOLA ===
   const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
   const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, 'focus_school_schedule');
@@ -59,10 +60,13 @@ export const FocusProvider = ({ children }) => {
   const [studySchedule, setStudySchedule] = useStickyState({}, 'my_study_schedule');
   const [examCycle, setExamCycle] = useStickyState([], 'my_exam_cycle');
 
-  // === ESTADO: PROVAS (NOVO) ===
+  // === ESTADO: PROVAS ===
   const [exams, setExams] = useStickyState([], 'focus_exams');
 
-  const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: POMODORO.WORK });
+  // === NOVO: Configuração Dinâmica do Timer (Persistente) ===
+  const [timerConfig, setTimerConfig] = useStickyState({ work: 25, short: 5 }, 'focus_timer_config');
+
+  const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: timerConfig.work * 60 });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [flowStoredTime, setFlowStoredTime] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -106,6 +110,8 @@ export const FocusProvider = ({ children }) => {
 
   useEffect(() => { document.title = timerState.active ? `${formatTime(timerState.timeLeft)} - ${timerState.mode === 'WORK' ? 'Foco' : 'Pausa'}` : "Focus App - Estudos & Produtividade"; }, [timerState.active, timerState.timeLeft, timerState.mode]);
 
+  // === CORREÇÃO LÓGICA DO TIMER ===
+  // Adicionado timerConfig nas dependências para garantir que o próximo ciclo use os valores atualizados
   useEffect(() => {
     let interval = null;
     if (timerState.active) {
@@ -130,7 +136,12 @@ export const FocusProvider = ({ children }) => {
             if (timerState.type === 'POMODORO') {
                const nextC = timerState.cycles + (timerState.mode === 'WORK' ? 1 : 0);
                const nextMode = timerState.mode === 'WORK' ? 'BREAK' : 'WORK';
-               const nextTime = nextMode === 'WORK' ? POMODORO.WORK : (nextC % 3 === 0 ? POMODORO.LONG : POMODORO.SHORT);
+               
+               // === CORREÇÃO: Usa timerConfig em vez de constantes fixas ===
+               const nextTime = nextMode === 'WORK' 
+                  ? timerConfig.work * 60 
+                  : (nextC % 3 === 0 ? POMODORO.LONG : timerConfig.short * 60);
+               
                setTimerState(p => ({ ...p, active: false, mode: nextMode, timeLeft: nextTime, cycles: nextC }));
             } else if (timerState.type === 'FLOW' && timerState.mode === 'BREAK') {
                setTimerState(p => ({ ...p, active: false, mode: 'WORK', timeLeft: flowStoredTime }));
@@ -140,7 +151,7 @@ export const FocusProvider = ({ children }) => {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [timerState.active, timerState.mode, timerState.type, flowStoredTime]);
+  }, [timerState.active, timerState.mode, timerState.type, flowStoredTime, timerConfig]); // timerConfig adicionado às dependências
 
   const gainXP = (amt, reason = "") => {
     setUserLevel(prev => {
@@ -152,7 +163,6 @@ export const FocusProvider = ({ children }) => {
     if (reason) console.log(`${amt > 0 ? '+' : ''}${amt} XP: ${reason}`);
   };
 
-  // --- FUNÇÃO ADDSESSION ATUALIZADA ---
   const addSession = (mins, notes, mSubId = null, qs = 0, errs = 0, topic = null) => {
     const sId = mSubId ? Number(mSubId) : selectedSubjectId;
     let cleanQs = Math.max(0, parseInt(qs) || 0);
@@ -161,7 +171,6 @@ export const FocusProvider = ({ children }) => {
         alert(`Atenção: Você informou mais erros (${cleanErrs}) do que questões feitas (${cleanQs}). Ajustando o número de erros para ser igual ao total.`);
         cleanErrs = cleanQs;
     }
-    // Adicionado parâmetro 'topic' no objeto salvo
     setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: cleanQs, errors: cleanErrs, topic }]);
     
     let xp = (Math.floor(mins / 10) * 50) + (cleanQs * 10);
@@ -203,7 +212,6 @@ export const FocusProvider = ({ children }) => {
     resetAllData: () => window.confirm("Apagar TUDO?") && (localStorage.clear() || window.location.reload()),
     deleteDayHistory: (d) => window.confirm(`Apagar ${d}?`) && setSessions(p => p.filter(s => new Date(s.date).toDateString() !== d)),
     
-    // === MÉTODOS ESCOLARES (UNIFICADOS AQUI) ===
     addWork: (subjectId, title, dueDate, description, maxGrade) => setSchoolWorks(p => [...p, { 
         id: Date.now(), 
         subjectId: Number(subjectId), 
@@ -221,45 +229,31 @@ export const FocusProvider = ({ children }) => {
         setSchoolAbsences(prev => {
             const existingIndex = prev.findIndex(a => a.date === date);
             if (existingIndex >= 0) {
-                // Mesclar com registro existente
                 const updated = [...prev];
                 const oldRecord = updated[existingIndex];
                 const newLessons = { ...oldRecord.lessons };
-                
-                Object.entries(lessonsMap).forEach(([subId, count]) => {
-                    newLessons[subId] = (newLessons[subId] || 0) + count;
-                });
-                
+                Object.entries(lessonsMap).forEach(([subId, count]) => { newLessons[subId] = (newLessons[subId] || 0) + count; });
                 let newReason = oldRecord.reason;
-                if (reason && !oldRecord.reason.includes(reason)) {
-                    newReason = `${oldRecord.reason} + ${reason}`;
-                }
-
+                if (reason && !oldRecord.reason.includes(reason)) { newReason = `${oldRecord.reason} + ${reason}`; }
                 updated[existingIndex] = { ...oldRecord, lessons: newLessons, reason: newReason };
                 return updated;
             } else {
-                // Criar novo registro
                 return [...prev, { id: Date.now(), date, reason, lessons: lessonsMap }];
             }
         });
     },
     deleteAbsenceRecord: (id) => window.confirm("Excluir registro de falta?") && setSchoolAbsences(p => p.filter(a => a.id !== id)),
-    
     updateSchoolSchedule: (dayId, lessonsArray) => setSchoolSchedule(p => ({ ...p, [dayId]: lessonsArray })),
 
-    // === NOVO MÉTODO (NECESSÁRIO PARA CONQUISTAS) ===
     unlockAchievement: (id, xpAmount, title) => {
         setUnlockedAchievements(prev => {
-            if (prev.includes(id)) return prev; // Já desbloqueada
-            
-            // Se não desbloqueada, adiciona e dá XP
+            if (prev.includes(id)) return prev;
             gainXP(xpAmount, `Conquista: ${title}`);
             alert(`🏆 CONQUISTA DESBLOQUEADA: ${title}\n+${xpAmount} XP`);
             return [...prev, id];
         });
     },
 
-    // === MÉTODOS PROVAS (NOVO) ===
     addExam: (examData) => {
       setExams(prev => [{ ...examData, id: Date.now() }, ...prev]);
       gainXP(200, "Prova Registrada");
@@ -306,15 +300,18 @@ export const FocusProvider = ({ children }) => {
         schoolWorks, schoolAbsences, schoolSchedule,
         countdown, setCountdown, 
         userLevel, 
-        // EXPORTAÇÃO OBRIGATÓRIA PARA A PÁGINA FUNCIONAR
         unlockedAchievements,
-        exams, // <--- NOVO: ESTADO PROVAS
+        exams, 
         
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
         timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), 
         timeLeft: timerState.timeLeft, setTimeLeft: t => setTimerState(p => ({ ...p, timeLeft: t })), 
         isActive: timerState.active, setIsActive: a => setTimerState(p => ({ ...p, active: a })), 
         cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), 
+        
+        // Novos valores exportados para o View consumir
+        timerConfig, setTimerConfig, 
+
         selectedSubjectId, setSelectedSubjectId, 
         flowStoredTime, setFlowStoredTime, 
         elapsedTime, setElapsedTime, 

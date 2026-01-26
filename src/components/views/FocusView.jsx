@@ -17,13 +17,10 @@ export const FocusView = () => {
     tasks, addTask, toggleTask, deleteTask, 
     addSession, elapsedTime, setElapsedTime, 
     flowStoredTime, setFlowStoredTime,
-    themes 
+    themes,
+    // Novos do Contexto
+    timerConfig, setTimerConfig
   } = useContext(FocusContext);
-
-  // --- NOVOS ESTADOS PARA CONFIGURAÇÃO DE TEMPO ---
-  const [workTime, setWorkTime] = useState(25); // Padrão 25 min
-  const [breakTime, setBreakTime] = useState(5); // Padrão 5 min
-  // ------------------------------------------------
 
   const [taskT, setTaskT] = useState(""); 
   const [finMod, setFinMod] = useState(false); 
@@ -52,23 +49,33 @@ export const FocusView = () => {
       .map(i => i.text);
   }, [mForm.s, themes]);
 
-  // --- FUNÇÕES DE CONTROLE DE TEMPO (NOVAS) ---
-  const handleWorkTimeChange = (minutes) => {
-    setWorkTime(minutes);
-    // Se estiver no modo Pomodoro e atualmente em Trabalho, reseta para o novo tempo imediatamente
+  // --- LÓGICA SINCRONIZADA E CORRIGIDA ---
+  
+  // Função que força a regra: 25(Work) <-> 5(Break) e 50(Work) <-> 10(Break)
+  const handleWorkTimeChange = (newWorkMinutes) => {
+    const pairedBreak = newWorkMinutes === 50 ? 10 : 5;
+    
+    // Atualiza a configuração global (para os próximos ciclos automáticos)
+    setTimerConfig({ work: newWorkMinutes, short: pairedBreak });
+
+    // Se estiver no modo Pomodoro e atualmente em Trabalho, reinicia o timer com o novo tempo
     if (timerType === 'POMODORO' && timerMode === 'WORK') {
       setIsActive(false);
-      setTimeLeft(minutes * 60);
-      setElapsedTime(0); // Reseta progresso para integridade dos dados
+      setTimeLeft(newWorkMinutes * 60);
+      setElapsedTime(0);
     }
   };
 
-  const handleBreakTimeChange = (minutes) => {
-    setBreakTime(minutes);
-    // Se estiver no modo Pomodoro e atualmente em Pausa, reseta para o novo tempo imediatamente
+  const handleBreakTimeChange = (newBreakMinutes) => {
+    const pairedWork = newBreakMinutes === 10 ? 50 : 25;
+    
+    // Atualiza a configuração global
+    setTimerConfig({ work: pairedWork, short: newBreakMinutes });
+
+    // Se estiver no modo Pomodoro e atualmente em Pausa Curta, reinicia o timer com o novo tempo
     if (timerType === 'POMODORO' && timerMode === 'BREAK') {
       setIsActive(false);
-      setTimeLeft(minutes * 60);
+      setTimeLeft(newBreakMinutes * 60);
       setElapsedTime(0);
     }
   };
@@ -78,6 +85,7 @@ export const FocusView = () => {
   
   const finish = (e) => { 
       e.preventDefault(); 
+      // Calcula minutos baseado no tempo realmente decorrido (elapsedTime)
       const mins = Math.round(elapsedTime / 60); 
       if (mins > 0) { 
           addSession(mins, fForm.n, null, fForm.q, fForm.e, selectedTopic); 
@@ -87,8 +95,8 @@ export const FocusView = () => {
       }
       setIsActive(false); 
       setTimerMode('WORK'); 
-      // ATUALIZADO: Usa workTime selecionado em vez da constante fixa
-      setTimeLeft(timerType === 'FLOW' ? 0 : workTime * 60); 
+      // Reset usa a configuração global atual
+      setTimeLeft(timerType === 'FLOW' ? 0 : timerConfig.work * 60); 
       setElapsedTime(0); 
       setCycles(0); 
       setFinMod(false); 
@@ -119,8 +127,8 @@ export const FocusView = () => {
           <div className={`absolute w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-all duration-1000 ${isActive ? (timerMode === 'WORK' ? 'bg-primary/20 animate-pulse' : 'bg-emerald-500/20 animate-pulse') : 'bg-zinc-200/50 dark:bg-zinc-800/30'}`}></div>
           
           <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-6 z-10 shadow-sm">
-            {/* ATUALIZADO: Ao trocar para Pomodoro, usa o workTime atual */}
-            <button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(workTime * 60); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Pomodoro</button>
+            {/* Usa timerConfig.work para definir o tempo inicial ao trocar para Pomodoro */}
+            <button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(timerConfig.work * 60); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Pomodoro</button>
             <button onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-primary text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Flow</button>
           </div>
           
@@ -152,7 +160,6 @@ export const FocusView = () => {
             </div>
           </div>
           
-          {/* --- NOVA SEÇÃO: CONTROLES DE TEMPO --- */}
           {timerType === 'POMODORO' && (
             <div className="grid grid-cols-2 gap-8 mb-6 z-10 w-full max-w-xs px-2">
               {/* Coluna Trabalho */}
@@ -164,11 +171,11 @@ export const FocusView = () => {
                 <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
                     <button 
                         onClick={() => handleWorkTimeChange(25)}
-                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${workTime === 25 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
+                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.work === 25 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
                     >25</button>
                     <button 
                         onClick={() => handleWorkTimeChange(50)}
-                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${workTime === 50 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
+                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.work === 50 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
                     >50</button>
                 </div>
               </div>
@@ -182,17 +189,16 @@ export const FocusView = () => {
                 <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
                     <button 
                         onClick={() => handleBreakTimeChange(5)}
-                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${breakTime === 5 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
+                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.short === 5 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
                     >5</button>
                     <button 
                         onClick={() => handleBreakTimeChange(10)}
-                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${breakTime === 10 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
+                        className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.short === 10 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
                     >10</button>
                 </div>
               </div>
             </div>
           )}
-          {/* ------------------------------------- */}
 
           <div className="z-10 text-center">
             <div className="mb-6">
@@ -208,10 +214,10 @@ export const FocusView = () => {
                 {isActive ? <Pause size={24} /> : <Play size={24} />} <span>{isActive ? 'Pausar' : 'Iniciar'}</span>
               </button>
               
-              {/* ATUALIZADO: Reset respeita a configuração atual de workTime/breakTime */}
               <button onClick={() => { 
                   setIsActive(false); 
-                  const resetTime = timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? workTime * 60 : breakTime * 60);
+                  // Reset respeita a configuração global (timerConfig)
+                  const resetTime = timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? timerConfig.work * 60 : timerConfig.short * 60);
                   setTimeLeft(resetTime); 
                   setElapsedTime(0); 
               }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"><RotateCcw size={24} /></button>
