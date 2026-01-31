@@ -83,9 +83,8 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
     );
 };
 
-// === TAB: FALTAS (REFORMULADA - VISUAL DARK/NEON) ===
-// === TAB: FALTAS (ATUALIZADO) ===
-const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen }) => {
+// === TAB: FALTAS (REFORMULADA - PROGRESSIVO DINÂMICO) ===
+const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen, schoolCalendar }) => {
     const stats = useMemo(() => {
         const absencesCountMap = {}; 
         let totalLost = 0;
@@ -105,28 +104,64 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
             }
         });
 
-        // 2. Calcular Limites e Frequência
-        const SCHOOL_WEEKS = 40;
-        const MAX_ABSENCE_PERCENTAGE = 0.25;
-        const weeklyFreq = {};
-        Object.values(schoolSchedule).flat().forEach(subId => {
-            weeklyFreq[subId] = (weeklyFreq[subId] || 0) + 1;
-        });
+        // 2. Algoritmo Progressivo Dinâmico
+        const now = new Date();
+        now.setHours(0,0,0,0); // Normalizar hoje
 
-        const totalAnnualClassesGlobal = Object.values(weeklyFreq).reduce((a, b) => a + b, 0) * SCHOOL_WEEKS;
+        const startD = new Date(schoolCalendar.startDate + 'T00:00:00');
+        const endD = new Date(schoolCalendar.endDate + 'T00:00:00');
+        const hStart = new Date(schoolCalendar.holidaysStart + 'T00:00:00');
+        const hEnd = new Date(schoolCalendar.holidaysEnd + 'T00:00:00');
+
+        let totalClassesRealizedGlobal = 0; // Para cálculo de presença %
+        let totalClassesAnnualGlobal = 0;   // Opcional, se precisar
+        const annualClassesMap = {}; // Para o Monitor de Risco (Limite 25% anual)
+
+        // Loop principal: Itera sobre todos os dias do ano letivo
+        // Calculamos duas coisas: Realized (até hoje) e Annual (total previsto)
+        for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+            // Verifica se é férias
+            if (d >= hStart && d <= hEnd) continue;
+
+            const dayOfWeek = d.getDay(); // 0-6
+            const lessonsForDay = schoolSchedule[dayOfWeek] || []; // Array de IDs
+
+            if (lessonsForDay.length > 0) {
+                // Se o dia já ocorreu (ou é hoje), soma no Realized
+                const isRealized = d <= now;
+
+                lessonsForDay.forEach(subId => {
+                    // Contagem Anual (para Monitor de Risco)
+                    annualClassesMap[subId] = (annualClassesMap[subId] || 0) + 1;
+                    totalClassesAnnualGlobal++;
+
+                    // Contagem Realizada (para Presença Dinâmica)
+                    if (isRealized) {
+                        totalClassesRealizedGlobal++;
+                    }
+                });
+            }
+        }
+
+        // Se hoje for antes do início das aulas, realized é 0 (mas vamos evitar divisão por zero)
+        if (now < startD) totalClassesRealizedGlobal = 0;
+
+        // 3. Monitor de Risco e Presença Global
+        const MAX_ABSENCE_PERCENTAGE = 0.25;
 
         const riskData = subjects.map(sub => {
-            const freq = weeklyFreq[sub.id] || 0;
-            const totalAnnual = freq * SCHOOL_WEEKS;
+            const totalAnnual = annualClassesMap[sub.id] || 0;
             const limit = Math.floor(totalAnnual * MAX_ABSENCE_PERCENTAGE);
             const current = absencesCountMap[sub.id] || 0;
             const percentageUsed = limit > 0 ? (current / limit) * 100 : 0;
-            return { ...sub, freq, totalAnnual, limit, current, percentageUsed };
-        }).filter(d => d.freq > 0).sort((a, b) => b.percentageUsed - a.percentageUsed);
+            return { ...sub, totalAnnual, limit, current, percentageUsed };
+        }).filter(d => d.totalAnnual > 0).sort((a, b) => b.percentageUsed - a.percentageUsed);
 
         const critical = riskData.length > 0 && riskData[0].current > 0 ? riskData[0] : null;
-        const globalRate = totalAnnualClassesGlobal > 0 
-            ? Math.max(0, 100 - ((totalLost / totalAnnualClassesGlobal) * 100)).toFixed(1)
+
+        // Cálculo Final da Porcentagem de Presença (Progressivo)
+        const globalRate = totalClassesRealizedGlobal > 0 
+            ? Math.max(0, 100 - ((totalLost / totalClassesRealizedGlobal) * 100)).toFixed(1)
             : "100.0";
 
         // Gráfico Donut (Matérias)
@@ -144,8 +179,8 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
             color: REASON_COLORS[index % REASON_COLORS.length]
         })).sort((a, b) => b.value - a.value);
 
-        return { totalLost, critical, globalRate, riskData, reasonChartData, subjectChartData };
-    }, [schoolAbsences, subjects, schoolSchedule]);
+        return { totalLost, totalClassesRealizedGlobal, critical, globalRate, riskData, reasonChartData, subjectChartData };
+    }, [schoolAbsences, subjects, schoolSchedule, schoolCalendar]);
 
     // === LÓGICA DE CORES DA PRESENÇA GLOBAL ===
     const getPresenceColors = (rateStr) => {
@@ -189,16 +224,20 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
             {/* Grid Principal estilo Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* 1. Card Presença Global (Cores Dinâmicas) */}
+                {/* 1. Card Presença Global (Dinâmico) */}
                 <div className="md:col-span-3 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm relative overflow-hidden">
                      {/* Glow Effect Background Dinâmico */}
                      <div className={`absolute top-0 right-0 w-64 h-64 blur-3xl rounded-full pointer-events-none ${presenceColors.glow}`}></div>
                      
                      <div className="relative z-10">
-                        <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2">Presença Global</p>
+                        <div className="flex justify-between items-start">
+                             <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2">Presença Global (Até Hoje)</p>
+                             <p className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded text-zinc-500">
+                                Base: {stats.totalClassesRealizedGlobal} aulas dadas
+                             </p>
+                        </div>
                         <div className="flex items-end gap-2 mb-4">
                             <span className={`text-5xl font-bold tracking-tighter ${presenceColors.text}`}>{stats.globalRate}%</span>
-                            <span className="text-sm text-zinc-400 mb-2">anual</span>
                         </div>
                         {/* Barra de Progresso Fina */}
                         <div className="h-1.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
@@ -271,7 +310,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                  {/* Monitor de Risco (Funcionalidade Mantida) */}
                  <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm">
                     <h3 className="text-zinc-900 dark:text-white font-bold mb-6 flex items-center gap-2 text-sm uppercase tracking-wide">
-                        Monitor de Risco <span className="text-zinc-500 normal-case font-normal">(Limite 25%)</span>
+                        Monitor de Risco <span className="text-zinc-500 normal-case font-normal">(Limite 25% anual)</span>
                     </h3>
                     <div className="space-y-6">
                         {stats.riskData.length === 0 ? (
@@ -306,7 +345,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                     </div>
                 </div>
 
-                {/* Gráfico de Motivos (CORRIGIDO TOOLTIP) */}
+                {/* Gráfico de Motivos */}
                 <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col">
                     <h3 className="text-zinc-900 dark:text-white font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
                         Motivos das Faltas
@@ -327,7 +366,6 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    {/* Correção do Tooltip aqui */}
                                     <RechartsTooltip 
                                         contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff', borderRadius: '12px' }} 
                                         itemStyle={{ color: '#fff' }}
@@ -499,13 +537,14 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
     );
 };
 
-// === VIEW PRINCIPAL (LAYOUT MANTIDO) ===
+// === VIEW PRINCIPAL (ATUALIZADA) ===
 
 export const SchoolView = () => {
   const { 
     subjects, schoolWorks, addWork, updateWork, deleteWork, 
     schoolAbsences, addAbsenceRecord, deleteAbsenceRecord,
-    schoolSchedule, updateSchoolSchedule 
+    schoolSchedule, updateSchoolSchedule,
+    schoolCalendar // <--- Importado aqui
   } = useContext(FocusContext);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -738,7 +777,7 @@ export const SchoolView = () => {
               </div>
           )}
 
-          {activeTab === 'absences' && <AbsencesTab subjects={subjects} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} deleteAbsenceRecord={deleteAbsenceRecord} setIsAddAbsenceModalOpen={setIsAddAbsenceModalOpen} />}
+          {activeTab === 'absences' && <AbsencesTab subjects={subjects} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} deleteAbsenceRecord={deleteAbsenceRecord} setIsAddAbsenceModalOpen={setIsAddAbsenceModalOpen} schoolCalendar={schoolCalendar} />}
           {activeTab === 'calendar' && <CalendarTab subjects={subjects} schoolWorks={schoolWorks} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} />}
       </div>
 

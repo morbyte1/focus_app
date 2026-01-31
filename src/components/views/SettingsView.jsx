@@ -1,10 +1,10 @@
 import React, { useContext } from 'react';
-import { Settings, Sun, Moon, Monitor, HardDrive, Download, Upload, Trash2, Crown, RotateCcw, User } from 'lucide-react';
+import { Settings, Sun, Moon, Monitor, HardDrive, Download, Upload, Trash2, Crown, RotateCcw, User, Calendar } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 
 export const SettingsView = () => {
-  const { resetAllData, resetXPOnly, theme, setTheme, userName, setUserName } = useContext(FocusContext);
+  const { resetAllData, resetXPOnly, theme, setTheme, userName, setUserName, schoolCalendar, updateSchoolCalendar } = useContext(FocusContext);
   
   // Função de Exportar Dados (Completa)
   const hExp = () => {
@@ -49,7 +49,7 @@ export const SettingsView = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        {/* CARTÃO PERFIL (Novo) */}
+        {/* CARTÃO PERFIL */}
         <Card>
           <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
             <User size={20} className="text-primary" /> Perfil
@@ -63,6 +63,58 @@ export const SettingsView = () => {
               onChange={(e) => setUserName(e.target.value)} 
               className="w-full bg-zinc-200 dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-2 text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors"
             />
+          </div>
+        </Card>
+
+        {/* CARTÃO ANO LETIVO (NOVO) */}
+        <Card>
+          <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+            <Calendar size={20} className="text-primary" /> Configuração do Ano Letivo
+          </h3>
+          <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-4">
+             <div className="grid grid-cols-2 gap-4">
+                <div>
+                   <label className="text-xs text-zinc-500 font-bold uppercase block mb-1">Início das Aulas</label>
+                   <input 
+                      type="date" 
+                      className="w-full bg-zinc-200 dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors"
+                      value={schoolCalendar.startDate}
+                      onChange={(e) => updateSchoolCalendar({ startDate: e.target.value })}
+                   />
+                </div>
+                <div>
+                   <label className="text-xs text-zinc-500 font-bold uppercase block mb-1">Fim das Aulas</label>
+                   <input 
+                      type="date" 
+                      className="w-full bg-zinc-200 dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors"
+                      value={schoolCalendar.endDate}
+                      onChange={(e) => updateSchoolCalendar({ endDate: e.target.value })}
+                   />
+                </div>
+             </div>
+             
+             <div className="w-full h-px bg-zinc-200 dark:bg-zinc-800"></div>
+
+             <div className="grid grid-cols-2 gap-4">
+                <div>
+                   <label className="text-xs text-zinc-500 font-bold uppercase block mb-1">Início Férias (Meio)</label>
+                   <input 
+                      type="date" 
+                      className="w-full bg-zinc-200 dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors"
+                      value={schoolCalendar.holidaysStart}
+                      onChange={(e) => updateSchoolCalendar({ holidaysStart: e.target.value })}
+                   />
+                </div>
+                <div>
+                   <label className="text-xs text-zinc-500 font-bold uppercase block mb-1">Fim Férias (Meio)</label>
+                   <input 
+                      type="date" 
+                      className="w-full bg-zinc-200 dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors"
+                      value={schoolCalendar.holidaysEnd}
+                      onChange={(e) => updateSchoolCalendar({ holidaysEnd: e.target.value })}
+                   />
+                </div>
+             </div>
           </div>
         </Card>
 
