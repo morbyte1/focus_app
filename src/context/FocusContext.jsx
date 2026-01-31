@@ -54,8 +54,7 @@ export const FocusProvider = ({ children }) => {
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
   const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, 'focus_school_schedule');
 
-  // === NOVO: CALENDÁRIO ESCOLAR ===
-  // Inicializa com datas vazias ou um padrão do ano atual para facilitar
+  // === NOVO: CALENDÁRIO ESCOLAR & EXCEÇÕES ===
   const currentYear = new Date().getFullYear();
   const [schoolCalendar, setSchoolCalendar] = useStickyState({
     startDate: `${currentYear}-02-01`,
@@ -63,9 +62,11 @@ export const FocusProvider = ({ children }) => {
     holidaysStart: `${currentYear}-07-01`,
     holidaysEnd: `${currentYear}-07-31`
   }, 'focus_school_calendar');
+  
+  // Lista de datas (strings YYYY-MM-DD) que são feriados ou dias sem aula
+  const [schoolExceptions, setSchoolExceptions] = useStickyState([], 'focus_school_exceptions');
 
   const [studySchedule, setStudySchedule] = useStickyState({}, 'my_study_schedule');
-  const [examCycle, setExamCycle] = useStickyState([], 'my_exam_cycle');
   const [exams, setExams] = useStickyState([], 'focus_exams');
 
   const [timerConfig, setTimerConfig] = useStickyState({ work: 25, short: 5 }, 'focus_timer_config');
@@ -245,8 +246,15 @@ export const FocusProvider = ({ children }) => {
     },
     deleteAbsenceRecord: (id) => window.confirm("Excluir registro de falta?") && setSchoolAbsences(p => p.filter(a => a.id !== id)),
     updateSchoolSchedule: (dayId, lessonsArray) => setSchoolSchedule(p => ({ ...p, [dayId]: lessonsArray })),
-    // Função para atualizar o calendário escolar
     updateSchoolCalendar: (newConfig) => setSchoolCalendar(prev => ({ ...prev, ...newConfig })),
+    
+    // Toggle para exceções (feriados)
+    toggleSchoolException: (dateStr) => {
+        setSchoolExceptions(prev => {
+            if (prev.includes(dateStr)) return prev.filter(d => d !== dateStr);
+            return [...prev, dateStr];
+        });
+    },
 
     unlockAchievement: (id, xpAmount, title) => {
         setUnlockedAchievements(prev => {
@@ -300,7 +308,7 @@ export const FocusProvider = ({ children }) => {
         userName, setUserName, 
         selectedHistoryDate, setSelectedHistoryDate, 
         subjects, sessions, tasks, mistakes, themes, 
-        schoolWorks, schoolAbsences, schoolSchedule, schoolCalendar,
+        schoolWorks, schoolAbsences, schoolSchedule, schoolCalendar, schoolExceptions,
         countdown, setCountdown, 
         userLevel, 
         unlockedAchievements,

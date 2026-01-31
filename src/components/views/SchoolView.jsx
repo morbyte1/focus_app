@@ -1,7 +1,7 @@
 import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { 
     GraduationCap, Plus, Calendar, Clock, Trash2, FileText, CheckCircle, Send, ClipboardCheck, 
-    AlertOctagon, ChevronLeft, ChevronRight, Minus, Settings, BookOpen, AlertTriangle, TrendingUp 
+    AlertOctagon, ChevronLeft, ChevronRight, Minus, Settings, BookOpen, AlertTriangle, TrendingUp, CalendarOff 
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { FocusContext } from '../../context/FocusContext';
@@ -83,8 +83,8 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
     );
 };
 
-// === TAB: FALTAS (REFORMULADA - PROGRESSIVO DINÂMICO) ===
-const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen, schoolCalendar }) => {
+// === TAB: FALTAS (REFORMULADA - PROGRESSIVO DINÂMICO + EXCEÇÕES) ===
+const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen, schoolCalendar, schoolExceptions }) => {
     const stats = useMemo(() => {
         const absencesCountMap = {}; 
         let totalLost = 0;
@@ -118,10 +118,13 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
         const annualClassesMap = {}; // Para o Monitor de Risco (Limite 25% anual)
 
         // Loop principal: Itera sobre todos os dias do ano letivo
-        // Calculamos duas coisas: Realized (até hoje) e Annual (total previsto)
         for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
             // Verifica se é férias
             if (d >= hStart && d <= hEnd) continue;
+            
+            // Verifica se é EXCEÇÃO (Feriado/Emenda)
+            const dateStr = d.toISOString().split('T')[0];
+            if (schoolExceptions.includes(dateStr)) continue;
 
             const dayOfWeek = d.getDay(); // 0-6
             const lessonsForDay = schoolSchedule[dayOfWeek] || []; // Array de IDs
@@ -180,7 +183,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
         })).sort((a, b) => b.value - a.value);
 
         return { totalLost, totalClassesRealizedGlobal, critical, globalRate, riskData, reasonChartData, subjectChartData };
-    }, [schoolAbsences, subjects, schoolSchedule, schoolCalendar]);
+    }, [schoolAbsences, subjects, schoolSchedule, schoolCalendar, schoolExceptions]);
 
     // === LÓGICA DE CORES DA PRESENÇA GLOBAL ===
     const getPresenceColors = (rateStr) => {
@@ -277,30 +280,32 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                         <Clock size={14}/> Faltas por Matéria
                     </p>
                     <div className="w-full h-[140px] mt-6">
-                        {stats.subjectChartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie 
-                                        data={stats.subjectChartData} 
-                                        cx="50%" cy="50%" 
-                                        innerRadius={40} outerRadius={60} 
-                                        paddingAngle={4} 
-                                        dataKey="value"
-                                        stroke="none"
-                                    >
-                                        {stats.subjectChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Pie>
-                                    <RechartsTooltip 
-                                        contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff', borderRadius: '12px' }} 
-                                        itemStyle={{ color: '#fff' }} 
-                                        formatter={(val) => [`${val} aulas`]}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">Sem dados</div>}
-                    </div>
+    {stats.subjectChartData.length > 0 ? (
+        <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+                <Pie 
+                    data={stats.subjectChartData} 
+                    cx="50%" cy="50%" 
+                    innerRadius={40} outerRadius={60} 
+                    paddingAngle={4} 
+                    dataKey="value"
+                    nameKey="name" /* ADICIONADO: Garante que o gráfico saiba qual campo é o nome */
+                    stroke="none"
+                >
+                    {stats.subjectChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                </Pie>
+                <RechartsTooltip 
+                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff', borderRadius: '12px' }} 
+                    itemStyle={{ color: '#fff' }} 
+                    /* CORRIGIDO: Agora retorna [Valor Formatado, Nome da Matéria] */
+                    formatter={(value, name) => [`${value} aulas`, name]} 
+                />
+            </PieChart>
+        </ResponsiveContainer>
+    ) : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">Sem dados</div>}
+</div>
                 </div>
 
             </div>
@@ -412,8 +417,8 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
     );
 };
 
-// === TAB: CALENDÁRIO (MANTIDO) ===
-const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) => {
+// === TAB: CALENDÁRIO (ATUALIZADO COM TOGGLE DE EXCEÇÃO) ===
+const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule, schoolExceptions, toggleSchoolException }) => {
     const [date, setDate] = useState(new Date());
     const [selectedDayInfo, setSelectedDayInfo] = useState(null); 
 
@@ -441,7 +446,7 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
             handleDayClick(today.getDate());
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [date]);
+    }, [date, schoolExceptions]); // Adicionado schoolExceptions para atualizar ao mudar
 
     return (
         <div className="flex flex-col md:flex-row gap-6 animate-fadeIn h-full">
@@ -465,11 +470,13 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
                         const works = schoolWorks.filter(w => w.dueDate === dateStr);
                         const absence = schoolAbsences.find(a => a.date === dateStr);
                         const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+                        const isException = schoolExceptions.includes(dateStr);
 
                         return (
-                            <button key={day} onClick={() => handleDayClick(day)} className={`h-14 md:h-20 rounded-2xl border transition-all flex flex-col items-start justify-between p-2 relative ${isToday ? 'border-primary bg-primary/5' : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#09090b] hover:border-zinc-300 dark:hover:border-zinc-700'} ${selectedDayInfo?.dateStr === dateStr ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-black' : ''}`}>
+                            <button key={day} onClick={() => handleDayClick(day)} className={`h-14 md:h-20 rounded-2xl border transition-all flex flex-col items-start justify-between p-2 relative ${isToday ? 'border-primary bg-primary/5' : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#09090b] hover:border-zinc-300 dark:hover:border-zinc-700'} ${selectedDayInfo?.dateStr === dateStr ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-black' : ''} ${isException ? 'opacity-50 grayscale' : ''}`}>
                                 <span className={`text-sm font-bold ${absence ? 'text-red-500 underline decoration-red-500 decoration-2' : 'text-zinc-700 dark:text-zinc-300'}`}>{day}</span>
                                 <div className="flex flex-wrap gap-1 w-full">
+                                    {isException && <span className="text-[10px] text-zinc-400 font-bold uppercase"><CalendarOff size={10} /></span>}
                                     {works.map((w, idx) => idx <= 2 ? <div key={w.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === w.subjectId)?.color || '#555' }} /> : null)}
                                     {works.length > 3 && <span className="text-[8px] text-zinc-400">+</span>}
                                 </div>
@@ -484,6 +491,22 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
                         <div className="flex justify-between items-start mb-4">
                             <h3 className="font-bold text-lg text-zinc-900 dark:text-white capitalize">{new Date(selectedDayInfo.dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
                         </div>
+
+                        {/* === NOVO: Toggle de Exceção === */}
+                        <div className="mb-4 bg-zinc-50 dark:bg-black/20 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800/50 flex items-center justify-between">
+                            <span className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2">
+                                <CalendarOff size={14}/> Dia sem Aula?
+                            </span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="sr-only peer" 
+                                    checked={schoolExceptions.includes(selectedDayInfo.dateStr)}
+                                    onChange={() => toggleSchoolException(selectedDayInfo.dateStr)}
+                                />
+                                <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
                         
                         {selectedDayInfo.absence ? (
                             <div className="mb-4 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
@@ -495,22 +518,31 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule }) 
 
                         <div className="mb-4 flex-1">
                             <p className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1"><BookOpen size={12}/> Aulas do Dia</p>
-                            {selectedDayInfo.dailyLessons && selectedDayInfo.dailyLessons.length > 0 ? (
-                                <div className="space-y-2">
-                                    {selectedDayInfo.dailyLessons.map((sub, idx) => (
-                                        <div key={idx} className="flex items-center gap-3 bg-white dark:bg-black/50 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                                            <span className="text-[10px] text-zinc-400 font-mono w-4">{idx + 1}º</span>
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sub.color }}></div>
-                                            <span className="text-sm text-zinc-900 dark:text-white font-medium">{sub.name}</span>
-                                        </div>
-                                    ))}
+                            
+                            {/* Verificação se é dia sem aula */}
+                            {schoolExceptions.includes(selectedDayInfo.dateStr) ? (
+                                <div className="text-center py-6 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed">
+                                    <CalendarOff size={24} className="mx-auto text-zinc-400 mb-2 opacity-50"/>
+                                    <p className="text-xs text-zinc-500 font-bold uppercase">Feriado / Sem Aula</p>
                                 </div>
                             ) : (
-                                <div className="text-center py-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed">
-                                    <p className="text-xs text-zinc-400 italic">
-                                        {[0].includes(selectedDayInfo.dayOfWeek) ? "Domingo Livre" : "Sem aulas na grade."}
-                                    </p>
-                                </div>
+                                selectedDayInfo.dailyLessons && selectedDayInfo.dailyLessons.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {selectedDayInfo.dailyLessons.map((sub, idx) => (
+                                            <div key={idx} className="flex items-center gap-3 bg-white dark:bg-black/50 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                                                <span className="text-[10px] text-zinc-400 font-mono w-4">{idx + 1}º</span>
+                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sub.color }}></div>
+                                                <span className="text-sm text-zinc-900 dark:text-white font-medium">{sub.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed">
+                                        <p className="text-xs text-zinc-400 italic">
+                                            {[0].includes(selectedDayInfo.dayOfWeek) ? "Domingo Livre" : "Sem aulas na grade."}
+                                        </p>
+                                    </div>
+                                )
                             )}
                         </div>
 
@@ -544,7 +576,7 @@ export const SchoolView = () => {
     subjects, schoolWorks, addWork, updateWork, deleteWork, 
     schoolAbsences, addAbsenceRecord, deleteAbsenceRecord,
     schoolSchedule, updateSchoolSchedule,
-    schoolCalendar // <--- Importado aqui
+    schoolCalendar, schoolExceptions, toggleSchoolException // <--- Importados aqui
   } = useContext(FocusContext);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -777,8 +809,8 @@ export const SchoolView = () => {
               </div>
           )}
 
-          {activeTab === 'absences' && <AbsencesTab subjects={subjects} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} deleteAbsenceRecord={deleteAbsenceRecord} setIsAddAbsenceModalOpen={setIsAddAbsenceModalOpen} schoolCalendar={schoolCalendar} />}
-          {activeTab === 'calendar' && <CalendarTab subjects={subjects} schoolWorks={schoolWorks} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} />}
+          {activeTab === 'absences' && <AbsencesTab subjects={subjects} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} deleteAbsenceRecord={deleteAbsenceRecord} setIsAddAbsenceModalOpen={setIsAddAbsenceModalOpen} schoolCalendar={schoolCalendar} schoolExceptions={schoolExceptions} />}
+          {activeTab === 'calendar' && <CalendarTab subjects={subjects} schoolWorks={schoolWorks} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} schoolExceptions={schoolExceptions} toggleSchoolException={toggleSchoolException} />}
       </div>
 
       {/* MODAIS (MANTIDOS) */}
