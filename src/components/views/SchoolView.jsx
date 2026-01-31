@@ -1,7 +1,7 @@
 import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { 
     GraduationCap, Plus, Calendar, Clock, Trash2, FileText, CheckCircle, Send, ClipboardCheck, 
-    AlertOctagon, ChevronLeft, ChevronRight, Minus, Settings, BookOpen, AlertTriangle, TrendingUp, CalendarOff 
+    AlertOctagon, ChevronLeft, ChevronRight, Minus, Settings, BookOpen, AlertTriangle, TrendingUp, CalendarOff, FlaskConical 
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { FocusContext } from '../../context/FocusContext';
@@ -83,14 +83,15 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
     );
 };
 
-// === TAB: FALTAS (REFORMULADA - PROGRESSIVO DINÂMICO + EXCEÇÕES) ===
-const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen, schoolCalendar, schoolExceptions }) => {
+// === TAB: FALTAS (COM SIMULADOR) ===
+const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen, schoolCalendar, schoolExceptions, simulatedAbsences }) => {
     const stats = useMemo(() => {
         const absencesCountMap = {}; 
         let totalLost = 0;
         const reasonMap = {};
+        let simulatedLost = 0;
 
-        // 1. Contar Faltas
+        // 1. Contar Faltas Reais
         schoolAbsences.forEach(record => {
             Object.entries(record.lessons).forEach(([subId, count]) => {
                 if (count > 0) {
@@ -104,50 +105,57 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
             }
         });
 
-        // 2. Algoritmo Progressivo Dinâmico
+        // 2. Algoritmo Progressivo Dinâmico (Com Simulação)
         const now = new Date();
-        now.setHours(0,0,0,0); // Normalizar hoje
+        now.setHours(0,0,0,0);
 
         const startD = new Date(schoolCalendar.startDate + 'T00:00:00');
         const endD = new Date(schoolCalendar.endDate + 'T00:00:00');
         const hStart = new Date(schoolCalendar.holidaysStart + 'T00:00:00');
         const hEnd = new Date(schoolCalendar.holidaysEnd + 'T00:00:00');
 
-        let totalClassesRealizedGlobal = 0; // Para cálculo de presença %
-        let totalClassesAnnualGlobal = 0;   // Opcional, se precisar
-        const annualClassesMap = {}; // Para o Monitor de Risco (Limite 25% anual)
+        let totalClassesRealizedGlobal = 0; 
+        let totalClassesAnnualGlobal = 0;   
+        const annualClassesMap = {}; 
 
-        // Loop principal: Itera sobre todos os dias do ano letivo
         for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
-            // Verifica se é férias
-            if (d >= hStart && d <= hEnd) continue;
+            if (d >= hStart && d <= hEnd) continue; // Férias
             
-            // Verifica se é EXCEÇÃO (Feriado/Emenda)
             const dateStr = d.toISOString().split('T')[0];
-            if (schoolExceptions.includes(dateStr)) continue;
+            if (schoolExceptions.includes(dateStr)) continue; // Exceção
 
-            const dayOfWeek = d.getDay(); // 0-6
-            const lessonsForDay = schoolSchedule[dayOfWeek] || []; // Array de IDs
+            const dayOfWeek = d.getDay(); 
+            const lessonsForDay = schoolSchedule[dayOfWeek] || []; 
 
             if (lessonsForDay.length > 0) {
-                // Se o dia já ocorreu (ou é hoje), soma no Realized
-                const isRealized = d <= now;
+                // Se é hoje/passado OU é um dia simulado
+                const isSimulated = simulatedAbsences.includes(dateStr);
+                const isRealized = d <= now || isSimulated;
 
                 lessonsForDay.forEach(subId => {
-                    // Contagem Anual (para Monitor de Risco)
                     annualClassesMap[subId] = (annualClassesMap[subId] || 0) + 1;
                     totalClassesAnnualGlobal++;
 
-                    // Contagem Realizada (para Presença Dinâmica)
                     if (isRealized) {
                         totalClassesRealizedGlobal++;
+                        
+                        // Se for simulado, conta como falta extra
+                        if (isSimulated) {
+                            absencesCountMap[subId] = (absencesCountMap[subId] || 0) + 1;
+                            totalLost++;
+                            simulatedLost++;
+                        }
                     }
                 });
             }
         }
+        
+        // Adicionar motivo Simulação se houver
+        if (simulatedLost > 0) {
+            reasonMap['Simulação'] = (reasonMap['Simulação'] || 0) + simulatedLost;
+        }
 
-        // Se hoje for antes do início das aulas, realized é 0 (mas vamos evitar divisão por zero)
-        if (now < startD) totalClassesRealizedGlobal = 0;
+        if (now < startD && simulatedAbsences.length === 0) totalClassesRealizedGlobal = 0;
 
         // 3. Monitor de Risco e Presença Global
         const MAX_ABSENCE_PERCENTAGE = 0.25;
@@ -162,58 +170,42 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
 
         const critical = riskData.length > 0 && riskData[0].current > 0 ? riskData[0] : null;
 
-        // Cálculo Final da Porcentagem de Presença (Progressivo)
         const globalRate = totalClassesRealizedGlobal > 0 
             ? Math.max(0, 100 - ((totalLost / totalClassesRealizedGlobal) * 100)).toFixed(1)
             : "100.0";
 
-        // Gráfico Donut (Matérias)
         const subjectChartData = subjects.map(s => ({
             name: s.name,
             value: absencesCountMap[s.id] || 0,
             color: s.color
         })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
 
-        // Gráfico Pie (Motivos)
-        const REASON_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+        const REASON_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#6366f1']; // Indigo para simulação
         const reasonChartData = Object.entries(reasonMap).map(([reason, count], index) => ({
             name: reason,
             value: count,
-            color: REASON_COLORS[index % REASON_COLORS.length]
+            color: reason === 'Simulação' ? '#6366f1' : REASON_COLORS[index % REASON_COLORS.length]
         })).sort((a, b) => b.value - a.value);
 
-        return { totalLost, totalClassesRealizedGlobal, critical, globalRate, riskData, reasonChartData, subjectChartData };
-    }, [schoolAbsences, subjects, schoolSchedule, schoolCalendar, schoolExceptions]);
+        return { totalLost, totalClassesRealizedGlobal, critical, globalRate, riskData, reasonChartData, subjectChartData, simulatedLost };
+    }, [schoolAbsences, subjects, schoolSchedule, schoolCalendar, schoolExceptions, simulatedAbsences]);
 
-    // === LÓGICA DE CORES DA PRESENÇA GLOBAL ===
-    const getPresenceColors = (rateStr) => {
+    // Lógica de Cores
+    const getPresenceColors = (rateStr, isSimulating) => {
+        if (isSimulating) return { text: 'text-indigo-500', bar: 'bg-indigo-500', glow: 'bg-indigo-500/10' };
+        
         const rate = parseFloat(rateStr);
-        if (rate < 80) {
-            return {
-                text: 'text-red-500',
-                bar: 'bg-red-500',
-                glow: 'bg-red-500/5'
-            };
-        } else if (rate <= 85) {
-            return {
-                text: 'text-yellow-500',
-                bar: 'bg-yellow-500',
-                glow: 'bg-yellow-500/5'
-            };
-        }
-        return {
-            text: 'text-emerald-500 dark:text-emerald-400',
-            bar: 'bg-emerald-500 dark:bg-emerald-400',
-            glow: 'bg-emerald-500/5'
-        };
+        if (rate < 80) return { text: 'text-red-500', bar: 'bg-red-500', glow: 'bg-red-500/5' };
+        else if (rate <= 85) return { text: 'text-yellow-500', bar: 'bg-yellow-500', glow: 'bg-yellow-500/5' };
+        return { text: 'text-emerald-500 dark:text-emerald-400', bar: 'bg-emerald-500 dark:bg-emerald-400', glow: 'bg-emerald-500/5' };
     };
 
-    const presenceColors = getPresenceColors(stats.globalRate);
+    const isSimulating = simulatedAbsences.length > 0;
+    const presenceColors = getPresenceColors(stats.globalRate, isSimulating);
 
     return (
         <div className="space-y-6 animate-fadeIn pb-12">
             
-            {/* Header com Botão Vermelho "Pill" */}
             <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Controle de Faltas</h2>
                 <button 
@@ -224,25 +216,22 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                 </button>
             </div>
 
-            {/* Grid Principal estilo Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* 1. Card Presença Global (Dinâmico) */}
-                <div className="md:col-span-3 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm relative overflow-hidden">
-                     {/* Glow Effect Background Dinâmico */}
+                {/* 1. Card Presença Global (Com Modo Simulação) */}
+                <div className={`md:col-span-3 bg-white dark:bg-[#09090b] border ${isSimulating ? 'border-indigo-500/50' : 'border-zinc-200 dark:border-zinc-800'} p-6 rounded-3xl shadow-sm relative overflow-hidden transition-all duration-500`}>
                      <div className={`absolute top-0 right-0 w-64 h-64 blur-3xl rounded-full pointer-events-none ${presenceColors.glow}`}></div>
                      
                      <div className="relative z-10">
                         <div className="flex justify-between items-start">
-                             <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2">Presença Global (Até Hoje)</p>
-                             <p className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-2 py-1 rounded text-zinc-500">
-                                Base: {stats.totalClassesRealizedGlobal} aulas dadas
+                             <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isSimulating ? 'text-indigo-500' : 'text-zinc-500'}`}>
+                                {isSimulating ? 'Presença Projetada (Simulação)' : 'Presença Global (Até Hoje)'}
                              </p>
+                             {isSimulating && <span className="text-[10px] font-bold bg-indigo-500/10 text-indigo-500 px-2 py-1 rounded-full animate-pulse">+ {stats.simulatedLost} aulas simuladas</span>}
                         </div>
                         <div className="flex items-end gap-2 mb-4">
                             <span className={`text-5xl font-bold tracking-tighter ${presenceColors.text}`}>{stats.globalRate}%</span>
                         </div>
-                        {/* Barra de Progresso Fina */}
                         <div className="h-1.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                             <div 
                                 className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_currentColor] ${presenceColors.bar}`} 
@@ -274,45 +263,42 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                     </div>
                 </div>
 
-                 {/* 4. Gráficos (Lado a Lado) */}
+                 {/* 4. Gráficos */}
                  <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col justify-center relative min-h-[220px]">
                     <p className="absolute top-6 left-6 text-xs text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-2">
                         <Clock size={14}/> Faltas por Matéria
                     </p>
                     <div className="w-full h-[140px] mt-6">
-    {stats.subjectChartData.length > 0 ? (
-        <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-                <Pie 
-                    data={stats.subjectChartData} 
-                    cx="50%" cy="50%" 
-                    innerRadius={40} outerRadius={60} 
-                    paddingAngle={4} 
-                    dataKey="value"
-                    nameKey="name" /* ADICIONADO: Garante que o gráfico saiba qual campo é o nome */
-                    stroke="none"
-                >
-                    {stats.subjectChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                </Pie>
-                <RechartsTooltip 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff', borderRadius: '12px' }} 
-                    itemStyle={{ color: '#fff' }} 
-                    /* CORRIGIDO: Agora retorna [Valor Formatado, Nome da Matéria] */
-                    formatter={(value, name) => [`${value} aulas`, name]} 
-                />
-            </PieChart>
-        </ResponsiveContainer>
-    ) : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">Sem dados</div>}
-</div>
+                        {stats.subjectChartData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie 
+                                        data={stats.subjectChartData} 
+                                        cx="50%" cy="50%" 
+                                        innerRadius={40} outerRadius={60} 
+                                        paddingAngle={4} 
+                                        dataKey="value"
+                                        stroke="none"
+                                    >
+                                        {stats.subjectChartData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <RechartsTooltip 
+                                        contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff', borderRadius: '12px' }} 
+                                        itemStyle={{ color: '#fff' }} 
+                                        formatter={(val, name) => [`${val} aulas`, name]} 
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : <div className="h-full flex items-center justify-center text-zinc-500 text-xs">Sem dados</div>}
+                    </div>
                 </div>
 
             </div>
             
-            {/* Seção Gráfico de Motivos e Lista de Risco */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 {/* Monitor de Risco (Funcionalidade Mantida) */}
+                 {/* Monitor de Risco */}
                  <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm">
                     <h3 className="text-zinc-900 dark:text-white font-bold mb-6 flex items-center gap-2 text-sm uppercase tracking-wide">
                         Monitor de Risco <span className="text-zinc-500 normal-case font-normal">(Limite 25% anual)</span>
@@ -384,9 +370,9 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                 </div>
             </div>
 
-            {/* Histórico Recente (Mantido) */}
+            {/* Histórico (Apenas reais) */}
             <div>
-                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-4 mt-2">Histórico Recente</h3>
+                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-4 mt-2">Histórico Registrado (Real)</h3>
                 <div className="space-y-3">
                     {schoolAbsences.length === 0 ? <p className="text-zinc-500 italic text-sm">Nenhum registro.</p> : 
                     [...schoolAbsences].sort((a,b) => new Date(b.date) - new Date(a.date)).map(record => (
@@ -417,8 +403,8 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
     );
 };
 
-// === TAB: CALENDÁRIO (ATUALIZADO COM TOGGLE DE EXCEÇÃO) ===
-const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule, schoolExceptions, toggleSchoolException }) => {
+// === TAB: CALENDÁRIO (COM SIMULADOR) ===
+const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule, schoolExceptions, toggleSchoolException, isSimulationMode, setIsSimulationMode, simulatedAbsences, toggleSimulatedDay }) => {
     const [date, setDate] = useState(new Date());
     const [selectedDayInfo, setSelectedDayInfo] = useState(null); 
 
@@ -431,12 +417,25 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule, sc
     const handleDayClick = (day) => {
         const dateObj = new Date(year, month, day);
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        
+        // MODO SIMULAÇÃO (apenas dias futuros e não-exceções)
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        if (isSimulationMode && dateObj > today) {
+            if (!schoolExceptions.includes(dateStr)) {
+                toggleSimulatedDay(dateStr);
+            } else {
+                alert("Não é possível simular faltas em dias sem aula.");
+            }
+            return; 
+        }
+
+        // MODO NORMAL
         const works = schoolWorks.filter(w => w.dueDate === dateStr);
         const absence = schoolAbsences.find(a => a.date === dateStr);
         const dayOfWeek = dateObj.getDay(); 
         const dailyScheduleIds = (dayOfWeek >= 1 && dayOfWeek <= 6) ? schoolSchedule[dayOfWeek] : [];
         const dailyLessons = dailyScheduleIds?.map(id => subjects.find(s => s.id === id)).filter(Boolean) || [];
-
         setSelectedDayInfo({ dateStr, works, absence, dailyLessons, dayOfWeek });
     };
 
@@ -445,20 +444,35 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule, sc
         if (today.getMonth() === month && today.getFullYear() === year) {
             handleDayClick(today.getDate());
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [date, schoolExceptions]); // Adicionado schoolExceptions para atualizar ao mudar
+    }, [date, schoolExceptions, isSimulationMode, simulatedAbsences]);
 
     return (
         <div className="flex flex-col md:flex-row gap-6 animate-fadeIn h-full">
             <div className="flex-1">
-                <div className="flex items-center justify-between mb-6 bg-zinc-100 dark:bg-zinc-900/50 p-4 rounded-3xl border border-zinc-200 dark:border-zinc-800">
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white capitalize flex items-center gap-2">
-                        <Calendar size={20} className="text-primary"/> {monthName} <span className="text-zinc-400">{year}</span>
-                    </h3>
-                    <div className="flex gap-2">
-                        <button onClick={() => setDate(new Date(year, month - 1))} className="p-2 hover:bg-white dark:hover:bg-black rounded-xl transition-colors"><ChevronLeft size={20}/></button>
-                        <button onClick={() => setDate(new Date(year, month + 1))} className="p-2 hover:bg-white dark:hover:bg-black rounded-xl transition-colors"><ChevronRight size={20}/></button>
+                {/* Header do Calendário com Toggle de Simulação */}
+                <div className="flex flex-col sm:flex-row items-center justify-between mb-6 bg-zinc-100 dark:bg-zinc-900/50 p-4 rounded-3xl border border-zinc-200 dark:border-zinc-800 gap-4">
+                    <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+                        <h3 className="text-xl font-bold text-zinc-900 dark:text-white capitalize flex items-center gap-2">
+                            <Calendar size={20} className="text-primary"/> {monthName} <span className="text-zinc-400">{year}</span>
+                        </h3>
+                        <div className="flex gap-2">
+                            <button onClick={() => setDate(new Date(year, month - 1))} className="p-2 hover:bg-white dark:hover:bg-black rounded-xl transition-colors"><ChevronLeft size={20}/></button>
+                            <button onClick={() => setDate(new Date(year, month + 1))} className="p-2 hover:bg-white dark:hover:bg-black rounded-xl transition-colors"><ChevronRight size={20}/></button>
+                        </div>
                     </div>
+                    
+                    {/* Botão Simulador */}
+                    <button 
+                        onClick={() => setIsSimulationMode(!isSimulationMode)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all w-full sm:w-auto justify-center ${
+                            isSimulationMode 
+                            ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30' 
+                            : 'bg-white dark:bg-black text-zinc-500 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-500/50'
+                        }`}
+                    >
+                        <FlaskConical size={18} />
+                        {isSimulationMode ? 'Simulando... (Clique nos dias)' : 'Simular Faltas Futuras'}
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-7 gap-2">
@@ -471,12 +485,21 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule, sc
                         const absence = schoolAbsences.find(a => a.date === dateStr);
                         const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
                         const isException = schoolExceptions.includes(dateStr);
+                        const isSimulated = simulatedAbsences.includes(dateStr);
+
+                        // Estilos Condicionais
+                        let borderClass = 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#09090b]';
+                        if (isToday) borderClass = 'border-primary bg-primary/5';
+                        if (isSimulated) borderClass = 'border-indigo-500 border-dashed bg-indigo-500/10 ring-2 ring-indigo-500/20'; // Estilo Simulação
+                        if (selectedDayInfo?.dateStr === dateStr && !isSimulated) borderClass += ' ring-2 ring-primary ring-offset-2 dark:ring-offset-black';
 
                         return (
-                            <button key={day} onClick={() => handleDayClick(day)} className={`h-14 md:h-20 rounded-2xl border transition-all flex flex-col items-start justify-between p-2 relative ${isToday ? 'border-primary bg-primary/5' : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#09090b] hover:border-zinc-300 dark:hover:border-zinc-700'} ${selectedDayInfo?.dateStr === dateStr ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-black' : ''} ${isException ? 'opacity-50 grayscale' : ''}`}>
-                                <span className={`text-sm font-bold ${absence ? 'text-red-500 underline decoration-red-500 decoration-2' : 'text-zinc-700 dark:text-zinc-300'}`}>{day}</span>
+                            <button key={day} onClick={() => handleDayClick(day)} className={`h-14 md:h-20 rounded-2xl border transition-all flex flex-col items-start justify-between p-2 relative ${borderClass} hover:opacity-80 ${isException ? 'opacity-50 grayscale' : ''}`}>
+                                <span className={`text-sm font-bold ${absence ? 'text-red-500 underline decoration-red-500 decoration-2' : isSimulated ? 'text-indigo-500' : 'text-zinc-700 dark:text-zinc-300'}`}>{day}</span>
+                                
                                 <div className="flex flex-wrap gap-1 w-full">
                                     {isException && <span className="text-[10px] text-zinc-400 font-bold uppercase"><CalendarOff size={10} /></span>}
+                                    {isSimulated && <span className="text-[8px] text-indigo-500 font-bold uppercase w-full">Simulado</span>}
                                     {works.map((w, idx) => idx <= 2 ? <div key={w.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === w.subjectId)?.color || '#555' }} /> : null)}
                                     {works.length > 3 && <span className="text-[8px] text-zinc-400">+</span>}
                                 </div>
@@ -485,98 +508,110 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule, sc
                     })}
                 </div>
             </div>
+            
             <div className="w-full md:w-80 space-y-4">
-                {selectedDayInfo ? (
-                    <Card className="animate-fadeIn bg-primary/5 border-primary/20 h-full flex flex-col">
-                        <div className="flex justify-between items-start mb-4">
-                            <h3 className="font-bold text-lg text-zinc-900 dark:text-white capitalize">{new Date(selectedDayInfo.dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
+                {/* Painel Lateral: Condicional para Modo Simulação */}
+                {isSimulationMode && selectedDayInfo && new Date(selectedDayInfo.dateStr) > new Date() ? (
+                    <Card className="animate-fadeIn border-indigo-500/20 bg-indigo-500/5 h-full flex flex-col justify-center items-center text-center p-6">
+                        <FlaskConical size={48} className="text-indigo-500 mb-4" />
+                        <h3 className="font-bold text-lg text-zinc-900 dark:text-white mb-2">Modo Simulação Ativo</h3>
+                        <p className="text-sm text-zinc-500 mb-6">Clique nos dias futuros para simular faltas e ver o impacto na sua porcentagem.</p>
+                        <div className="bg-white dark:bg-black p-4 rounded-2xl border border-indigo-200 dark:border-indigo-900 w-full">
+                            <p className="text-xs font-bold text-indigo-500 uppercase mb-1">Dias Simulados</p>
+                            <p className="text-2xl font-bold text-zinc-900 dark:text-white">{simulatedAbsences.length}</p>
                         </div>
-
-                        {/* === NOVO: Toggle de Exceção === */}
-                        <div className="mb-4 bg-zinc-50 dark:bg-black/20 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800/50 flex items-center justify-between">
-                            <span className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2">
-                                <CalendarOff size={14}/> Dia sem Aula?
-                            </span>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    className="sr-only peer" 
-                                    checked={schoolExceptions.includes(selectedDayInfo.dateStr)}
-                                    onChange={() => toggleSchoolException(selectedDayInfo.dateStr)}
-                                />
-                                <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-                            </label>
-                        </div>
-                        
-                        {selectedDayInfo.absence ? (
-                            <div className="mb-4 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
-                                <p className="text-xs font-bold text-red-500 uppercase mb-1 flex items-center gap-1"><AlertOctagon size={12}/> Falta Registrada</p>
-                                <p className="text-sm text-zinc-700 dark:text-zinc-300 font-medium mb-1">{selectedDayInfo.absence.reason}</p>
-                                <p className="text-xs text-zinc-500">{Object.entries(selectedDayInfo.absence.lessons).filter(([,c]) => c > 0).map(([id, c]) => `${c}x ${subjects.find(sub => sub.id === Number(id))?.name}`).join(', ')}</p>
-                            </div>
-                        ) : null}
-
-                        <div className="mb-4 flex-1">
-                            <p className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1"><BookOpen size={12}/> Aulas do Dia</p>
-                            
-                            {/* Verificação se é dia sem aula */}
-                            {schoolExceptions.includes(selectedDayInfo.dateStr) ? (
-                                <div className="text-center py-6 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed">
-                                    <CalendarOff size={24} className="mx-auto text-zinc-400 mb-2 opacity-50"/>
-                                    <p className="text-xs text-zinc-500 font-bold uppercase">Feriado / Sem Aula</p>
-                                </div>
-                            ) : (
-                                selectedDayInfo.dailyLessons && selectedDayInfo.dailyLessons.length > 0 ? (
-                                    <div className="space-y-2">
-                                        {selectedDayInfo.dailyLessons.map((sub, idx) => (
-                                            <div key={idx} className="flex items-center gap-3 bg-white dark:bg-black/50 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                                                <span className="text-[10px] text-zinc-400 font-mono w-4">{idx + 1}º</span>
-                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sub.color }}></div>
-                                                <span className="text-sm text-zinc-900 dark:text-white font-medium">{sub.name}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed">
-                                        <p className="text-xs text-zinc-400 italic">
-                                            {[0].includes(selectedDayInfo.dayOfWeek) ? "Domingo Livre" : "Sem aulas na grade."}
-                                        </p>
-                                    </div>
-                                )
-                            )}
-                        </div>
-
-                        {selectedDayInfo.works.length > 0 && (
-                            <div className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800/50">
-                                <p className="text-xs font-bold text-zinc-500 uppercase">Entregas</p>
-                                {selectedDayInfo.works.map(w => (
-                                    <div key={w.id} className="bg-white dark:bg-black p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 text-sm shadow-sm">
-                                        <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === w.subjectId)?.color }}/> <span className="text-xs text-zinc-500 font-bold uppercase">{subjects.find(s => s.id === w.subjectId)?.name}</span></div>
-                                        <p className="font-bold text-zinc-900 dark:text-white truncate mb-1">{w.title}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </Card>
                 ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl text-zinc-400">
-                        <Calendar size={32} className="mb-2 opacity-50"/>
-                        <p className="text-sm">Selecione um dia.</p>
-                    </div>
+                    selectedDayInfo ? (
+                        <Card className="animate-fadeIn bg-primary/5 border-primary/20 h-full flex flex-col">
+                            <div className="flex justify-between items-start mb-4">
+                                <h3 className="font-bold text-lg text-zinc-900 dark:text-white capitalize">{new Date(selectedDayInfo.dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
+                            </div>
+
+                            <div className="mb-4 bg-zinc-50 dark:bg-black/20 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800/50 flex items-center justify-between">
+                                <span className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2">
+                                    <CalendarOff size={14}/> Dia sem Aula?
+                                </span>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        className="sr-only peer" 
+                                        checked={schoolExceptions.includes(selectedDayInfo.dateStr)}
+                                        onChange={() => toggleSchoolException(selectedDayInfo.dateStr)}
+                                    />
+                                    <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                                </label>
+                            </div>
+                            
+                            {selectedDayInfo.absence ? (
+                                <div className="mb-4 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
+                                    <p className="text-xs font-bold text-red-500 uppercase mb-1 flex items-center gap-1"><AlertOctagon size={12}/> Falta Registrada</p>
+                                    <p className="text-sm text-zinc-700 dark:text-zinc-300 font-medium mb-1">{selectedDayInfo.absence.reason}</p>
+                                    <p className="text-xs text-zinc-500">{Object.entries(selectedDayInfo.absence.lessons).filter(([,c]) => c > 0).map(([id, c]) => `${c}x ${subjects.find(sub => sub.id === Number(id))?.name}`).join(', ')}</p>
+                                </div>
+                            ) : null}
+
+                            <div className="mb-4 flex-1">
+                                <p className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1"><BookOpen size={12}/> Aulas do Dia</p>
+                                
+                                {schoolExceptions.includes(selectedDayInfo.dateStr) ? (
+                                    <div className="text-center py-6 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed">
+                                        <CalendarOff size={24} className="mx-auto text-zinc-400 mb-2 opacity-50"/>
+                                        <p className="text-xs text-zinc-500 font-bold uppercase">Feriado / Sem Aula</p>
+                                    </div>
+                                ) : (
+                                    selectedDayInfo.dailyLessons && selectedDayInfo.dailyLessons.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {selectedDayInfo.dailyLessons.map((sub, idx) => (
+                                                <div key={idx} className="flex items-center gap-3 bg-white dark:bg-black/50 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                                                    <span className="text-[10px] text-zinc-400 font-mono w-4">{idx + 1}º</span>
+                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sub.color }}></div>
+                                                    <span className="text-sm text-zinc-900 dark:text-white font-medium">{sub.name}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 border-dashed">
+                                            <p className="text-xs text-zinc-400 italic">
+                                                {[0].includes(selectedDayInfo.dayOfWeek) ? "Domingo Livre" : "Sem aulas na grade."}
+                                            </p>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+
+                            {selectedDayInfo.works.length > 0 && (
+                                <div className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800/50">
+                                    <p className="text-xs font-bold text-zinc-500 uppercase">Entregas</p>
+                                    {selectedDayInfo.works.map(w => (
+                                        <div key={w.id} className="bg-white dark:bg-black p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 text-sm shadow-sm">
+                                            <div className="flex items-center gap-2 mb-1"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === w.subjectId)?.color }}/> <span className="text-xs text-zinc-500 font-bold uppercase">{subjects.find(s => s.id === w.subjectId)?.name}</span></div>
+                                            <p className="font-bold text-zinc-900 dark:text-white truncate mb-1">{w.title}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </Card>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl text-zinc-400">
+                            <Calendar size={32} className="mb-2 opacity-50"/>
+                            <p className="text-sm">Selecione um dia.</p>
+                        </div>
+                    )
                 )}
             </div>
         </div>
     );
 };
 
-// === VIEW PRINCIPAL (ATUALIZADA) ===
+// === VIEW PRINCIPAL ===
 
 export const SchoolView = () => {
   const { 
     subjects, schoolWorks, addWork, updateWork, deleteWork, 
     schoolAbsences, addAbsenceRecord, deleteAbsenceRecord,
     schoolSchedule, updateSchoolSchedule,
-    schoolCalendar, schoolExceptions, toggleSchoolException // <--- Importados aqui
+    schoolCalendar, schoolExceptions, toggleSchoolException 
   } = useContext(FocusContext);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -587,6 +622,17 @@ export const SchoolView = () => {
   const [activeTab, setActiveTab] = useState('works');
   const [isAddAbsenceModalOpen, setIsAddAbsenceModalOpen] = useState(false);
   const [absForm, setAbsForm] = useState({ date: new Date().toISOString().split('T')[0], reason: "Doença / Médico", counts: {} });
+
+  // === ESTADOS DO SIMULADOR ===
+  const [isSimulationMode, setIsSimulationMode] = useState(false);
+  const [simulatedAbsences, setSimulatedAbsences] = useState([]);
+
+  const toggleSimulatedDay = (dateStr) => {
+    setSimulatedAbsences(prev => {
+        if (prev.includes(dateStr)) return prev.filter(d => d !== dateStr);
+        return [...prev, dateStr];
+    });
+  };
 
   const gradeStats = useMemo(() => {
     return subjects.map(sub => {
@@ -809,8 +855,8 @@ export const SchoolView = () => {
               </div>
           )}
 
-          {activeTab === 'absences' && <AbsencesTab subjects={subjects} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} deleteAbsenceRecord={deleteAbsenceRecord} setIsAddAbsenceModalOpen={setIsAddAbsenceModalOpen} schoolCalendar={schoolCalendar} schoolExceptions={schoolExceptions} />}
-          {activeTab === 'calendar' && <CalendarTab subjects={subjects} schoolWorks={schoolWorks} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} schoolExceptions={schoolExceptions} toggleSchoolException={toggleSchoolException} />}
+          {activeTab === 'absences' && <AbsencesTab subjects={subjects} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} deleteAbsenceRecord={deleteAbsenceRecord} setIsAddAbsenceModalOpen={setIsAddAbsenceModalOpen} schoolCalendar={schoolCalendar} schoolExceptions={schoolExceptions} simulatedAbsences={simulatedAbsences} />}
+          {activeTab === 'calendar' && <CalendarTab subjects={subjects} schoolWorks={schoolWorks} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} schoolExceptions={schoolExceptions} toggleSchoolException={toggleSchoolException} isSimulationMode={isSimulationMode} setIsSimulationMode={setIsSimulationMode} simulatedAbsences={simulatedAbsences} toggleSimulatedDay={toggleSimulatedDay} />}
       </div>
 
       {/* MODAIS (MANTIDOS) */}

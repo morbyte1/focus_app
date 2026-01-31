@@ -63,7 +63,6 @@ export const FocusProvider = ({ children }) => {
     holidaysEnd: `${currentYear}-07-31`
   }, 'focus_school_calendar');
   
-  // Lista de datas (strings YYYY-MM-DD) que são feriados ou dias sem aula
   const [schoolExceptions, setSchoolExceptions] = useStickyState([], 'focus_school_exceptions');
 
   const [studySchedule, setStudySchedule] = useStickyState({}, 'my_study_schedule');
@@ -199,16 +198,51 @@ export const FocusProvider = ({ children }) => {
             if (selectedSubjectId === id) setSelectedSubjectId(r[0].id); 
         } else if(subjects.length<=1) alert("Mantenha uma matéria."); 
     },
-    addTask: (t, sId) => setTasks(p => [...p, { id: Date.now(), text: t, completed: false, subjectId: sId }]),
+    
+    // === TAREFAS ATUALIZADAS ===
+    addTask: (t, sId, topic) => setTasks(p => [...p, { id: Date.now(), text: t, completed: false, subjectId: sId, topic, subTasks: [] }]),
+    
+    addSubTask: (parentId, text) => setTasks(p => p.map(t => t.id === parentId ? { ...t, subTasks: [...(t.subTasks || []), { id: Date.now() + Math.random(), text, completed: false }] } : t)),
+    
     toggleTask: (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t)),
-    deleteTask: (id) => window.confirm("Excluir?") && setTasks(p => p.filter(t => t.id !== id)),
+    
+    toggleSubTask: (parentId, subId) => setTasks(p => p.map(t => t.id === parentId ? { ...t, subTasks: t.subTasks.map(s => s.id === subId ? { ...s, completed: !s.completed } : s) } : t)),
+    
+    deleteTask: (id) => window.confirm("Excluir tarefa?") && setTasks(p => p.filter(t => t.id !== id)),
+    
+    deleteSubTask: (parentId, subId) => setTasks(p => p.map(t => t.id === parentId ? { ...t, subTasks: t.subTasks.filter(s => s.id !== subId) } : t)),
+    
+    deleteAllTasks: () => setTasks([]),
+
     addMistake: (sId, d, r, sol) => setMistakes(p => [{ id: Date.now(), date: new Date().toISOString(), subjectId: Number(sId), description: d, reason: r, solution: sol, consolidated: false }, ...p]),
     consolidateMistake: (id, diag, strat) => { setMistakes(p => p.map(m => m.id === id ? { ...m, consolidated: true, diagnosis: diag, strategy: strat } : m)); gainXP(100, "Erro Consolidado"); },
     deleteMistake: (id) => { if (window.confirm("Apagar?")) { const m = mistakes.find(x => x.id === id); if (m?.consolidated) { gainXP(-100); alert("-100 XP por apagar aprendizado."); } setMistakes(p => p.filter(x => x.id !== id)); } },
+    
     addTheme: (sId, t) => setThemes(p => [...p, { id: Date.now(), subjectId: sId, title: t, items: [] }]),
     deleteTheme: (id) => window.confirm("Excluir?") && setThemes(p => p.filter(t => t.id !== id)),
     addThemeItem: (tId, txt) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text: txt, completed: false }] } : t)),
-    toggleThemeItem: (tId, iId) => setThemes(p => { const t = p.find(x => x.id === tId), i = t?.items.find(x => x.id === iId); if(i && !i.completed) gainXP(20); return p.map(x => x.id === tId ? { ...x, items: x.items.map(y => y.id === iId ? { ...y, completed: !y.completed } : y) } : x); }),
+    
+    // === TÓPICOS COM AUTOMAÇÃO DE TAREFAS ===
+    toggleThemeItem: (tId, iId) => {
+        const theme = themes.find(x => x.id === tId);
+        const item = theme?.items.find(x => x.id === iId);
+        
+        if (item) {
+            const isCompleting = !item.completed;
+            
+            // 1. Ganhar XP se completar
+            if(isCompleting) gainXP(20);
+
+            // 2. Automação: Excluir tarefas vinculadas a este tópico
+            if (isCompleting) {
+                setTasks(prevTasks => prevTasks.filter(t => t.topic !== item.text));
+            }
+
+            // 3. Atualizar estado do tema
+            setThemes(p => p.map(x => x.id === tId ? { ...x, items: x.items.map(y => y.id === iId ? { ...y, completed: !y.completed } : y) } : x)); 
+        }
+    },
+    
     deleteThemeItem: (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.filter(i => i.id !== iId) } : t)),
     resetXPOnly: () => window.confirm("Resetar nível?") && (setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }) || alert("Nível resetado.")),
     resetAllData: () => window.confirm("Apagar TUDO?") && (localStorage.clear() || window.location.reload()),
@@ -248,7 +282,6 @@ export const FocusProvider = ({ children }) => {
     updateSchoolSchedule: (dayId, lessonsArray) => setSchoolSchedule(p => ({ ...p, [dayId]: lessonsArray })),
     updateSchoolCalendar: (newConfig) => setSchoolCalendar(prev => ({ ...prev, ...newConfig })),
     
-    // Toggle para exceções (feriados)
     toggleSchoolException: (dateStr) => {
         setSchoolExceptions(prev => {
             if (prev.includes(dateStr)) return prev.filter(d => d !== dateStr);
