@@ -322,18 +322,74 @@ export const FocusProvider = ({ children }) => {
     return Array.from({ length: 7 }).map((_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return { name: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][i], minutos: sessions.filter(s => new Date(s.date).toDateString() === d.toDateString()).reduce((a, c) => a + c.minutes, 0) }; });
   }, [sessions]);
 
+// ... (código anterior permanece igual)
+
   const advancedStats = useMemo(() => {
-    const now = new Date(), m = now.getMonth(), y = now.getFullYear();
-    const monthlyData = Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => ({ name: (i + 1).toString(), minutes: sessions.reduce((acc, s) => { const sd = new Date(s.date); return (sd.getDate() === i + 1 && sd.getMonth() === m && sd.getFullYear() === y) ? acc + s.minutes : acc; }, 0) }));
-    
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // 1. Dados Mensais (Lógica existente mantida)
+    const monthlyData = Array.from({ length: new Date(currentYear, currentMonth + 1, 0).getDate() }, (_, i) => ({
+      name: (i + 1).toString(),
+      minutes: sessions.reduce((acc, s) => {
+        const sd = new Date(s.date);
+        return (sd.getDate() === i + 1 && sd.getMonth() === currentMonth && sd.getFullYear() === currentYear) ? acc + s.minutes : acc;
+      }, 0)
+    }));
+
+    // 2. NOVA IMPLEMENTAÇÃO: Dados Anuais (Yearly Data)
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const yearlyData = monthNames.map((name, index) => {
+      return {
+        name,
+        minutes: sessions.reduce((acc, s) => {
+          const sd = new Date(s.date);
+          return (sd.getFullYear() === currentYear && sd.getMonth() === index) ? acc + s.minutes : acc;
+        }, 0)
+      };
+    });
+
+    // Melhores e Piores matérias (Lógica existente mantida)
     const activeSubjects = subjects.filter(s => !s.isSchool);
     const ranked = activeSubjects.map(s => ({ ...s, totalMins: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + c.minutes, 0) })).sort((a, b) => b.totalMins - a.totalMins);
-    
-    const dates = [...new Set(sessions.map(s => new Date(s.date).toDateString()))].map(d => new Date(d)).sort((a, b) => a - b);
-    let maxS = 0, currS = 0; dates.forEach((d, i) => { if (i === 0) currS = 1; else currS = (d - dates[i - 1] <= 86400000) ? currS + 1 : 1; maxS = Math.max(maxS, currS); });
-    
-    return { monthlyData, bestSubject: ranked[0], worstSubject: ranked[ranked.length - 1], maxStreak: maxS };
+
+    // 3. NOVA IMPLEMENTAÇÃO: Maior Sequência Histórica (Longest Streak)
+    // Obtém datas únicas normalizadas (00:00:00)
+    const uniqueDates = [...new Set(sessions.map(s => new Date(s.date).toDateString()))]
+      .map(d => new Date(d))
+      .sort((a, b) => a - b);
+
+    let maxStreak = 0;
+    let currentStreak = 0;
+
+    uniqueDates.forEach((date, index) => {
+      if (index === 0) {
+        currentStreak = 1;
+      } else {
+        const prevDate = uniqueDates[index - 1];
+        // 86400000 ms = 1 dia exato. Como usamos toDateString, a diferença é exata.
+        const diffTime = date.getTime() - prevDate.getTime();
+        
+        if (diffTime === 86400000) {
+          currentStreak++;
+        } else {
+          currentStreak = 1;
+        }
+      }
+      maxStreak = Math.max(maxStreak, currentStreak);
+    });
+
+    return { 
+      monthlyData, 
+      yearlyData, // Novo retorno
+      bestSubject: ranked[0], 
+      worstSubject: ranked[ranked.length - 1], 
+      longestStreak: maxStreak // Novo retorno (renomeado de maxStreak para clareza)
+    };
   }, [sessions, subjects]);
+
+  // ... (restante do return do Provider permanece igual)
 
   return (
     <FocusContext.Provider value={{ 

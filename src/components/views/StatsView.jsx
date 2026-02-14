@@ -1,16 +1,18 @@
 import React, { useContext, useMemo } from 'react';
-import { BarChart2, Trophy, Clock, CheckSquare, Activity, CheckCircle, AlertTriangle, Calendar, Layers, Infinity as InfinityIcon } from 'lucide-react';
+// ADICIONADO: Import do ícone 'Flame'
+import { BarChart2, Trophy, Clock, CheckSquare, Activity, CheckCircle, AlertTriangle, Calendar, Layers, Infinity as InfinityIcon, Flame } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 
 export const StatsView = () => {
-  // ADICIONADO: 'exams' desestruturado do contexto
+  // ADICIONADO: 'yearlyData' e 'longestStreak' extraídos de advancedStats
   const { sessions, subjects, mistakes, themes, advancedStats, exams } = useContext(FocusContext);
-  const { monthlyData } = advancedStats;
+  const { monthlyData, yearlyData, longestStreak } = advancedStats;
   
-  const activeSubjects = subjects.filter(s => !s.isSchool);
+  // ... (código existente de totQ, totE, perfData, misReasons, compTopics, wrnQ, heat, hi permanece igual) ...
 
+  const activeSubjects = subjects.filter(s => !s.isSchool);
   const totQ = sessions.reduce((a, s) => a + (s.questions || 0), 0);
   const totE = sessions.reduce((a, s) => a + (s.errors || 0), 0);
   
@@ -27,12 +29,10 @@ export const StatsView = () => {
   
   const wrnQ = activeSubjects.map(s => ({ name: s.name, value: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + (c.errors || 0), 0), color: s.color })).filter(d => d.value > 0);
   
-  // --- ROADMAP CORRIGIDO (APENAS DIAS ÚTEIS) ---
   const heat = useMemo(() => { 
       const d = []; 
       const end = new Date(); 
       for (let c = new Date(end.getFullYear(), 0, 1); c <= end; c.setDate(c.getDate() + 1)) {
-          // Filtra: se não for Domingo (0) nem Sábado (6)
           if (c.getDay() !== 0 && c.getDay() !== 6) {
               d.push({ 
                 date: new Date(c), 
@@ -50,17 +50,14 @@ export const StatsView = () => {
     return { ms: sMin[0], ls: sMin[sMin.length - 1], mt: sTop[0], lt: sTop[sTop.length - 1], mq: sQ[0], lq: sQ[sQ.length - 1], mc: [...agg].sort((a, b) => (b.q - b.e) - (a.q - a.e))[0], me: [...agg].sort((a, b) => b.e - a.e)[0] };
   }, [activeSubjects, sessions, themes]);
 
-  // NOVO: Cálculo de estatísticas de provas para os cards
   const examStats = useMemo(() => {
+    // ... (Lógica existente de examStats permanece igual) ...
     if (!exams || exams.length === 0) return null;
-    
-    // Agrupa notas por matéria e calcula tempo
     const subjectGrades = {};
     let totalMinutes = 0;
     let examsWithDuration = 0;
 
     exams.forEach(exam => {
-        // Cálculo do tempo médio
         if (exam.duration) {
             const [h, m] = exam.duration.split(':').map(Number);
             if (!isNaN(h) && !isNaN(m)) {
@@ -68,7 +65,6 @@ export const StatsView = () => {
                 examsWithDuration++;
             }
         }
-
         if (exam.subjects) {
             exam.subjects.forEach(sub => {
                 if (sub.grade && sub.max && sub.subjectId) {
@@ -81,42 +77,39 @@ export const StatsView = () => {
             });
         }
     });
-
-    // Formatação do tempo médio
     const avgMins = examsWithDuration > 0 ? totalMinutes / examsWithDuration : 0;
     const avgH = Math.floor(avgMins / 60);
     const avgM = Math.round(avgMins % 60);
     const formattedAvgTime = `${avgH}h ${avgM}m`;
-
     const results = Object.entries(subjectGrades).map(([id, stats]) => {
         const subject = subjects.find(s => s.id === Number(id));
         if (!subject) return null;
         const percentage = stats.totalMax > 0 ? (stats.totalObtained / stats.totalMax) * 100 : 0;
         return { name: subject.name, percentage };
     }).filter(Boolean);
-
-    // Se não houver matérias, mas houver tempo, retorna null para best/worst mas manda o tempo
     if (results.length === 0 && examsWithDuration === 0) return null;
-
     results.sort((a, b) => b.percentage - a.percentage);
-
-    return {
-        best: results[0],
-        worst: results[results.length - 1],
-        avgTime: formattedAvgTime // Novo dado retornado
-    };
+    return { best: results[0], worst: results[results.length - 1], avgTime: formattedAvgTime };
   }, [exams, subjects]);
 
-  // COMBINAÇÃO: Cria a lista final de cards mesclando estudo e provas
   const displayCards = useMemo(() => {
       const cards = [];
       
-      // Cards originais de estudo (se existirem dados)
+      // NOVO CARD: Maior Sequência
+      cards.push({
+         l: 'Maior Sequência', 
+         v: `${longestStreak} dias`, 
+         s: 'Recorde Histórico', 
+         i: Flame, 
+         c: 'orange-600'
+      });
+
       if (hi) {
           cards.push(
             { l: 'Mais Estudada', v: hi.ms.name, s: `${Math.round(hi.ms.min / 60)}h`, i: Clock, c: '#1100ab' },
             { l: 'Menos Estudada', v: hi.ls.name, s: `${Math.round(hi.ls.min / 60)}h`, i: Clock, c: 'zinc-500' },
             { l: 'Mais Tópicos', v: hi.mt.name, s: `${hi.mt.t} feitos`, i: CheckSquare, c: 'emerald-500' },
+            // ... (restante dos cards originais mantidos)
             { l: 'Menos Tópicos', v: hi.lt.name, s: `${hi.lt.t} feitos`, i: CheckSquare, c: 'zinc-500' },
             { l: 'Mais Questões', v: hi.mq.name, s: `${hi.mq.q} total`, i: Activity, c: 'blue-500' },
             { l: 'Menos Questões', v: hi.lq.name, s: `${hi.lq.q} total`, i: Activity, c: 'zinc-500' },
@@ -124,8 +117,6 @@ export const StatsView = () => {
             { l: 'Mais Erros', v: hi.me.name, s: `${hi.me.e} erros`, i: AlertTriangle, c: 'red-500' }
           );
       }
-
-      // Novos cards de provas (se existirem dados)
       if (examStats) {
           if (examStats.best) {
              cards.push(
@@ -133,20 +124,18 @@ export const StatsView = () => {
                 { l: 'Pior em Provas', v: examStats.worst.name, s: `${examStats.worst.percentage.toFixed(0)}% aproveitamento`, i: AlertTriangle, c: 'orange-500' }
              );
           }
-          // Card de Tempo Médio
           if (examStats.avgTime) {
-             cards.push(
-                { l: 'Tempo Médio Provas', v: examStats.avgTime, s: 'estimativa por prova', i: Clock, c: 'blue-400' }
-             );
+             cards.push({ l: 'Tempo Médio Provas', v: examStats.avgTime, s: 'estimativa por prova', i: Clock, c: 'blue-400' });
           }
       }
-
       return cards;
-  }, [hi, examStats]);
+  }, [hi, examStats, longestStreak]);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white mb-6">Central de Dados</h1>
+      
+      {/* KPI Cards Superiores (Mantidos) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[{ l: 'Tempo Total', v: `${(sessions.reduce((a, s) => a + s.minutes, 0) / 60).toFixed(1)}h`, c: '#1100ab' }, { l: 'Questões', v: totQ, c: 'blue-500' }, { l: 'Precisão Global', v: `${totQ > 0 ? Math.round(((totQ - totE) / totQ) * 100) : 0}%`, c: 'emerald-500' }, { l: 'Tópicos Feitos', v: themes.reduce((a, t) => a + t.items.filter(i => i.completed).length, 0), c: 'yellow-500' }].map((x, i) => (
           <Card key={i} className={`flex flex-col gap-1 border-l-4 border-l-[${x.c}]`}>
@@ -158,7 +147,6 @@ export const StatsView = () => {
       
       <Card>
         <h3 className="text-zinc-900 dark:text-white font-semibold mb-4 flex items-center gap-2"><Trophy size={18} className="text-yellow-500" /> Destaques de Performance</h3>
-        
         {displayCards.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
             {displayCards.map((x, i) => (
@@ -172,6 +160,7 @@ export const StatsView = () => {
         ) : <p className="text-zinc-500">Estude mais ou registre provas para gerar destaques.</p>}
       </Card>
       
+      {/* Gráficos Principais */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="min-h-[300px]">
           <h3 className="text-zinc-900 dark:text-white font-semibold mb-6 flex items-center gap-2"><Activity size={18} className="text-primary" /> Volume de Questões</h3>
@@ -201,7 +190,27 @@ export const StatsView = () => {
           </div>
         </Card>
       </div>
+
+      {/* NOVA GRID PARA EVOLUÇÃO ANUAL */}
+      <div className="grid grid-cols-1 gap-6">
+        <Card className="min-h-[300px]">
+          <h3 className="text-zinc-900 dark:text-white font-semibold mb-6 flex items-center gap-2">
+            <BarChart2 size={18} className="text-purple-500" /> Evolução Anual
+          </h3>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer>
+              <BarChart data={yearlyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#52525b" opacity={0.3} vertical={false} />
+                <XAxis dataKey="name" stroke="#555" tick={{ fontSize: 10 }} axisLine={false} />
+                <Tooltip cursor={{ fill: '#222' }} contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', color: '#fff' }} itemStyle={{ color: '#fff' }} />
+                <Bar dataKey="minutes" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Minutos" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
       
+      {/* Restante dos gráficos (Pizza, Erros, Heatmap) permanecem iguais */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="min-h-[300px]">
           <h3 className="text-zinc-900 dark:text-white font-semibold mb-6 flex items-center gap-2"><Layers size={18} className="text-purple-500" /> Tópicos Finalizados</h3>
