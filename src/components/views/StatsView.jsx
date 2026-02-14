@@ -27,11 +27,18 @@ export const StatsView = () => {
   
   const wrnQ = activeSubjects.map(s => ({ name: s.name, value: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + (c.errors || 0), 0), color: s.color })).filter(d => d.value > 0);
   
+  // --- ROADMAP CORRIGIDO (APENAS DIAS ÚTEIS) ---
   const heat = useMemo(() => { 
       const d = []; 
       const end = new Date(); 
       for (let c = new Date(end.getFullYear(), 0, 1); c <= end; c.setDate(c.getDate() + 1)) {
-          d.push({ date: new Date(c), hasStudy: sessions.some(s => new Date(s.date).toDateString() === c.toDateString()) }); 
+          // Filtra: se não for Domingo (0) nem Sábado (6)
+          if (c.getDay() !== 0 && c.getDay() !== 6) {
+              d.push({ 
+                date: new Date(c), 
+                hasStudy: sessions.some(s => new Date(s.date).toDateString() === c.toDateString()) 
+              }); 
+          }
       }
       return d; 
   }, [sessions]);
@@ -44,7 +51,6 @@ export const StatsView = () => {
   }, [activeSubjects, sessions, themes]);
 
   // NOVO: Cálculo de estatísticas de provas para os cards
-// NOVO: Cálculo de estatísticas de provas para os cards
   const examStats = useMemo(() => {
     if (!exams || exams.length === 0) return null;
     
@@ -120,7 +126,6 @@ export const StatsView = () => {
       }
 
       // Novos cards de provas (se existirem dados)
-// Novos cards de provas (se existirem dados)
       if (examStats) {
           if (examStats.best) {
              cards.push(

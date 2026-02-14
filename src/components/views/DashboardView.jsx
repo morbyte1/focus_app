@@ -86,7 +86,7 @@ export const DashboardView = () => {
     return tasks.filter(t => !t.completed).slice(0, 3);
   }, [tasks]);
 
-  // --- ROADMAP CORRIGIDO (35 DIAS / BLOCOS MENORES) ---
+  // --- ROADMAP CORRIGIDO (35 DIAS / BLOCOS MENORES - APENAS DIAS ÚTEIS) ---
   const heatMapData = useMemo(() => { 
       const d = []; 
       const end = new Date(); 
@@ -94,10 +94,13 @@ export const DashboardView = () => {
       start.setDate(end.getDate() - 34); // Pega exatamente 35 dias (5 semanas)
 
       for (let c = new Date(start); c <= end; c.setDate(c.getDate() + 1)) {
-          d.push({ 
-            date: new Date(c), 
-            hasStudy: sessions.some(s => new Date(s.date).toDateString() === c.toDateString()) 
-          }); 
+          // Filtra: se não for Domingo (0) nem Sábado (6)
+          if (c.getDay() !== 0 && c.getDay() !== 6) {
+              d.push({ 
+                date: new Date(c), 
+                hasStudy: sessions.some(s => new Date(s.date).toDateString() === c.toDateString()) 
+              }); 
+          }
       }
       return d; 
   }, [sessions]);
