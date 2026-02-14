@@ -1,310 +1,381 @@
-import React, { useState, useEffect, createContext, useMemo, useRef } from 'react';
-import { Crown, Scroll, Shield, Compass, Feather, Sprout } from 'lucide-react';
+import React, { useState, useContext, useMemo } from 'react';
+import { Play, Pause, RotateCcw, Coffee, CheckCircle, Plus, Clock, Trash2, Watch, CornerDownRight } from 'lucide-react';
+import { FocusContext, POMODORO, formatTime } from '../../context/FocusContext';
+import { triggerCelebration } from '../../utils/celebration';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Modal } from '../ui/Modal';
 
-// --- Constantes ---
-export const POMODORO_PRESETS = {
-  SHORT: { work: 30, break: 5, label: "30 min" },
-  LONG: { work: 50, break: 10, label: "50 min" }
-};
+export const FocusView = () => {
+  const { 
+    timerType, setTimerType, 
+    subjects, selectedSubjectId, setSelectedSubjectId, 
+    timerMode, setTimerMode, 
+    timeLeft, setTimeLeft, 
+    isActive, setIsActive, 
+    cycles, setCycles, 
+    tasks, addTask, toggleTask, deleteTask, addSubTask, toggleSubTask, deleteSubTask, deleteAllTasks,
+    addSession, elapsedTime, setElapsedTime, 
+    flowStoredTime, setFlowStoredTime,
+    themes,
 
-const DEFAULT_SUB = [
-  { id: 1, name: 'Matemática', color: '#3b82f6', goalHours: 10, isSchool: false },
-  { id: 2, name: 'Programação', color: '#8b5cf6', goalHours: 20, isSchool: false }
-];
+    timerConfig, setTimerConfig
+  } = useContext(FocusContext);
 
-export const formatTime = (s) => {
-  const safeS = Math.max(0, parseInt(s) || 0);
-  return `${Math.floor(safeS / 60).toString().padStart(2, '0')}:${(safeS % 60).toString().padStart(2, '0')}`;
-};
+  const [taskT, setTaskT] = useState(""); 
+  const [finMod, setFinMod] = useState(false); 
+  const [manMod, setManMod] = useState(false);
+  const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); 
+  const [mForm, setMForm] = useState({ t: "", n: "", s: "", q: "", e: "", topic: "" });
 
-function useStickyState(defaultValue, key) {
-  const [value, setValue] = useState(() => {
-    try {
-      const stickyValue = window.localStorage.getItem(key);
-      return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
-    } catch (error) { 
-      console.warn(`Erro ao carregar ${key}`, error);
-      return defaultValue; 
-    }
-  });
+  const [selectedTopic, setSelectedTopic] = useState("");
 
-  useEffect(() => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value]);
-  
-  return [value, setValue];
-}
+  const availableTopics = useMemo(() => {
+    if (!selectedSubjectId) return [];
+    return themes
+      .filter(t => t.subjectId === selectedSubjectId)
+      .flatMap(t => t.items)
+      .filter(i => !i.completed)
+      .map(i => i.text);
+  }, [selectedSubjectId, themes]);
 
-export const TITLES = [{ l: 60, t: "Divindade do Foco" }, { l: 50, t: "Sábio do Fluxo" }, { l: 30, t: "Mestre Supremo" }, { l: 20, t: "Guardião da Disciplina" }, { l: 10, t: "Explorador" }, { l: 5, t: "Aprendiz Dedicado" }, { l: 1, t: "Novato" }];
-export const RANKS = [{ m: 50, i: Crown, b: "from-blue-600 to-indigo-600", c: "text-blue-300" }, { m: 30, i: Scroll, b: "from-zinc-500 to-zinc-700", c: "text-zinc-300" }, { m: 20, i: Shield, b: "from-amber-500 to-orange-600", c: "text-amber-400" }, { m: 10, i: Compass, b: "from-cyan-500 to-blue-500", c: "text-cyan-400" }, { m: 5, i: Feather, b: "from-emerald-500 to-green-600", c: "text-emerald-400" }, { m: 1, i: Sprout, b: "from-zinc-500 to-zinc-600", c: "text-zinc-400" }];
-export const getTitle = l => TITLES.find(t => l >= t.l)?.t || "Novato";
-export const getRank = l => RANKS.find(s => l >= s.m) || RANKS[RANKS.length - 1];
-export const getXP = l => Math.floor(500 * Math.pow(l, 1.5));
+  const manualAvailableTopics = useMemo(() => {
+    if (!mForm.s) return [];
+    const sId = Number(mForm.s);
+    return themes
+      .filter(t => t.subjectId === sId)
+      .flatMap(t => t.items)
+      .filter(i => !i.completed)
+      .map(i => i.text);
+  }, [mForm.s, themes]);
 
-export const FocusContext = createContext();
 
-export const FocusProvider = ({ children }) => {
-  const [currentView, setCurrentView] = useState('dashboard');
-  
-  // Estados Persistentes
-  const [userName, setUserName] = useStickyState('', 'focus_username');
-  const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
-  const [subjects, setSubjects] = useStickyState(DEFAULT_SUB, 'focus_subjects');
-  const [sessions, setSessions] = useStickyState([], 'focus_sessions');
-  const [tasks, setTasks] = useStickyState([], 'focus_tasks');
-  const [mistakes, setMistakes] = useStickyState([], 'focus_mistakes');
-  const [themes, setThemes] = useStickyState([], 'focus_themes');
-  const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
-  const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato" }, 'focus_rpg');
-  const [unlockedAchievements, setUnlockedAchievements] = useStickyState([], 'focus_unlocked_achievements');
 
-  // Escola
-  const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
-  const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
-  const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, 'focus_school_schedule');
-  const currentYear = new Date().getFullYear();
-  const [schoolCalendar, setSchoolCalendar] = useStickyState({
-    startDate: `${currentYear}-02-01`, endDate: `${currentYear}-12-15`, holidaysStart: `${currentYear}-07-01`, holidaysEnd: `${currentYear}-07-31`
-  }, 'focus_school_calendar');
-  const [schoolExceptions, setSchoolExceptions] = useStickyState([], 'focus_school_exceptions');
-  const [exams, setExams] = useStickyState([], 'focus_exams');
 
-  // Timer & Contexto de Sessão (Agora selectedTopic vive aqui para não perder estado na navegação)
-  const [timerConfig, setTimerConfig] = useStickyState(POMODORO_PRESETS.SHORT, 'focus_timer_config');
-  const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: 30 * 60 });
-  const [selectedSubjectId, setSelectedSubjectId] = useState(null);
-  
-  // === MUDANÇA CRÍTICA: Estado do Tópico movido para o Contexto ===
-  const [selectedTopic, setSelectedTopic] = useState(""); 
-  
-  // Flow States
-  const [elapsedTime, setElapsedTime] = useState(0); 
-  const [flowTotalTime, setFlowTotalTime] = useState(0); 
-  const [lastFlowWorkTime, setLastFlowWorkTime] = useState(0); 
+  const handleWorkTimeChange = (newWorkMinutes) => {
+    const pairedBreak = newWorkMinutes === 50 ? 10 : 5;
 
-  const [theme, setTheme] = useStickyState('system', 'focus_theme');
-  const refs = useRef({ end: null, start: null, last: 0 });
 
-  // === EFEITOS ===
-  useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
-  }, [theme]);
+    setTimerConfig({ work: newWorkMinutes, short: pairedBreak });
 
-  useEffect(() => {
-    if (subjects && subjects.length > 0 && !selectedSubjectId) setSelectedSubjectId(subjects[0].id);
-  }, [subjects, selectedSubjectId]);
 
-  useEffect(() => {
-    document.title = timerState.active ? `${formatTime(timerState.timeLeft)} - Focando` : "Focus App";
-  }, [timerState.timeLeft, timerState.active]);
-
-  // TIMER LOOP PRINCIPAL
-  useEffect(() => {
-    let interval = null;
-    if (timerState.active) {
-      const now = Date.now();
-      
-      if (timerState.type === 'FLOW' && timerState.mode === 'WORK') {
-        if (!refs.current.start) refs.current.start = now - (timerState.timeLeft * 1000);
-      } else {
-        if (!refs.current.end) refs.current.end = now + (timerState.timeLeft * 1000);
-      }
-      refs.current.last = now;
-
-      interval = setInterval(() => {
-        const curr = Date.now();
-        const delta = Math.round((curr - refs.current.last) / 1000);
-        refs.current.last = curr;
-
-        if (timerState.mode === 'WORK' && delta > 0) {
-            setElapsedTime(p => p + delta);
-            if(timerState.type === 'FLOW') setFlowTotalTime(p => p + delta);
-        }
-
-        if (timerState.type === 'FLOW' && timerState.mode === 'WORK') {
-          const elapsed = Math.floor((curr - refs.current.start) / 1000);
-          setTimerState(p => ({ ...p, timeLeft: elapsed }));
-        } else {
-          const remaining = Math.ceil((refs.current.end - curr) / 1000);
-          
-          if (remaining <= 0) {
-            clearInterval(interval);
-            refs.current.end = null;
-            try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play(); } catch (e) {}
-
-            if (timerState.type === 'POMODORO') {
-                if (timerState.mode === 'WORK') {
-                    const newCycles = timerState.cycles + 1;
-                    const isThirdCycle = newCycles > 0 && newCycles % 3 === 0;
-                    const breakTime = isThirdCycle ? 15 * 60 : timerConfig.break * 60;
-                    setTimerState(p => ({ ...p, active: false, mode: 'BREAK', timeLeft: breakTime, cycles: newCycles }));
-                } else {
-                    setTimerState(p => ({ ...p, active: false, mode: 'WORK', timeLeft: timerConfig.work * 60 }));
-                }
-            } else if (timerState.type === 'FLOW') {
-                if (timerState.mode === 'BREAK') {
-                    const minutesStudied = Math.floor(lastFlowWorkTime / 60);
-                    if (minutesStudied > 0) {
-                         addSession(minutesStudied, "Ciclo Flow Finalizado", selectedSubjectId, 0, 0, "Flow");
-                    }
-                    setTimerState(p => ({ ...p, active: true, mode: 'WORK', timeLeft: 0 }));
-                    setElapsedTime(0);
-                    refs.current.start = Date.now();
-                }
-            }
-          } else {
-            setTimerState(p => ({ ...p, timeLeft: remaining }));
-          }
-        }
-      }, 1000);
-    } else {
-      refs.current.start = null;
-      refs.current.end = null;
-    }
-    return () => clearInterval(interval);
-  }, [timerState.active, timerState.mode, timerState.type, timerConfig, lastFlowWorkTime, selectedSubjectId]);
-
-  const startFlowBreak = () => {
-    const studiedSeconds = timerState.timeLeft; 
-    setLastFlowWorkTime(studiedSeconds);
-    const breakSeconds = Math.floor(studiedSeconds * 0.20);
-    setTimerState(p => ({ ...p, active: true, mode: 'BREAK', timeLeft: breakSeconds, cycles: p.cycles + 1 }));
-  };
-
-  const resetTimer = () => {
-      setTimerState(p => ({ 
-          ...p, active: false, mode: 'WORK', timeLeft: p.type === 'POMODORO' ? timerConfig.work * 60 : 0, cycles: 0
-      }));
+    if (timerType === 'POMODORO' && timerMode === 'WORK') {
+      setIsActive(false);
+      setTimeLeft(newWorkMinutes * 60);
       setElapsedTime(0);
-      setFlowTotalTime(0);
-      refs.current.start = null;
-      refs.current.end = null;
-  };
-
-  const gainXP = (amt, reason) => {
-    setUserLevel(prev => {
-      let { level, currentXP: cx, totalXP: tx } = prev, nx = getXP(level);
-      cx += amt; tx += amt;
-      while (cx >= nx) { cx -= nx; level++; nx = getXP(level); }
-      return { level, currentXP: cx, totalXP: tx, title: getTitle(level) };
-    });
-  };
-
-  const addSession = (mins, notes, sId, qs = 0, errs = 0, topic = null) => {
-    const id = sId || selectedSubjectId;
-    const finalTopic = topic || "Geral"; 
-    setSessions(p => [...(p||[]), { 
-        id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: Number(id), 
-        notes, questions: Number(qs)||0, errors: Number(errs)||0, topic: finalTopic
-    }]);
-    gainXP(mins * 10, "Foco");
-  };
-
-  // CRUD TAREFAS
-  const addTask = (text, sId, topic) => setTasks(p => [...(p||[]), { id: Date.now() + Math.random(), text, completed: false, subjectId: Number(sId), topic: topic, subTasks: [] }]);
-  const addSubTask = (pId, text) => { if(!text) return; setTasks(p => p.map(t => t.id === pId ? { ...t, subTasks: [...(t.subTasks||[]), { id: Date.now() + Math.random(), text, completed: false }] } : t)); };
-  const toggleTask = (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  const deleteTask = (id) => setTasks(p => p.filter(t => t.id !== id));
-  const toggleSubTask = (pId, sId) => setTasks(p => p.map(t => t.id === pId ? { ...t, subTasks: t.subTasks.map(s => s.id === sId ? { ...s, completed: !s.completed } : s) } : t));
-  const deleteSubTask = (pId, sId) => setTasks(p => p.map(t => t.id === pId ? { ...t, subTasks: t.subTasks.filter(s => s.id !== sId) } : t));
-  const deleteAllTasks = () => setTasks([]);
-
-  // Demais Helpers (Mantidos iguais)
-  const addSubject = (n, c, g, isSchool) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Number(g), isSchool }]);
-  const updateSubject = (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Number(g) } : s));
-  const deleteSubject = (id) => subjects.length > 1 && setSubjects(p => p.filter(s => s.id !== id));
-  const addMistake = (sId, d, r, sol) => setMistakes(p => [{ id: Date.now(), subjectId: Number(sId), description: d, reason: r, solution: sol, consolidated: false }, ...(p||[])]);
-  const deleteMistake = (id) => setMistakes(p => p.filter(x => x.id !== id));
-  const consolidateMistake = (id, d, s) => { setMistakes(p => p.map(m => m.id === id ? { ...m, consolidated: true, diagnosis: d, strategy: s } : m)); gainXP(100); };
-  const addTheme = (sId, t) => setThemes(p => [...(p||[]), { id: Date.now(), subjectId: Number(sId), title: t, items: [] }]);
-  const deleteTheme = (id) => setThemes(p => p.filter(t => t.id !== id));
-  const addThemeItem = (tId, txt) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now(), text: txt, completed: false }] } : t));
-  const toggleThemeItem = (tId, iId) => setThemes(p => p.map(x => x.id === tId ? { ...x, items: x.items.map(y => y.id === iId ? { ...y, completed: !y.completed } : y) } : x));
-  const deleteThemeItem = (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.filter(i => i.id !== iId) } : t));
-  const addWork = (sId, t, d, desc, m) => setSchoolWorks(p => [...(p||[]), { id: Date.now(), subjectId: Number(sId), title: t, dueDate: d, description: desc, status: 'pending', maxGrade: Number(m) }]);
-  const updateWork = (id, u) => setSchoolWorks(p => p.map(w => w.id === id ? { ...w, ...u } : w));
-  const deleteWork = (id) => setSchoolWorks(p => p.filter(w => w.id !== id));
-  const addAbsenceRecord = (d, r, l) => setSchoolAbsences(p => [...(p||[]), { id: Date.now(), date: d, reason: r, lessons: l }]);
-  const deleteAbsenceRecord = (id) => setSchoolAbsences(p => p.filter(a => a.id !== id));
-  const updateSchoolSchedule = (d, l) => setSchoolSchedule(p => ({ ...p, [d]: l }));
-  const updateSchoolCalendar = (c) => setSchoolCalendar(p => ({ ...p, ...c }));
-  const toggleSchoolException = (d) => setSchoolExceptions(p => p.includes(d) ? p.filter(x => x !== d) : [...p, d]);
-  const addExam = (e) => { setExams(p => [{ ...e, id: Date.now() }, ...(p||[])]); gainXP(200); };
-  const deleteExam = (id) => setExams(p => p.filter(e => e.id !== id));
-  const unlockAchievement = (id) => !unlockedAchievements.includes(id) && setUnlockedAchievements(p => [...p, id]);
-  const resetAllData = () => { localStorage.clear(); window.location.reload(); };
-  const resetXPOnly = () => setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato" });
-  const deleteDayHistory = (d) => setSessions(p => p.filter(s => new Date(s.date).toDateString() !== d));
-
-  const advancedStats = useMemo(() => {
-    const safeSessions = sessions || [];
-    const now = new Date();
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const yearlyData = months.map(m => ({ name: m, minutes: 0 }));
-    safeSessions.forEach(s => {
-        const d = new Date(s.date);
-        if (d.getFullYear() === now.getFullYear()) yearlyData[d.getMonth()].minutes += s.minutes;
-    });
-
-    let longestStreak = 0;
-    if (safeSessions.length > 0) {
-        const uniqueDates = [...new Set(safeSessions.map(s => new Date(s.date).toDateString()))].map(d => new Date(d)).sort((a, b) => a - b);
-        let currentStreak = 1, maxStreak = 1;
-        for (let i = 1; i < uniqueDates.length; i++) {
-            const diffDays = Math.ceil(Math.abs(uniqueDates[i] - uniqueDates[i - 1]) / (86400000));
-            currentStreak = diffDays === 1 ? currentStreak + 1 : 1;
-            if (currentStreak > maxStreak) maxStreak = currentStreak;
-        }
-        longestStreak = maxStreak;
     }
+  };
 
-    const startW = new Date(); startW.setDate(startW.getDate() - startW.getDay()); startW.setHours(0,0,0,0);
-    const weeklyChartData = Array.from({ length: 7 }).map((_, i) => { 
-      const d = new Date(startW); d.setDate(startW.getDate() + i); 
-      return { name: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][i], minutos: safeSessions.filter(s => new Date(s.date).toDateString() === d.toDateString()).reduce((a, c) => a + c.minutes, 0) }; 
-    });
+  const handleBreakTimeChange = (newBreakMinutes) => {
+    const pairedWork = newBreakMinutes === 10 ? 50 : 25;
 
-    const todayS = now.toDateString();
-    const kpiData = {
-        todayMinutes: safeSessions.filter(s => new Date(s.date).toDateString() === todayS).reduce((a, c) => a + c.minutes, 0),
-        totalHours: (safeSessions.reduce((a, c) => a + c.minutes, 0) / 60).toFixed(1),
-        streak: longestStreak
-    };
-    return { yearlyData, longestStreak, weeklyChartData, kpiData, monthlyData: yearlyData };
-  }, [sessions]);
+
+    setTimerConfig({ work: pairedWork, short: newBreakMinutes });
+
+
+    if (timerType === 'POMODORO' && timerMode === 'BREAK') {
+      setIsActive(false);
+      setTimeLeft(newBreakMinutes * 60);
+      setElapsedTime(0);
+    }
+  };
+
+
+  if (!subjects.length) return <div className="text-center mt-20 text-zinc-400">Adicione matérias em Matérias.</div>;
+
+  const finish = (e) => { 
+      e.preventDefault(); 
+
+      const mins = Math.round(elapsedTime / 60); 
+      if (mins > 0) { 
+          addSession(mins, fForm.n, null, fForm.q, fForm.e, selectedTopic); 
+          triggerCelebration(); 
+      } else {
+          alert("Tempo insuficiente para salvar.");
+      }
+      setIsActive(false); 
+      setTimerMode('WORK'); 
+
+      setTimeLeft(timerType === 'FLOW' ? 0 : timerConfig.work * 60); 
+      setElapsedTime(0); 
+      setCycles(0); 
+      setFinMod(false); 
+      setFForm({ n: "", q: "", e: "" }); 
+      setSelectedTopic(""); 
+  };
+
+  const manual = (e) => { 
+      e.preventDefault(); 
+      if (!mForm.t || !mForm.s) return alert("Preencha tempo e matéria."); 
+      const tValid = Math.max(1, parseInt(mForm.t) || 0);
+
+      addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e, mForm.topic); 
+
+      setMForm({ t: "", n: "", s: "", q: "", e: "", topic: "" }); 
+      setManMod(false); 
+      triggerCelebration();
+  };
+
+  const handleCreateTask = (e) => {
+      e.preventDefault();
+      if (!selectedTopic) return alert("Selecione um tópico acima para criar tarefas vinculadas.");
+      if (taskT && selectedSubjectId) { 
+          addTask(taskT, selectedSubjectId, selectedTopic); 
+          setTaskT(""); 
+      }
+  };
+
+  const handleAddSubTask = (parentId) => {
+      const text = window.prompt("Nome da sub-tarefa:");
+      if (text) addSubTask(parentId, text);
+  };
+
+  const filteredTasks = tasks.filter(t => t.subjectId === selectedSubjectId && t.topic === selectedTopic);
 
   return (
-    <FocusContext.Provider value={{ 
-        currentView, setCurrentView, userName, setUserName, selectedHistoryDate, setSelectedHistoryDate, 
-        subjects, sessions, tasks, mistakes, themes, schoolWorks, schoolAbsences, schoolSchedule, schoolCalendar, schoolExceptions, exams,
-        countdown, setCountdown, userLevel, unlockedAchievements, 
-        
-        timerState, setTimerState, timerConfig, setTimerConfig, 
-        selectedSubjectId, setSelectedSubjectId, selectedTopic, setSelectedTopic, // <--- Aqui está a correção
-        elapsedTime, setElapsedTime, flowTotalTime, setFlowTotalTime, startFlowBreak, resetTimer,
-        
-        setTimerType: (t) => setTimerState(p => ({ ...p, type: t })),
-        setTimerMode: (m) => setTimerState(p => ({ ...p, mode: m })),
-        setTimeLeft: (t) => setTimerState(p => ({ ...p, timeLeft: t })),
-        setIsActive: (a) => setTimerState(p => ({ ...p, active: a })),
-        setCycles: (c) => setTimerState(p => ({ ...p, cycles: c })),
-        
-        kpiData: advancedStats.kpiData, weeklyChartData: advancedStats.weeklyChartData, advancedStats,
-        
-        addSession, addSubject, updateSubject, deleteSubject, addTask, addSubTask, toggleTask, deleteTask, toggleSubTask, deleteSubTask, deleteAllTasks,
-        addMistake, deleteMistake, consolidateMistake, addTheme, deleteTheme, addThemeItem, toggleThemeItem, deleteThemeItem,
-        addWork, updateWork, deleteWork, addAbsenceRecord, deleteAbsenceRecord, updateSchoolSchedule, updateSchoolCalendar, toggleSchoolException, addExam, deleteExam, unlockAchievement,
-        resetAllData, resetXPOnly, deleteDayHistory,
-        theme, setTheme
-    }}>
-      {children}
-    </FocusContext.Provider>
-  );
-};
+  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-24 md:pb-0">
+      <header className="lg:col-span-3">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Modo Foco</h1>
+      </header>
+
+      <div className="lg:col-span-2 space-y-6">
+        <Card className="flex flex-col items-center justify-center min-h-[450px] relative overflow-hidden bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 shadow-xl">
+          <div className={`absolute w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-all duration-1000 ${isActive ? (timerMode === 'WORK' ? 'bg-primary/20 animate-pulse' : 'bg-emerald-500/20 animate-pulse') : 'bg-zinc-200/50 dark:bg-zinc-800/30'}`}></div>
+
+          <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-6 z-10 shadow-sm">
+
+            <button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(timerConfig.work * 60); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Pomodoro</button>
+            <button onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-primary text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Flow</button>
+          </div>
+
+          <div className="w-full max-w-xs mb-6 z-10 text-center space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-zinc-500 uppercase block mb-2">Matéria</label>
+              <select disabled={isActive} value={selectedSubjectId || ''} onChange={(e) => setSelectedSubjectId(Number(e.target.value))} className="w-full bg-zinc-100 dark:bg-[#18181B] text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 rounded-2xl py-3 px-4 outline-none cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
+                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-zinc-500 uppercase block mb-2">Tópico</label>
+              <select 
+                disabled={isActive || !selectedSubjectId || availableTopics.length === 0} 
+                value={selectedTopic} 
+                onChange={(e) => setSelectedTopic(e.target.value)} 
+                className="w-full bg-zinc-100 dark:bg-[#18181B] text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 rounded-2xl py-3 px-4 outline-none cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors disabled:opacity-50"
+              >
+                <option value="">
+                    {selectedSubjectId 
+                        ? (availableTopics.length === 0 ? "Sem tópicos pendentes" : "Selecione um tópico...") 
+                        : "Selecione uma matéria primeiro"}
+                </option>
+                {availableTopics.map((topic, idx) => (
+                    <option key={idx} value={topic}>{topic}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {timerType === 'POMODORO' && (
+            <div className="grid grid-cols-2 gap-8 mb-6 z-10 w-full max-w-xs px-2">
+
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-1.5 mb-2 text-primary dark:text-primary-light">
+                    <Clock size={14} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Trabalho</span>
+                </div>
+                <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                    <button onClick={() => handleWorkTimeChange(25)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.work === 25 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>25</button>
+                    <button onClick={() => handleWorkTimeChange(50)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.work === 50 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>50</button>
+
+
+
+
+
+
+                </div>
+              </div>
+
+
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-1.5 mb-2 text-emerald-600 dark:text-emerald-400">
+                    <Coffee size={14} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Descanso</span>
+                </div>
+                <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                    <button onClick={() => handleBreakTimeChange(5)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.short === 5 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>5</button>
+                    <button onClick={() => handleBreakTimeChange(10)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.short === 10 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>10</button>
+
+
+
+
+
+
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="z-10 text-center">
+            <div className="mb-6">
+              <span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase border ${timerMode === 'WORK' ? 'bg-primary/10 text-primary-light border-primary/20' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20'}`}>{timerMode === 'WORK' ? 'Foco Total' : 'Pausa'}</span>
+            </div>
+
+            <div className="text-8xl md:text-9xl font-mono font-bold text-zinc-900 dark:text-white tracking-tighter mb-4 tabular-nums drop-shadow-sm dark:drop-shadow-2xl">{formatTime(timeLeft)}</div>
+
+            <div className="text-zinc-500 dark:text-zinc-400 mb-8 font-medium">Ciclos: <span className="text-zinc-900 dark:text-white font-bold ml-2">{cycles}</span></div>
+
+            <div className="flex gap-4 justify-center items-center mt-8">
+              <button onClick={() => setIsActive(!isActive)} className={`px-8 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700' : (timerMode === 'WORK' ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-emerald-500 text-white hover:bg-emerald-600')}`}>
+                {isActive ? <Pause size={24} /> : <Play size={24} />} <span>{isActive ? 'Pausar' : 'Iniciar'}</span>
+              </button>
+
+              <button onClick={() => { setIsActive(false); const resetTime = timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? timerConfig.work * 60 : timerConfig.short * 60); setTimeLeft(resetTime); setElapsedTime(0); }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"><RotateCcw size={24} /></button>
+
+
+
+
+
+
+
+              {timerType === 'FLOW' && timerMode === 'WORK' && <button onClick={() => { setFlowStoredTime(timeLeft); setTimerMode('BREAK'); setTimeLeft(Math.floor(timeLeft * 0.2)); setIsActive(true); }} className="p-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-colors"><Coffee size={24} /></button>}
+
+              <button onClick={() => { setIsActive(false); setFinMod(true); }} className="p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 transition-colors"><CheckCircle size={24} /></button>
+            </div>
+            {timerType === 'FLOW' && timerMode === 'WORK' && <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-4">Clique no <Coffee size={12} className="inline" /> para pausa.</p>}
+          </div>
+        </Card>
+      </div>
+
+      <div className="lg:col-span-1">
+          <Card className="h-full flex flex-col min-h-[300px]">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white flex items-center gap-2">
+                    <CheckCircle size={20} className="text-primary" /> Tarefas
+                </h3>
+                <button 
+                    onClick={() => window.confirm("Tem certeza que deseja apagar todas as tarefas?") && deleteAllTasks()} 
+                    title="Excluir Todas" 
+                    className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                >
+                    <Trash2 size={16} />
+                </button>
+            </div>
+
+            <form onSubmit={handleCreateTask} className="mb-4 flex gap-2">
+                <input 
+                    placeholder={selectedTopic ? `Tarefa em: ${selectedTopic}` : "Selecione um tópico..."} 
+                    className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary disabled:opacity-50" 
+                    value={taskT} 
+                    onChange={e => setTaskT(e.target.value)} 
+                    disabled={!selectedTopic}
+                />
+                <button type="submit" disabled={!selectedTopic} className="bg-primary hover:bg-primary-dark transition-colors rounded-2xl px-3 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                    <Plus size={18} />
+                </button>
+            </form>
+            
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                {filteredTasks.length === 0 && (
+                    <p className="text-center text-zinc-400 text-sm mt-4 italic">
+                        {selectedTopic ? "Nenhuma tarefa neste tópico." : "Selecione um tópico para ver as tarefas."}
+                    </p>
+                )}
+                {filteredTasks.map(t => (
+                    <div key={t.id} className="animate-fadeIn">
+                        {/* Tarefa Principal */}
+                        <div className={`group flex items-center gap-3 p-3 rounded-2xl border transition-all ${t.completed ? 'bg-primary/5 border-primary/20 opacity-60' : 'bg-zinc-50 dark:bg-[#18181B] border-zinc-200 dark:border-zinc-800'}`}>
+                            <button onClick={() => toggleTask(t.id)} className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${t.completed ? 'bg-primary border-primary' : 'border-zinc-400 dark:border-zinc-500 hover:border-primary'}`}>
+                                {t.completed && <CheckCircle size={14} className="text-white" />}
+                            </button>
+                            <span className={`text-sm flex-1 break-words ${t.completed ? 'text-zinc-500 line-through' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                                {t.text}
+                            </span>
+                            
+                            <button onClick={() => handleAddSubTask(t.id)} title="Adicionar Sub-tarefa" className="text-zinc-400 hover:text-primary dark:text-zinc-600 hover:bg-primary/10 p-1.5 rounded-lg transition-colors">
+                                <Plus size={14} />
+                            </button>
+                            
+                            <button onClick={() => deleteTask(t.id)} className="text-zinc-400 hover:text-red-500 dark:text-zinc-600 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/10 transition-all">
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+
+                        {/* Sub-tarefas (Indentadas) */}
+                        {t.subTasks && t.subTasks.length > 0 && (
+                            <div className="ml-6 mt-1 space-y-1 pl-2 border-l-2 border-zinc-100 dark:border-zinc-800">
+                                {t.subTasks.map(sub => (
+                                    <div key={sub.id} className="group/sub flex items-center gap-2 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
+                                        <CornerDownRight size={12} className="text-zinc-300 dark:text-zinc-700" />
+                                        <button onClick={() => toggleSubTask(t.id, sub.id)} className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${sub.completed ? 'bg-zinc-400 border-zinc-400' : 'border-zinc-300 dark:border-zinc-600 hover:border-primary'}`}>
+                                            {sub.completed && <CheckCircle size={10} className="text-white" />}
+                                        </button>
+                                        <span className={`text-xs flex-1 break-words ${sub.completed ? 'text-zinc-400 line-through' : 'text-zinc-600 dark:text-zinc-400'}`}>
+                                            {sub.text}
+                                        </span>
+                                        <button onClick={() => deleteSubTask(t.id, sub.id)} className="text-zinc-300 hover:text-red-500 opacity-0 group-hover/sub:opacity-100 transition-opacity">
+                                            <Trash2 size={12} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+          </Card>
+      </div>
+
+      <div className="lg:col-span-3 mt-12 mb-8 flex flex-col items-center justify-center border-t border-zinc-200 dark:border-zinc-800/50 pt-10"><div className="bg-white dark:bg-[#09090b] p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full text-center"><Clock size={24} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-500 opacity-50" /><p className="text-zinc-500 dark:text-zinc-400 text-sm mb-4">Esqueceu de ligar o timer ou estudou fora do app?</p><button onClick={() => { setMForm({ ...mForm, s: subjects[0]?.id }); setManMod(true); }} className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-primary/10 hover:bg-primary text-primary-light hover:text-white rounded-2xl border border-primary/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-primary/5"><Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> Lançar Estudo Manual</button></div></div>
+
+      <Modal isOpen={finMod} onClose={() => setFinMod(false)} title="Resumo da Sessão"><form onSubmit={finish} className="space-y-4"><div><label className="text-xs text-zinc-500 font-bold uppercase">O que você estudou?</label><textarea className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-sm text-zinc-900 dark:text-white h-24 outline-none focus:border-primary resize-none" value={fForm.n} onChange={e => setFForm({ ...fForm, n: e.target.value })} /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-zinc-500 font-bold uppercase">Questões Feitas</label><input type="number" min="0" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-blue-500" value={fForm.q} onChange={e => setFForm({ ...fForm, q: e.target.value })} /></div><div><label className="text-xs text-zinc-500 font-bold uppercase">Erradas</label><input type="number" min="0" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-red-500" value={fForm.e} onChange={e => setFForm({ ...fForm, e: e.target.value })} /></div></div><div className="pt-2 flex gap-2"><Button type="button" variant="secondary" onClick={() => setFinMod(false)} className="flex-1">Cancelar</Button><Button type="submit" className="flex-[2]">Salvar Sessão</Button></div></form></Modal>
+
+      <Modal isOpen={manMod} onClose={() => setManMod(false)} title="Registro Manual">
+        <form onSubmit={manual} className="space-y-5">
+            <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase">Matéria</label>
+                <select required className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary" value={mForm.s} onChange={e => setMForm({ ...mForm, s: e.target.value, topic: "" })}>
+                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+            </div>
+
+            <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase">Tópico</label>
+                <select 
+                    className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary disabled:opacity-50"
+                    value={mForm.topic} 
+                    onChange={e => setMForm({ ...mForm, topic: e.target.value })}
+                    disabled={!mForm.s || manualAvailableTopics.length === 0}
+                >
+                    <option value="">
+                       {!mForm.s ? "Selecione a matéria" : (manualAvailableTopics.length === 0 ? "Sem tópicos pendentes" : "Selecione um tópico...")}
+                    </option>
+                    {manualAvailableTopics.map((t, idx) => (
+                        <option key={idx} value={t}>{t}</option>
+                    ))}
+                </select>
+            </div>
+
+            <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase">Tempo (min)</label>
+                <input required type="number" min="1" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary" value={mForm.t} onChange={e => setMForm({ ...mForm, t: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-500 uppercase">Diário</label>
+                <textarea className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 text-zinc-900 dark:text-white h-28 outline-none focus:border-primary resize-none text-sm" value={mForm.n} onChange={e => setMForm({ ...mForm, n: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <label className="text-xs font-bold text-zinc-500 uppercase">Feitas</label>
+                    <input type="number" min="0" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-blue-500" value={mForm.q} onChange={e => setMForm({ ...mForm, q: e.target.value })} />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-zinc-500 uppercase">Erradas</label>
+                    <input type="number" min="0" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-red-500" value={mForm.e} onChange={e => setMForm({ ...mForm, e: e.target.value })} />
+                </div>
+            </div>
+            <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-primary/20">Confirmar</Button>
+        </form>
+      </Modal>
+    </div>
+)};
