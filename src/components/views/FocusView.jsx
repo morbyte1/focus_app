@@ -1,381 +1,308 @@
-import React, { useState, useContext, useMemo } from 'react';
-import { 
-  Play, Pause, RotateCcw, Coffee, CheckCircle2, Plus, Trash2, 
-  Target, Zap, Clock, List, AlertTriangle, BookOpen, Layers, MoreVertical 
-} from 'lucide-react';
-import { FocusContext, formatTime, POMODORO_PRESETS } from '../../context/FocusContext';
-import { triggerCelebration } from '../../utils/celebration';
-import { Modal } from '../ui/Modal';
-import { Button } from '../ui/Button';
-import { Card } from '../ui/Card';
+import React, { useState, useEffect, createContext, useMemo, useRef } from 'react';
+import { Crown, Scroll, Shield, Compass, Feather, Sprout } from 'lucide-react';
 
-// --- COMPONENTES AUXILIARES ---
+// --- Constantes ---
+export const POMODORO_PRESETS = {
+  SHORT: { work: 30, break: 5, label: "30 min" },
+  LONG: { work: 50, break: 10, label: "50 min" }
+};
 
-const ModeToggle = ({ current, onSelect }) => (
-  <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-xs mx-auto mb-6">
-    {['POMODORO', 'FLOW'].map((mode) => (
-      <button
-        key={mode}
-        onClick={() => onSelect(mode)}
-        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-          current === mode 
-            ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' 
-            : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
-        }`}
-      >
-        {mode}
-      </button>
-    ))}
-  </div>
-);
+const DEFAULT_SUB = [
+  { id: 1, name: 'Matemática', color: '#3b82f6', goalHours: 10, isSchool: false },
+  { id: 2, name: 'Programação', color: '#8b5cf6', goalHours: 20, isSchool: false }
+];
 
-const PresetBadge = ({ active, label, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border transition-all ${
-      active 
-        ? 'bg-primary/10 border-primary text-primary' 
-        : 'bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
-    }`}
-  >
-    {label}
-  </button>
-);
+export const formatTime = (s) => {
+  const safeS = Math.max(0, parseInt(s) || 0);
+  return `${Math.floor(safeS / 60).toString().padStart(2, '0')}:${(safeS % 60).toString().padStart(2, '0')}`;
+};
 
-const SafeActionModal = ({ isOpen, onClose, onConfirm, title, desc }) => (
-  <Modal isOpen={isOpen} onClose={onClose} title={title}>
-    <div className="flex flex-col items-center text-center p-2">
-      <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4">
-        <AlertTriangle size={32} />
-      </div>
-      <p className="text-zinc-600 dark:text-zinc-300 text-sm mb-6">{desc}</p>
-      <div className="flex gap-3 w-full">
-        <Button variant="secondary" onClick={onClose} className="flex-1">Cancelar</Button>
-        <Button onClick={onConfirm} className="flex-1 bg-red-500 hover:bg-red-600 border-red-500 text-white">Confirmar</Button>
-      </div>
-    </div>
-  </Modal>
-);
-
-// --- COMPONENTE PRINCIPAL ---
-
-export const FocusView = () => {
-  const { 
-    timerState, setTimerState, timerConfig, setTimerConfig,
-    subjects, selectedSubjectId, setSelectedSubjectId, 
-    tasks, addTask, toggleTask, deleteTask, addSubTask, toggleSubTask, deleteSubTask,
-    addSession, elapsedTime, setElapsedTime, flowTotalTime, setFlowTotalTime, startFlowBreak, resetTimer,
-    themes
-  } = useContext(FocusContext);
-
-  // Estados Locais
-  const [selectedTopic, setSelectedTopic] = useState("");
-  const [taskText, setTaskText] = useState("");
-  const [isFinishModalOpen, setIsFinishModalOpen] = useState(false);
-  const [finishForm, setFinishForm] = useState({ notes: "", questions: "", errors: "" });
-  const [safetyModal, setSafetyModal] = useState({ open: false, action: null });
-  const [showTopicWarning, setShowTopicWarning] = useState(false);
-
-  const { type: timerType, mode: timerMode, active: isActive, timeLeft, cycles } = timerState;
-
-  // Filtros e Dados
-  const availableTopics = useMemo(() => {
-    if (!selectedSubjectId) return [];
-    const subjectThemes = themes.filter(t => t.subjectId === selectedSubjectId);
-    return subjectThemes.flatMap(t => t.items).filter(i => !i.completed).map(i => i.text);
-  }, [selectedSubjectId, themes]);
-
-  const filteredTasks = useMemo(() => {
-    return tasks.filter(t => t.subjectId === selectedSubjectId && (selectedTopic ? t.topic === selectedTopic : true));
-  }, [tasks, selectedSubjectId, selectedTopic]);
-
-  // Handlers Seguros
-  const handleSafeAction = (actionFn) => {
-    if (isActive || (timerType === 'FLOW' && flowTotalTime > 10)) {
-      setSafetyModal({ 
-        open: true, 
-        desc: "O timer está rodando. Se continuar, o progresso da sessão atual será perdido.",
-        action: () => {
-          actionFn();
-          setSafetyModal({ open: false, action: null });
-        }
-      });
-    } else {
-      actionFn();
+function useStickyState(defaultValue, key) {
+  const [value, setValue] = useState(() => {
+    try {
+      const stickyValue = window.localStorage.getItem(key);
+      return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
+    } catch (error) { 
+      console.warn(`Erro ao carregar ${key}`, error);
+      return defaultValue; 
     }
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+  
+  return [value, setValue];
+}
+
+export const TITLES = [{ l: 60, t: "Divindade do Foco" }, { l: 50, t: "Sábio do Fluxo" }, { l: 30, t: "Mestre Supremo" }, { l: 20, t: "Guardião da Disciplina" }, { l: 10, t: "Explorador" }, { l: 5, t: "Aprendiz Dedicado" }, { l: 1, t: "Novato" }];
+export const RANKS = [{ m: 50, i: Crown, b: "from-blue-600 to-indigo-600", c: "text-blue-300" }, { m: 30, i: Scroll, b: "from-zinc-500 to-zinc-700", c: "text-zinc-300" }, { m: 20, i: Shield, b: "from-amber-500 to-orange-600", c: "text-amber-400" }, { m: 10, i: Compass, b: "from-cyan-500 to-blue-500", c: "text-cyan-400" }, { m: 5, i: Feather, b: "from-emerald-500 to-green-600", c: "text-emerald-400" }, { m: 1, i: Sprout, b: "from-zinc-500 to-zinc-600", c: "text-zinc-400" }];
+export const getTitle = l => TITLES.find(t => l >= t.l)?.t || "Novato";
+export const getRank = l => RANKS.find(s => l >= s.m) || RANKS[RANKS.length - 1];
+export const getXP = l => Math.floor(500 * Math.pow(l, 1.5));
+
+export const FocusContext = createContext();
+
+export const FocusProvider = ({ children }) => {
+  const [currentView, setCurrentView] = useState('dashboard');
+  
+  // Estados Persistentes
+  const [userName, setUserName] = useStickyState('', 'focus_username');
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
+  const [subjects, setSubjects] = useStickyState(DEFAULT_SUB, 'focus_subjects');
+  const [sessions, setSessions] = useStickyState([], 'focus_sessions');
+  const [tasks, setTasks] = useStickyState([], 'focus_tasks');
+  const [mistakes, setMistakes] = useStickyState([], 'focus_mistakes');
+  const [themes, setThemes] = useStickyState([], 'focus_themes');
+  const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
+  const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato" }, 'focus_rpg');
+  const [unlockedAchievements, setUnlockedAchievements] = useStickyState([], 'focus_unlocked_achievements');
+
+  // Escola
+  const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
+  const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
+  const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, 'focus_school_schedule');
+  const currentYear = new Date().getFullYear();
+  const [schoolCalendar, setSchoolCalendar] = useStickyState({
+    startDate: `${currentYear}-02-01`, endDate: `${currentYear}-12-15`, holidaysStart: `${currentYear}-07-01`, holidaysEnd: `${currentYear}-07-31`
+  }, 'focus_school_calendar');
+  const [schoolExceptions, setSchoolExceptions] = useStickyState([], 'focus_school_exceptions');
+  const [exams, setExams] = useStickyState([], 'focus_exams');
+
+  // Timer & Contexto de Sessão (Agora selectedTopic vive aqui para não perder estado na navegação)
+  const [timerConfig, setTimerConfig] = useStickyState(POMODORO_PRESETS.SHORT, 'focus_timer_config');
+  const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: 30 * 60 });
+  const [selectedSubjectId, setSelectedSubjectId] = useState(null);
+  const [selectedTopic, setSelectedTopic] = useState(""); // <--- MOVIDO PARA CÁ
+  
+  // Flow States
+  const [elapsedTime, setElapsedTime] = useState(0); 
+  const [flowTotalTime, setFlowTotalTime] = useState(0); 
+  const [lastFlowWorkTime, setLastFlowWorkTime] = useState(0); 
+
+  const [theme, setTheme] = useStickyState('system', 'focus_theme');
+  const refs = useRef({ end: null, start: null, last: 0 });
+
+  // === EFEITOS ===
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    if (subjects && subjects.length > 0 && !selectedSubjectId) setSelectedSubjectId(subjects[0].id);
+  }, [subjects, selectedSubjectId]);
+
+  useEffect(() => {
+    document.title = timerState.active ? `${formatTime(timerState.timeLeft)} - Focando` : "Focus App";
+  }, [timerState.timeLeft, timerState.active]);
+
+  // TIMER LOOP PRINCIPAL
+  useEffect(() => {
+    let interval = null;
+    if (timerState.active) {
+      const now = Date.now();
+      
+      if (timerState.type === 'FLOW' && timerState.mode === 'WORK') {
+        if (!refs.current.start) refs.current.start = now - (timerState.timeLeft * 1000);
+      } else {
+        if (!refs.current.end) refs.current.end = now + (timerState.timeLeft * 1000);
+      }
+      refs.current.last = now;
+
+      interval = setInterval(() => {
+        const curr = Date.now();
+        const delta = Math.round((curr - refs.current.last) / 1000);
+        refs.current.last = curr;
+
+        if (timerState.mode === 'WORK' && delta > 0) {
+            setElapsedTime(p => p + delta);
+            if(timerState.type === 'FLOW') setFlowTotalTime(p => p + delta);
+        }
+
+        if (timerState.type === 'FLOW' && timerState.mode === 'WORK') {
+          const elapsed = Math.floor((curr - refs.current.start) / 1000);
+          setTimerState(p => ({ ...p, timeLeft: elapsed }));
+        } else {
+          const remaining = Math.ceil((refs.current.end - curr) / 1000);
+          
+          if (remaining <= 0) {
+            clearInterval(interval);
+            refs.current.end = null;
+            try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play(); } catch (e) {}
+
+            if (timerState.type === 'POMODORO') {
+                if (timerState.mode === 'WORK') {
+                    const newCycles = timerState.cycles + 1;
+                    const isThirdCycle = newCycles > 0 && newCycles % 3 === 0;
+                    const breakTime = isThirdCycle ? 15 * 60 : timerConfig.break * 60;
+                    setTimerState(p => ({ ...p, active: false, mode: 'BREAK', timeLeft: breakTime, cycles: newCycles }));
+                } else {
+                    setTimerState(p => ({ ...p, active: false, mode: 'WORK', timeLeft: timerConfig.work * 60 }));
+                }
+            } else if (timerState.type === 'FLOW') {
+                if (timerState.mode === 'BREAK') {
+                    const minutesStudied = Math.floor(lastFlowWorkTime / 60);
+                    if (minutesStudied > 0) {
+                         addSession(minutesStudied, "Ciclo Flow Finalizado", selectedSubjectId, 0, 0, "Flow");
+                    }
+                    setTimerState(p => ({ ...p, active: true, mode: 'WORK', timeLeft: 0 }));
+                    setElapsedTime(0);
+                    refs.current.start = Date.now();
+                }
+            }
+          } else {
+            setTimerState(p => ({ ...p, timeLeft: remaining }));
+          }
+        }
+      }, 1000);
+    } else {
+      refs.current.start = null;
+      refs.current.end = null;
+    }
+    return () => clearInterval(interval);
+  }, [timerState.active, timerState.mode, timerState.type, timerConfig, lastFlowWorkTime, selectedSubjectId]);
+
+  const startFlowBreak = () => {
+    const studiedSeconds = timerState.timeLeft; 
+    setLastFlowWorkTime(studiedSeconds);
+    const breakSeconds = Math.floor(studiedSeconds * 0.20);
+    setTimerState(p => ({ ...p, active: true, mode: 'BREAK', timeLeft: breakSeconds, cycles: p.cycles + 1 }));
   };
 
-  const handleModeSwitch = (newMode) => {
-    if (timerType === newMode) return;
-    handleSafeAction(() => {
-      setTimerState(p => ({ ...p, active: false, type: newMode, mode: 'WORK', cycles: 0, timeLeft: newMode === 'POMODORO' ? timerConfig.work * 60 : 0 }));
+  const resetTimer = () => {
+      setTimerState(p => ({ 
+          ...p, active: false, mode: 'WORK', timeLeft: p.type === 'POMODORO' ? timerConfig.work * 60 : 0, cycles: 0
+      }));
       setElapsedTime(0);
       setFlowTotalTime(0);
+      refs.current.start = null;
+      refs.current.end = null;
+  };
+
+  const gainXP = (amt, reason) => {
+    setUserLevel(prev => {
+      let { level, currentXP: cx, totalXP: tx } = prev, nx = getXP(level);
+      cx += amt; tx += amt;
+      while (cx >= nx) { cx -= nx; level++; nx = getXP(level); }
+      return { level, currentXP: cx, totalXP: tx, title: getTitle(level) };
     });
   };
 
-  const handlePresetChange = (preset) => {
-    handleSafeAction(() => {
-      setTimerConfig(preset);
-      setTimerState(p => ({ ...p, active: false, mode: 'WORK', timeLeft: preset.work * 60, cycles: 0 }));
-    });
+  const addSession = (mins, notes, sId, qs = 0, errs = 0, topic = null) => {
+    const id = sId || selectedSubjectId;
+    const finalTopic = topic || "Geral"; 
+    setSessions(p => [...(p||[]), { 
+        id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: Number(id), 
+        notes, questions: Number(qs)||0, errors: Number(errs)||0, topic: finalTopic
+    }]);
+    gainXP(mins * 10, "Foco");
   };
 
-  const handlePlayPause = () => {
-    if (!selectedTopic) {
-      setShowTopicWarning(true);
-      setTimeout(() => setShowTopicWarning(false), 2000);
-      return;
+  // CRUD TAREFAS
+  const addTask = (text, sId, topic) => setTasks(p => [...(p||[]), { id: Date.now() + Math.random(), text, completed: false, subjectId: Number(sId), topic: topic, subTasks: [] }]);
+  const addSubTask = (pId, text) => { if(!text) return; setTasks(p => p.map(t => t.id === pId ? { ...t, subTasks: [...(t.subTasks||[]), { id: Date.now() + Math.random(), text, completed: false }] } : t)); };
+  const toggleTask = (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const deleteTask = (id) => setTasks(p => p.filter(t => t.id !== id));
+  const toggleSubTask = (pId, sId) => setTasks(p => p.map(t => t.id === pId ? { ...t, subTasks: t.subTasks.map(s => s.id === sId ? { ...s, completed: !s.completed } : s) } : t));
+  const deleteSubTask = (pId, sId) => setTasks(p => p.map(t => t.id === pId ? { ...t, subTasks: t.subTasks.filter(s => s.id !== sId) } : t));
+  const deleteAllTasks = () => setTasks([]);
+
+  // Demais Helpers (Mantidos iguais)
+  const addSubject = (n, c, g, isSchool) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Number(g), isSchool }]);
+  const updateSubject = (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Number(g) } : s));
+  const deleteSubject = (id) => subjects.length > 1 && setSubjects(p => p.filter(s => s.id !== id));
+  const addMistake = (sId, d, r, sol) => setMistakes(p => [{ id: Date.now(), subjectId: Number(sId), description: d, reason: r, solution: sol, consolidated: false }, ...(p||[])]);
+  const deleteMistake = (id) => setMistakes(p => p.filter(x => x.id !== id));
+  const consolidateMistake = (id, d, s) => { setMistakes(p => p.map(m => m.id === id ? { ...m, consolidated: true, diagnosis: d, strategy: s } : m)); gainXP(100); };
+  const addTheme = (sId, t) => setThemes(p => [...(p||[]), { id: Date.now(), subjectId: Number(sId), title: t, items: [] }]);
+  const deleteTheme = (id) => setThemes(p => p.filter(t => t.id !== id));
+  const addThemeItem = (tId, txt) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now(), text: txt, completed: false }] } : t));
+  const toggleThemeItem = (tId, iId) => setThemes(p => p.map(x => x.id === tId ? { ...x, items: x.items.map(y => y.id === iId ? { ...y, completed: !y.completed } : y) } : x));
+  const deleteThemeItem = (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.filter(i => i.id !== iId) } : t));
+  const addWork = (sId, t, d, desc, m) => setSchoolWorks(p => [...(p||[]), { id: Date.now(), subjectId: Number(sId), title: t, dueDate: d, description: desc, status: 'pending', maxGrade: Number(m) }]);
+  const updateWork = (id, u) => setSchoolWorks(p => p.map(w => w.id === id ? { ...w, ...u } : w));
+  const deleteWork = (id) => setSchoolWorks(p => p.filter(w => w.id !== id));
+  const addAbsenceRecord = (d, r, l) => setSchoolAbsences(p => [...(p||[]), { id: Date.now(), date: d, reason: r, lessons: l }]);
+  const deleteAbsenceRecord = (id) => setSchoolAbsences(p => p.filter(a => a.id !== id));
+  const updateSchoolSchedule = (d, l) => setSchoolSchedule(p => ({ ...p, [d]: l }));
+  const updateSchoolCalendar = (c) => setSchoolCalendar(p => ({ ...p, ...c }));
+  const toggleSchoolException = (d) => setSchoolExceptions(p => p.includes(d) ? p.filter(x => x !== d) : [...p, d]);
+  const addExam = (e) => { setExams(p => [{ ...e, id: Date.now() }, ...(p||[])]); gainXP(200); };
+  const deleteExam = (id) => setExams(p => p.filter(e => e.id !== id));
+  const unlockAchievement = (id) => !unlockedAchievements.includes(id) && setUnlockedAchievements(p => [...p, id]);
+  const resetAllData = () => { localStorage.clear(); window.location.reload(); };
+  const resetXPOnly = () => setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato" });
+  const deleteDayHistory = (d) => setSessions(p => p.filter(s => new Date(s.date).toDateString() !== d));
+
+  const advancedStats = useMemo(() => {
+    const safeSessions = sessions || [];
+    const now = new Date();
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const yearlyData = months.map(m => ({ name: m, minutes: 0 }));
+    safeSessions.forEach(s => {
+        const d = new Date(s.date);
+        if (d.getFullYear() === now.getFullYear()) yearlyData[d.getMonth()].minutes += s.minutes;
+    });
+
+    let longestStreak = 0;
+    if (safeSessions.length > 0) {
+        const uniqueDates = [...new Set(safeSessions.map(s => new Date(s.date).toDateString()))].map(d => new Date(d)).sort((a, b) => a - b);
+        let currentStreak = 1, maxStreak = 1;
+        for (let i = 1; i < uniqueDates.length; i++) {
+            const diffDays = Math.ceil(Math.abs(uniqueDates[i] - uniqueDates[i - 1]) / (86400000));
+            currentStreak = diffDays === 1 ? currentStreak + 1 : 1;
+            if (currentStreak > maxStreak) maxStreak = currentStreak;
+        }
+        longestStreak = maxStreak;
     }
-    setTimerState(p => ({ ...p, active: !p.active }));
-  };
 
-  const handleSubTaskCreate = (taskId) => {
-      const text = prompt("Digite a sub-tarefa:");
-      if(text) addSubTask(taskId, text);
-  };
+    const startW = new Date(); startW.setDate(startW.getDate() - startW.getDay()); startW.setHours(0,0,0,0);
+    const weeklyChartData = Array.from({ length: 7 }).map((_, i) => { 
+      const d = new Date(startW); d.setDate(startW.getDate() + i); 
+      return { name: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][i], minutos: safeSessions.filter(s => new Date(s.date).toDateString() === d.toDateString()).reduce((a, c) => a + c.minutes, 0) }; 
+    });
 
-  // UI - Estrutura Principal
+    const todayS = now.toDateString();
+    const kpiData = {
+        todayMinutes: safeSessions.filter(s => new Date(s.date).toDateString() === todayS).reduce((a, c) => a + c.minutes, 0),
+        totalHours: (safeSessions.reduce((a, c) => a + c.minutes, 0) / 60).toFixed(1),
+        streak: longestStreak
+    };
+    return { yearlyData, longestStreak, weeklyChartData, kpiData, monthlyData: yearlyData };
+  }, [sessions]);
+
   return (
-    <div className="h-full pb-24 md:pb-0 animate-fadeIn">
-        {/* GRID LAYOUT: Timer (Esq) | Tarefas (Dir) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full items-start">
-            
-            {/* === COLUNA ESQUERDA: TIMER (Maior) === */}
-            <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6">
-                
-                <Card className="flex flex-col items-center justify-center relative overflow-hidden bg-white dark:bg-[#0A0A0A] border-zinc-200 dark:border-zinc-800 shadow-xl rounded-3xl min-h-[450px] lg:min-h-[600px] p-6">
-                    
-                    {/* Topo: Modo e Config */}
-                    <div className="w-full flex justify-center relative z-10">
-                        <ModeToggle current={timerType} onSelect={handleModeSwitch} />
-                    </div>
-
-                    {/* Centro: Relógio */}
-                    <div className="flex-1 flex flex-col items-center justify-center z-10 w-full">
-                        <div className={`mb-8 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border flex items-center gap-2
-                            ${timerMode === 'WORK' 
-                                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800' 
-                                : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
-                            }`}
-                        >
-                            {timerMode === 'WORK' ? <Zap size={12}/> : <Coffee size={12}/>}
-                            {timerMode === 'WORK' ? 'Deep Focus' : 'Descanso'}
-                        </div>
-
-                        {/* Display Gigante */}
-                        <div className="text-[6rem] sm:text-[8rem] lg:text-[9rem] leading-none font-bold text-zinc-900 dark:text-zinc-100 tracking-tighter tabular-nums select-none font-mono">
-                            {formatTime(timeLeft)}
-                        </div>
-
-                        {/* Ciclos / Total */}
-                        <div className="mt-8 h-8 flex items-center justify-center">
-                            {timerType === 'POMODORO' ? (
-                                <div className="flex gap-2">
-                                    {[...Array(4)].map((_, i) => (
-                                        <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i < (cycles % 4) ? 'bg-blue-500 w-8' : 'bg-zinc-200 dark:bg-zinc-800 w-2'}`} />
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase tracking-wider bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded-lg">
-                                    <Clock size={12} /> 
-                                    <span>Total: {formatTime(flowTotalTime)}</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Atalhos Pomodoro (Só visível se parado) */}
-                        {timerType === 'POMODORO' && !isActive && (
-                            <div className="mt-6 flex gap-2 animate-fadeIn">
-                                <PresetBadge active={timerConfig.work === 30} label="30/5" onClick={() => handlePresetChange(POMODORO_PRESETS.SHORT)} />
-                                <PresetBadge active={timerConfig.work === 50} label="50/10" onClick={() => handlePresetChange(POMODORO_PRESETS.LONG)} />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Botões de Ação */}
-                    <div className="w-full flex items-center justify-center gap-4 sm:gap-8 mt-4 pb-4">
-                        <button 
-                            onClick={() => handleSafeAction(timerType === 'FLOW' && timerMode === 'WORK' ? startFlowBreak : resetTimer)}
-                            className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all border border-zinc-200 dark:border-zinc-800"
-                            title="Resetar"
-                        >
-                            {timerType === 'FLOW' && timerMode === 'WORK' ? <Coffee size={22}/> : <RotateCcw size={22}/>}
-                        </button>
-
-                        <button 
-                            onClick={handlePlayPause}
-                            disabled={!selectedTopic && !isActive}
-                            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-[2rem] flex items-center justify-center shadow-xl transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:grayscale
-                                ${isActive 
-                                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border-4 border-zinc-100 dark:border-zinc-700' 
-                                    : 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-blue-500/30'
-                                }`}
-                        >
-                            {isActive ? <Pause size={36} fill="currentColor"/> : <Play size={36} fill="currentColor" className="ml-1.5"/>}
-                        </button>
-
-                        <button 
-                            onClick={() => { setTimerState(p => ({...p, active: false})); setIsFinishModalOpen(true); }}
-                            className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-zinc-400 hover:text-emerald-600 bg-zinc-50 dark:bg-zinc-900 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all border border-zinc-200 dark:border-zinc-800"
-                            title="Finalizar"
-                        >
-                            <CheckCircle2 size={22}/>
-                        </button>
-                    </div>
-                </Card>
-            </div>
-
-            {/* === COLUNA DIREITA: CONTEXTO E TAREFAS (Sidebar Funcional) === */}
-            <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-4 h-full">
-                
-                {/* 1. Seletores (Sempre visíveis) */}
-                <Card className={`p-5 transition-all duration-300 border-zinc-200 dark:border-zinc-800 ${showTopicWarning ? 'ring-2 ring-red-500' : ''}`}>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-[10px] font-bold text-zinc-400 uppercase mb-1.5 flex items-center gap-1"><BookOpen size={10}/> Matéria</label>
-                            <select 
-                                disabled={isActive}
-                                value={selectedSubjectId || ''} 
-                                onChange={(e) => { setSelectedSubjectId(Number(e.target.value)); setSelectedTopic(""); }} 
-                                className="w-full bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-3 text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none focus:border-primary transition-all appearance-none cursor-pointer"
-                            >
-                                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className={`text-[10px] font-bold uppercase mb-1.5 flex items-center gap-1 ${!selectedTopic && showTopicWarning ? 'text-red-500' : 'text-zinc-400'}`}><Layers size={10}/> Tópico</label>
-                            <select 
-                                disabled={isActive || !selectedSubjectId}
-                                value={selectedTopic} 
-                                onChange={(e) => { setSelectedTopic(e.target.value); setShowTopicWarning(false); }} 
-                                className={`w-full bg-zinc-50 dark:bg-zinc-900/50 border rounded-xl px-3 py-3 text-sm font-bold outline-none transition-all appearance-none cursor-pointer
-                                    ${!selectedTopic && showTopicWarning ? 'border-red-400 text-red-500 bg-red-50/10' : 'border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 focus:border-primary'}
-                                `}
-                            >
-                                <option value="">Selecione o Tópico...</option>
-                                {availableTopics.map((topic, idx) => <option key={idx} value={topic}>{topic}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                </Card>
-
-                {/* 2. Lista de Tarefas (Só aparece se tópico selecionado) */}
-                {selectedTopic ? (
-                    <Card className="flex-1 flex flex-col p-0 overflow-hidden border-zinc-200 dark:border-zinc-800 min-h-[300px]">
-                        {/* Header Tarefas */}
-                        <div className="p-4 bg-zinc-50/50 dark:bg-zinc-900/30 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
-                            <span className="text-xs font-black text-zinc-500 uppercase flex items-center gap-2">
-                                <List size={14}/> Tarefas
-                            </span>
-                        </div>
-                        
-                        {/* Input Rápido */}
-                        <div className="p-3 border-b border-zinc-100 dark:border-zinc-800">
-                             <form onSubmit={(e) => { e.preventDefault(); if(taskText && selectedSubjectId && selectedTopic) { addTask(taskText, selectedSubjectId, selectedTopic); setTaskText(""); } }} className="flex gap-2">
-                                <input 
-                                    className="flex-1 bg-zinc-100 dark:bg-zinc-900 border-none rounded-lg px-3 py-2 text-sm outline-none placeholder:text-zinc-400"
-                                    placeholder="+ Nova tarefa..."
-                                    value={taskText}
-                                    onChange={e => setTaskText(e.target.value)}
-                                />
-                                <button type="submit" disabled={!taskText} className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors disabled:opacity-30"><Plus size={18}/></button>
-                             </form>
-                        </div>
-
-                        {/* Lista Scrollável */}
-                        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
-                            {filteredTasks.length === 0 && (
-                                <div className="text-center py-8 opacity-50">
-                                    <List size={24} className="mx-auto mb-2 text-zinc-300"/>
-                                    <p className="text-xs text-zinc-400">Nenhuma tarefa.</p>
-                                </div>
-                            )}
-                            {filteredTasks.map(t => (
-                                <div key={t.id} className="bg-white dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 rounded-xl p-3 hover:border-primary/30 transition-all group">
-                                    <div className="flex items-start gap-3">
-                                        <button onClick={() => toggleTask(t.id)} className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-all ${t.completed ? 'bg-primary border-primary' : 'border-zinc-300 dark:border-zinc-600 hover:border-primary'}`}>
-                                            {t.completed && <CheckCircle2 size={12} className="text-white" />}
-                                        </button>
-                                        <span className={`flex-1 text-sm leading-tight ${t.completed ? 'text-zinc-400 line-through' : 'text-zinc-700 dark:text-zinc-200'}`}>{t.text}</span>
-                                        
-                                        {/* Ações Visíveis da Tarefa */}
-                                        <div className="flex gap-1">
-                                            <button 
-                                                onClick={() => handleSubTaskCreate(t.id)} 
-                                                className="p-1 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" 
-                                                title="Adicionar Sub-tarefa"
-                                            >
-                                                <Plus size={14}/>
-                                            </button>
-                                            <button onClick={() => deleteTask(t.id)} className="p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
-                                                <Trash2 size={14}/>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Sub-tarefas */}
-                                    {t.subTasks && t.subTasks.length > 0 && (
-                                        <div className="mt-3 pl-2 ml-2 border-l-2 border-zinc-100 dark:border-zinc-800 space-y-2">
-                                            {t.subTasks.map(sub => (
-                                                <div key={sub.id} className="flex items-center gap-2">
-                                                    <button onClick={() => toggleSubTask(t.id, sub.id)} className={`w-3 h-3 rounded border flex items-center justify-center ${sub.completed ? 'bg-zinc-400 border-zinc-400' : 'border-zinc-300 dark:border-zinc-700'}`}>
-                                                        {sub.completed && <CheckCircle2 size={8} className="text-white" />}
-                                                    </button>
-                                                    <span className={`flex-1 text-xs ${sub.completed ? 'text-zinc-400 line-through' : 'text-zinc-600 dark:text-zinc-400'}`}>{sub.text}</span>
-                                                    <button onClick={() => deleteSubTask(t.id, sub.id)} className="text-zinc-300 hover:text-red-500"><Trash2 size={10}/></button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </Card>
-                ) : (
-                    /* Placeholder se nenhum tópico selecionado */
-                    <div className="hidden lg:flex flex-1 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-3xl items-center justify-center text-zinc-400 flex-col gap-2 p-6 text-center">
-                         <Layers size={32} className="opacity-20"/>
-                         <p className="text-sm font-medium opacity-50">Selecione uma Matéria e Tópico<br/>para ver suas tarefas.</p>
-                    </div>
-                )}
-            </div>
-        </div>
-
-        {/* MODAIS */}
-        <SafeActionModal 
-            isOpen={safetyModal.open}
-            onClose={() => setSafetyModal({ open: false, action: null })}
-            onConfirm={safetyModal.action}
-            title="Atenção"
-            desc={safetyModal.desc}
-        />
-
-        <Modal isOpen={isFinishModalOpen} onClose={() => setIsFinishModalOpen(false)} title="Sessão Concluída">
-            <form onSubmit={(e) => {
-                e.preventDefault();
-                const mins = Math.round((timerType === 'FLOW' ? flowTotalTime : elapsedTime) / 60);
-                if (mins >= 1) {
-                    addSession(mins, finishForm.notes, null, finishForm.questions, finishForm.errors, selectedTopic);
-                    triggerCelebration();
-                }
-                resetTimer();
-                setIsFinishModalOpen(false);
-            }} className="space-y-4">
-                <div className="bg-zinc-50 dark:bg-black/20 p-4 rounded-xl flex items-center gap-4">
-                     <Target className="text-emerald-500" size={24}/>
-                     <div>
-                         <p className="text-xs uppercase font-bold text-zinc-500">Tempo Total</p>
-                         <p className="text-2xl font-bold">{formatTime(timerType === 'FLOW' ? flowTotalTime : elapsedTime)}</p>
-                     </div>
-                </div>
-                <textarea className="w-full bg-zinc-100 dark:bg-zinc-900 border-none rounded-xl p-3 text-sm h-24 resize-none outline-none focus:ring-2 ring-primary/20" placeholder="Notas sobre o estudo..." value={finishForm.notes} onChange={e => setFinishForm({...finishForm, notes: e.target.value})}/>
-                <div className="flex justify-end gap-2">
-                    <Button type="button" variant="secondary" onClick={() => setIsFinishModalOpen(false)}>Cancelar</Button>
-                    <Button type="submit">Salvar Sessão</Button>
-                </div>
-            </form>
-        </Modal>
-    </div>
+    <FocusContext.Provider value={{ 
+        currentView, setCurrentView, userName, setUserName, selectedHistoryDate, setSelectedHistoryDate, 
+        subjects, sessions, tasks, mistakes, themes, schoolWorks, schoolAbsences, schoolSchedule, schoolCalendar, schoolExceptions, exams,
+        countdown, setCountdown, userLevel, unlockedAchievements, 
+        
+        timerState, setTimerState, timerConfig, setTimerConfig, 
+        selectedSubjectId, setSelectedSubjectId, selectedTopic, setSelectedTopic, // Exposto no Contexto
+        elapsedTime, setElapsedTime, flowTotalTime, setFlowTotalTime, startFlowBreak, resetTimer,
+        
+        setTimerType: (t) => setTimerState(p => ({ ...p, type: t })),
+        setTimerMode: (m) => setTimerState(p => ({ ...p, mode: m })),
+        setTimeLeft: (t) => setTimerState(p => ({ ...p, timeLeft: t })),
+        setIsActive: (a) => setTimerState(p => ({ ...p, active: a })),
+        setCycles: (c) => setTimerState(p => ({ ...p, cycles: c })),
+        
+        kpiData: advancedStats.kpiData, weeklyChartData: advancedStats.weeklyChartData, advancedStats,
+        
+        addSession, addSubject, updateSubject, deleteSubject, addTask, addSubTask, toggleTask, deleteTask, toggleSubTask, deleteSubTask, deleteAllTasks,
+        addMistake, deleteMistake, consolidateMistake, addTheme, deleteTheme, addThemeItem, toggleThemeItem, deleteThemeItem,
+        addWork, updateWork, deleteWork, addAbsenceRecord, deleteAbsenceRecord, updateSchoolSchedule, updateSchoolCalendar, toggleSchoolException, addExam, deleteExam, unlockAchievement,
+        resetAllData, resetXPOnly, deleteDayHistory,
+        theme, setTheme
+    }}>
+      {children}
+    </FocusContext.Provider>
   );
 };
