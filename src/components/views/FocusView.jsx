@@ -16,7 +16,8 @@ export const FocusView = () => {
     cycles, setCycles, 
     tasks, addTask, toggleTask, deleteTask, addSubTask, toggleSubTask, deleteSubTask, deleteAllTasks,
     addSession, elapsedTime, setElapsedTime, 
-    flowStoredTime, setFlowStoredTime,
+    accumulatedTime, setAccumulatedTime, // Usando o novo estado acumulado
+    setFlowStoredTime, // Mantido apenas se necessário para compatibilidade
     themes,
 
     timerConfig, setTimerConfig
@@ -49,16 +50,10 @@ export const FocusView = () => {
       .map(i => i.text);
   }, [mForm.s, themes]);
 
-
-
-
   const handleWorkTimeChange = (newWorkMinutes) => {
-    const pairedBreak = newWorkMinutes === 50 ? 10 : 5;
-
-
+    // Se escolheu 60min, pausa curta é 12, senão 6
+    const pairedBreak = newWorkMinutes === 60 ? 12 : 6;
     setTimerConfig({ work: newWorkMinutes, short: pairedBreak });
-
-
     if (timerType === 'POMODORO' && timerMode === 'WORK') {
       setIsActive(false);
       setTimeLeft(newWorkMinutes * 60);
@@ -67,12 +62,9 @@ export const FocusView = () => {
   };
 
   const handleBreakTimeChange = (newBreakMinutes) => {
-    const pairedWork = newBreakMinutes === 10 ? 50 : 25;
-
-
+    // Se escolheu 12min, trabalho é 60, senão 30
+    const pairedWork = newBreakMinutes === 12 ? 60 : 30;
     setTimerConfig({ work: pairedWork, short: newBreakMinutes });
-
-
     if (timerType === 'POMODORO' && timerMode === 'BREAK') {
       setIsActive(false);
       setTimeLeft(newBreakMinutes * 60);
@@ -80,13 +72,14 @@ export const FocusView = () => {
     }
   };
 
-
   if (!subjects.length) return <div className="text-center mt-20 text-zinc-400">Adicione matérias em Matérias.</div>;
 
   const finish = (e) => { 
       e.preventDefault(); 
-
-      const mins = Math.round(elapsedTime / 60); 
+      // SOMA TOTAL: Acumulado de ciclos anteriores + ciclo atual (elapsedTime)
+      const totalSeconds = accumulatedTime + elapsedTime;
+      const mins = Math.round(totalSeconds / 60); 
+      
       if (mins > 0) { 
           addSession(mins, fForm.n, null, fForm.q, fForm.e, selectedTopic); 
           triggerCelebration(); 
@@ -132,6 +125,9 @@ export const FocusView = () => {
 
   const filteredTasks = tasks.filter(t => t.subjectId === selectedSubjectId && t.topic === selectedTopic);
 
+  // Calcula tempo total para exibição visual (Acumulado + Atual)
+  const displayTotalTime = accumulatedTime + elapsedTime;
+
   return (
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-24 md:pb-0">
       <header className="lg:col-span-3">
@@ -143,9 +139,8 @@ export const FocusView = () => {
           <div className={`absolute w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-all duration-1000 ${isActive ? (timerMode === 'WORK' ? 'bg-primary/20 animate-pulse' : 'bg-emerald-500/20 animate-pulse') : 'bg-zinc-200/50 dark:bg-zinc-800/30'}`}></div>
 
           <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-6 z-10 shadow-sm">
-
-            <button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(timerConfig.work * 60); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Pomodoro</button>
-            <button onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK'); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-primary text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Flow</button>
+            <button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(timerConfig.work * 60); setTimerMode('WORK'); setElapsedTime(0); setAccumulatedTime(0); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Pomodoro</button>
+            <button onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK'); setElapsedTime(0); setAccumulatedTime(0); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-primary text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Flow</button>
           </div>
 
           <div className="w-full max-w-xs mb-6 z-10 text-center space-y-4">
@@ -178,24 +173,16 @@ export const FocusView = () => {
 
           {timerType === 'POMODORO' && (
             <div className="grid grid-cols-2 gap-8 mb-6 z-10 w-full max-w-xs px-2">
-
               <div className="flex flex-col items-center">
                 <div className="flex items-center gap-1.5 mb-2 text-primary dark:text-primary-light">
                     <Clock size={14} />
                     <span className="text-[10px] font-bold uppercase tracking-wider">Trabalho</span>
                 </div>
                 <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                    <button onClick={() => handleWorkTimeChange(25)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.work === 25 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>25</button>
-                    <button onClick={() => handleWorkTimeChange(50)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.work === 50 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>50</button>
-
-
-
-
-
-
+                    <button onClick={() => handleWorkTimeChange(30)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.work === 30 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>30</button>
+                    <button onClick={() => handleWorkTimeChange(60)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.work === 60 ? 'bg-primary text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>60</button>
                 </div>
               </div>
-
 
               <div className="flex flex-col items-center">
                 <div className="flex items-center gap-1.5 mb-2 text-emerald-600 dark:text-emerald-400">
@@ -203,14 +190,8 @@ export const FocusView = () => {
                     <span className="text-[10px] font-bold uppercase tracking-wider">Descanso</span>
                 </div>
                 <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                    <button onClick={() => handleBreakTimeChange(5)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.short === 5 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>5</button>
-                    <button onClick={() => handleBreakTimeChange(10)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.short === 10 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>10</button>
-
-
-
-
-
-
+                    <button onClick={() => handleBreakTimeChange(6)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.short === 6 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>6</button>
+                    <button onClick={() => handleBreakTimeChange(12)} className={`w-10 h-8 rounded-lg text-xs font-bold transition-all ${timerConfig.short === 12 ? 'bg-emerald-500 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>12</button>
                 </div>
               </div>
             </div>
@@ -221,24 +202,42 @@ export const FocusView = () => {
               <span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase border ${timerMode === 'WORK' ? 'bg-primary/10 text-primary-light border-primary/20' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20'}`}>{timerMode === 'WORK' ? 'Foco Total' : 'Pausa'}</span>
             </div>
 
-            <div className="text-8xl md:text-9xl font-mono font-bold text-zinc-900 dark:text-white tracking-tighter mb-4 tabular-nums drop-shadow-sm dark:drop-shadow-2xl">{formatTime(timeLeft)}</div>
+            {/* Timer Principal: Se Flow e Work, mostra tempo DECORRIDO. Senão, mostra tempo RESTANTE */}
+            <div className="text-8xl md:text-9xl font-mono font-bold text-zinc-900 dark:text-white tracking-tighter mb-4 tabular-nums drop-shadow-sm dark:drop-shadow-2xl">
+                {timerType === 'FLOW' && timerMode === 'WORK' ? formatTime(timeLeft) : formatTime(timeLeft)}
+            </div>
 
-            <div className="text-zinc-500 dark:text-zinc-400 mb-8 font-medium">Ciclos: <span className="text-zinc-900 dark:text-white font-bold ml-2">{cycles}</span></div>
+            {/* Mostrador de Ciclos e Tempo Total Acumulado */}
+            <div className="text-zinc-500 dark:text-zinc-400 mb-8 font-medium">
+                Ciclos: <span className="text-zinc-900 dark:text-white font-bold ml-2">{cycles}</span>
+                {accumulatedTime > 0 && (
+                   <span className="ml-4 pl-4 border-l border-zinc-300 dark:border-zinc-700">Total: <span className="text-primary font-bold">{formatTime(displayTotalTime)}</span></span>
+                )}
+            </div>
 
             <div className="flex gap-4 justify-center items-center mt-8">
               <button onClick={() => setIsActive(!isActive)} className={`px-8 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700' : (timerMode === 'WORK' ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-emerald-500 text-white hover:bg-emerald-600')}`}>
                 {isActive ? <Pause size={24} /> : <Play size={24} />} <span>{isActive ? 'Pausar' : 'Iniciar'}</span>
               </button>
 
-              <button onClick={() => { setIsActive(false); const resetTime = timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? timerConfig.work * 60 : timerConfig.short * 60); setTimeLeft(resetTime); setElapsedTime(0); }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"><RotateCcw size={24} /></button>
+              <button onClick={() => { setIsActive(false); const resetTime = timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? timerConfig.work * 60 : timerConfig.short * 60); setTimeLeft(resetTime); setElapsedTime(0); if(timerType === 'FLOW') setAccumulatedTime(0); }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"><RotateCcw size={24} /></button>
 
-
-
-
-
-
-
-              {timerType === 'FLOW' && timerMode === 'WORK' && <button onClick={() => { setFlowStoredTime(timeLeft); setTimerMode('BREAK'); setTimeLeft(Math.floor(timeLeft * 0.2)); setIsActive(true); }} className="p-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-colors"><Coffee size={24} /></button>}
+              {/* Botão de Pausa do Flow: Consolidar tempo antes de iniciar o break */}
+              {timerType === 'FLOW' && timerMode === 'WORK' && (
+                <button 
+                  onClick={() => { 
+                      const currentCycleTime = timeLeft; // No flow, timeLeft conta pra cima (work)
+                      setAccumulatedTime(prev => prev + currentCycleTime); // Consolidar
+                      setTimerMode('BREAK'); 
+                      setTimeLeft(Math.floor(currentCycleTime * 0.2)); // 20% do ciclo ATUAL
+                      setIsActive(true);
+                      setElapsedTime(0); // Reiniciar visual do ciclo
+                  }} 
+                  className="p-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-colors"
+                >
+                    <Coffee size={24} />
+                </button>
+              )}
 
               <button onClick={() => { setIsActive(false); setFinMod(true); }} className="p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 transition-colors"><CheckCircle size={24} /></button>
             </div>
