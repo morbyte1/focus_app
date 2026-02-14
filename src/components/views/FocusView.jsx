@@ -1,19 +1,63 @@
 import React, { useState, useContext, useMemo, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Coffee, CheckCircle, Plus, Trash2, Target, Zap, Clock, List, AlertCircle, RefreshCw } from 'lucide-react';
+import { 
+  Play, Pause, RotateCcw, Coffee, CheckCircle2, Plus, Trash2, 
+  Target, Zap, Clock, List, AlertTriangle, BookOpen, Layers 
+} from 'lucide-react';
 import { FocusContext, formatTime, POMODORO_PRESETS } from '../../context/FocusContext';
 import { triggerCelebration } from '../../utils/celebration';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 
-// Formata segundos para texto legível (ex: 1h 30m)
-const formatDuration = (seconds) => {
-  if (!seconds) return '0m';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-};
+// --- Sub-components para Organização ---
+
+const ModeToggle = ({ current, onSelect }) => (
+  <div className="flex bg-zinc-100 dark:bg-zinc-900/50 p-1.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm mx-auto mb-8 relative">
+    {['POMODORO', 'FLOW'].map((mode) => (
+      <button
+        key={mode}
+        onClick={() => onSelect(mode)}
+        className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all relative z-10 ${
+          current === mode 
+            ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' 
+            : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+        }`}
+      >
+        {mode}
+      </button>
+    ))}
+  </div>
+);
+
+const PresetBadge = ({ active, label, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide border transition-all ${
+      active 
+        ? 'bg-primary/10 border-primary text-primary' 
+        : 'bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
+    }`}
+  >
+    {label}
+  </button>
+);
+
+const SafeActionModal = ({ isOpen, onClose, onConfirm, title, desc }) => (
+  <Modal isOpen={isOpen} onClose={onClose} title={title}>
+    <div className="flex flex-col items-center text-center p-2">
+      <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4">
+        <AlertTriangle size={32} />
+      </div>
+      <p className="text-zinc-600 dark:text-zinc-300 text-sm mb-6">{desc}</p>
+      <div className="flex gap-3 w-full">
+        <Button variant="secondary" onClick={onClose} className="flex-1">Cancelar</Button>
+        <Button onClick={onConfirm} className="flex-1 bg-red-500 hover:bg-red-600 border-red-500 text-white">Confirmar</Button>
+      </div>
+    </div>
+  </Modal>
+);
+
+// --- Componente Principal ---
 
 export const FocusView = () => {
   const { 
@@ -23,302 +67,328 @@ export const FocusView = () => {
     timeLeft, setTimeLeft, 
     isActive, setIsActive, 
     cycles, setCycles, 
-    tasks, addTask, toggleTask, deleteTask, addSubTask, toggleSubTask, deleteSubTask, deleteAllTasks,
-    addSession, elapsedTime, setElapsedTime, flowTotalTime, setFlowTotalTime, startFlowBreak,
-    themes,
-    timerConfig, setTimerConfig
+    tasks, addTask, toggleTask, deleteTask, addSubTask, toggleSubTask, deleteSubTask,
+    addSession, elapsedTime, setElapsedTime, flowTotalTime, setFlowTotalTime, startFlowBreak, resetTimer,
+    themes, timerConfig, setTimerConfig
   } = useContext(FocusContext);
 
-  const [taskText, setTaskText] = useState(""); 
-  const [isFinishModalOpen, setIsFinishModalOpen] = useState(false); 
-  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [finishForm, setFinishForm] = useState({ notes: "", questions: "", errors: "" }); 
-  const [manualForm, setManualForm] = useState({ minutes: "", notes: "", subjectId: "", questions: "", errors: "", topic: "" });
+  // UI Local State
   const [selectedTopic, setSelectedTopic] = useState("");
+  const [taskText, setTaskText] = useState("");
+  const [isFinishModalOpen, setIsFinishModalOpen] = useState(false);
+  const [finishForm, setFinishForm] = useState({ notes: "", questions: "", errors: "" });
+  
+  // Safety Logic State
+  const [safetyModal, setSafetyModal] = useState({ open: false, action: null });
+  const [showTopicWarning, setShowTopicWarning] = useState(false);
 
+  // Derived Data
   const availableTopics = useMemo(() => {
     if (!selectedSubjectId) return [];
     const subjectThemes = themes.filter(t => t.subjectId === selectedSubjectId);
     return subjectThemes.flatMap(t => t.items).filter(i => !i.completed).map(i => i.text);
   }, [selectedSubjectId, themes]);
 
-  // Handler para configurar Pomodoro (30/6 ou 50/10)
-  const setPomodoroPreset = (preset) => {
-    setTimerConfig(preset); // { work: 30, break: 6 } ou { work: 50, break: 10 }
-    setIsActive(false);
-    setTimerType('POMODORO');
-    setTimerMode('WORK');
-    setTimeLeft(preset.work * 60);
-    setCycles(0);
-    setElapsedTime(0);
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(t => t.subjectId === selectedSubjectId && (selectedTopic ? t.topic === selectedTopic : true));
+  }, [tasks, selectedSubjectId, selectedTopic]);
+
+  // --- Handlers de Lógica e Segurança ---
+
+  const handleSafeAction = (actionFn, warningText = "O progresso da sessão atual será perdido.") => {
+    if (isActive || (timerType === 'FLOW' && flowTotalTime > 10)) {
+      setSafetyModal({ 
+        open: true, 
+        desc: warningText,
+        action: () => {
+          actionFn();
+          setSafetyModal({ open: false, action: null });
+        }
+      });
+    } else {
+      actionFn();
+    }
   };
 
-  const handleFinishSession = (e) => { 
-      e.preventDefault(); 
-      const mins = Math.round((timerType === 'FLOW' ? flowTotalTime : elapsedTime) / 60); 
-      
-      if (mins >= 1) { 
-          addSession(mins, finishForm.notes, null, finishForm.questions, finishForm.errors, selectedTopic || "Geral"); 
-          triggerCelebration(); 
-      }
-      resetAll();
-      setIsFinishModalOpen(false); 
+  const handleModeSwitch = (newMode) => {
+    if (timerType === newMode) return;
+    handleSafeAction(() => {
+      setIsActive(false);
+      setTimerType(newMode);
+      setTimerMode('WORK');
+      setCycles(0);
+      setElapsedTime(0);
+      setFlowTotalTime(0);
+      if (newMode === 'POMODORO') setTimeLeft(timerConfig.work * 60);
+      else setTimeLeft(0);
+    });
   };
-  
-  const handleManualSession = (e) => { 
-      e.preventDefault(); 
-      if (!manualForm.minutes || !manualForm.subjectId) return alert("Preencha tempo e matéria."); 
-      addSession(Math.max(1, parseInt(manualForm.minutes)), manualForm.notes, manualForm.subjectId, manualForm.questions, manualForm.errors, manualForm.topic || "Manual"); 
-      setIsManualModalOpen(false); 
-      triggerCelebration();
+
+  const handlePresetChange = (preset) => {
+    handleSafeAction(() => {
+      setTimerConfig(preset);
+      setIsActive(false);
+      setTimerMode('WORK');
+      setTimeLeft(preset.work * 60);
+      setCycles(0);
+    });
+  };
+
+  const handleReset = () => {
+    handleSafeAction(() => {
+        resetTimer();
+    });
+  };
+
+  const handlePlayPause = () => {
+    if (!selectedTopic) {
+      setShowTopicWarning(true);
+      setTimeout(() => setShowTopicWarning(false), 2000);
+      return;
+    }
+    setIsActive(!isActive);
+  };
+
+  const handleFinish = () => {
+     setIsActive(false);
+     setIsFinishModalOpen(true);
+  };
+
+  const submitSession = (e) => {
+    e.preventDefault();
+    const mins = Math.round((timerType === 'FLOW' ? flowTotalTime : elapsedTime) / 60);
+    if (mins >= 1) {
+        addSession(mins, finishForm.notes, null, finishForm.questions, finishForm.errors, selectedTopic);
+        triggerCelebration();
+    }
+    resetTimer();
+    setFinishForm({ notes: "", questions: "", errors: "" });
+    setIsFinishModalOpen(false);
   };
 
   const handleCreateTask = (e) => {
       e.preventDefault();
-      if (!taskText.trim() || !selectedSubjectId) return;
-      addTask(taskText, selectedSubjectId, selectedTopic || "Geral"); 
+      if (!taskText.trim() || !selectedSubjectId || !selectedTopic) return;
+      addTask(taskText, selectedSubjectId, selectedTopic); 
       setTaskText(""); 
   };
 
-  const resetAll = () => {
-      setIsActive(false); 
-      setTimerMode('WORK'); 
-      setElapsedTime(0); 
-      setFlowTotalTime(0);
-      setCycles(0); 
-      setFinishForm({ notes: "", questions: "", errors: "" }); 
-      if (timerType === 'POMODORO') setTimeLeft(timerConfig.work * 60);
-      else setTimeLeft(0);
-  };
-
-  const filteredTasks = tasks.filter(t => t.subjectId === selectedSubjectId && (selectedTopic ? t.topic === selectedTopic : true));
+  // --- Renderização ---
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fadeIn pb-24 md:pb-0 h-full">
+    <div className="max-w-4xl mx-auto pb-20 animate-fadeIn space-y-6">
       
-      {/* === COLUNA ESQUERDA: TIMER === */}
-      <div className="flex flex-col gap-6">
-        <Card className="flex-1 flex flex-col items-center justify-center relative overflow-hidden min-h-[400px] border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#000000]">
-            
-            {/* Indicador de Tipo de Timer (Tabs) */}
-            <div className="absolute top-6 flex bg-zinc-100 dark:bg-zinc-900/80 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                <button 
-                    onClick={() => setPomodoroPreset(POMODORO_PRESETS.SHORT)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' && timerConfig.work === 30 ? 'bg-white dark:bg-[#000000] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
+      {/* 1. Contexto (Matéria e Tópico) - A "Ignição" */}
+      <Card className={`p-4 transition-all duration-300 ${showTopicWarning ? 'ring-2 ring-red-500 shadow-red-500/20' : 'hover:shadow-md'}`}>
+         <div className="flex flex-col md:flex-row gap-4 items-center">
+            <div className="w-full md:w-1/2 relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><BookOpen size={16}/></div>
+                <select 
+                    disabled={isActive}
+                    value={selectedSubjectId || ''} 
+                    onChange={(e) => { setSelectedSubjectId(Number(e.target.value)); setSelectedTopic(""); }} 
+                    className="w-full pl-10 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none focus:border-primary appearance-none disabled:opacity-50 transition-all"
                 >
-                    30 / 6
-                </button>
-                <button 
-                    onClick={() => setPomodoroPreset(POMODORO_PRESETS.LONG)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' && timerConfig.work === 50 ? 'bg-white dark:bg-[#000000] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
-                >
-                    50 / 10
-                </button>
-                <button 
-                    onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimerMode('WORK'); setTimeLeft(0); setCycles(0); setElapsedTime(0); }}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-white dark:bg-[#000000] text-black dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
-                >
-                    Flow
-                </button>
+                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
             </div>
-
-            {/* Relógio Principal */}
-            <div className="relative z-10 flex flex-col items-center mt-8">
-                {/* Status Badge */}
-                <span className={`mb-6 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border flex items-center gap-2 ${timerMode === 'WORK' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'}`}>
-                    {timerMode === 'WORK' ? <Zap size={12}/> : <Coffee size={12}/>}
-                    {timerMode === 'WORK' ? 'Focando' : 'Descanso'}
-                </span>
-
-                {/* Dígitos */}
-                <div className="text-[7rem] leading-none font-bold text-zinc-900 dark:text-white tracking-tighter font-mono tabular-nums select-none">
-                    {formatTime(timeLeft)}
-                </div>
-
-                {/* Info Extra (Ciclos ou Total Flow) */}
-                <div className="mt-6 flex flex-col items-center gap-1">
-                    <p className="text-zinc-400 text-xs font-bold uppercase tracking-wide">
-                        {timerType === 'FLOW' ? 'Tempo Total Sessão' : 'Ciclo Atual'}
-                    </p>
-                    {timerType === 'FLOW' ? (
-                        <div className="flex items-center gap-2 text-zinc-900 dark:text-white bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded-lg font-mono text-sm border border-zinc-200 dark:border-zinc-800">
-                            <Clock size={12} className="text-primary"/> {formatDuration(flowTotalTime)}
-                        </div>
-                    ) : (
-                        <div className="flex gap-1">
-                            {[...Array(4)].map((_, i) => (
-                                <div key={i} className={`w-2 h-2 rounded-full ${i < (cycles % 4) ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-800'}`} />
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Botões de Ação */}
-            <div className="mt-12 flex items-center gap-4">
-                {/* Botão Reset / Flow Break */}
-                {timerType === 'FLOW' && timerMode === 'WORK' ? (
-                     <button onClick={startFlowBreak} className="w-12 h-12 rounded-xl flex items-center justify-center border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-emerald-500 hover:border-emerald-500/30 hover:bg-emerald-500/10 transition-all" title="Pausa (20%)">
-                        <Coffee size={20} />
-                     </button>
-                ) : (
-                    <button onClick={resetAll} className="w-12 h-12 rounded-xl flex items-center justify-center border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all" title="Resetar">
-                        <RotateCcw size={20} />
-                    </button>
-                )}
-
-                {/* Botão Play/Pause Principal */}
-                <button 
-                    onClick={() => setIsActive(!isActive)}
-                    className={`w-20 h-20 rounded-2xl flex items-center justify-center transition-all shadow-xl hover:scale-105 active:scale-95 ${isActive ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border-2 border-zinc-100 dark:border-zinc-800' : 'bg-primary text-white shadow-primary/30'}`}
+            <div className="w-full md:w-1/2 relative">
+                <div className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${!selectedTopic ? 'text-red-400' : 'text-zinc-400'}`}><Layers size={16}/></div>
+                <select 
+                    disabled={isActive || !selectedSubjectId}
+                    value={selectedTopic} 
+                    onChange={(e) => { setSelectedTopic(e.target.value); setShowTopicWarning(false); }} 
+                    className={`w-full pl-10 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900 border rounded-xl text-sm font-bold outline-none appearance-none disabled:opacity-50 transition-all
+                        ${!selectedTopic && showTopicWarning ? 'border-red-400 text-red-500' : 'border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 focus:border-primary'}
+                    `}
                 >
-                    {isActive ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
-                </button>
-
-                {/* Botão Finalizar */}
-                <button onClick={() => { setIsActive(false); setIsFinishModalOpen(true); }} className="w-12 h-12 rounded-xl flex items-center justify-center border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-primary hover:border-primary/30 hover:bg-primary/10 transition-all" title="Finalizar">
-                    <CheckCircle size={20} />
-                </button>
+                    <option value="">Selecione um Tópico (Obrigatório)</option>
+                    {availableTopics.map((topic, idx) => <option key={idx} value={topic}>{topic}</option>)}
+                </select>
             </div>
-            
-            <button onClick={() => setIsManualModalOpen(true)} className="absolute bottom-4 text-[10px] font-bold text-zinc-400 hover:text-primary uppercase tracking-wider flex items-center gap-1">
-                <Plus size={10} /> Lançamento Manual
-            </button>
-        </Card>
-      </div>
+         </div>
+      </Card>
 
-      {/* === COLUNA DIREITA: CONTEXTO & TAREFAS === */}
-      <div className="flex flex-col gap-6 h-full min-h-0">
-          
-          {/* Selector de Matéria */}
-          <Card className="bg-white dark:bg-[#000000] border-zinc-200 dark:border-zinc-800 p-5">
-             <div className="flex flex-col gap-4">
-                <div className="relative">
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase mb-1 block">Matéria</label>
-                    <select 
-                        disabled={isActive} 
-                        value={selectedSubjectId || ''} 
-                        onChange={(e) => setSelectedSubjectId(Number(e.target.value))} 
-                        className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white text-sm font-bold rounded-xl px-3 py-2.5 outline-none focus:border-primary appearance-none cursor-pointer"
-                    >
-                        {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                    <div className="absolute right-3 bottom-3 pointer-events-none text-zinc-500"><List size={14}/></div>
-                </div>
-                <div className="relative">
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase mb-1 block">Tópico</label>
-                    <select 
-                        disabled={isActive || !selectedSubjectId} 
-                        value={selectedTopic} 
-                        onChange={(e) => setSelectedTopic(e.target.value)} 
-                        className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white text-sm font-medium rounded-xl px-3 py-2.5 outline-none focus:border-primary appearance-none cursor-pointer disabled:opacity-50"
-                    >
-                        <option value="">Geral</option>
-                        {availableTopics.map((topic, idx) => <option key={idx} value={topic}>{topic}</option>)}
-                    </select>
-                    <div className="absolute right-3 bottom-3 pointer-events-none text-zinc-500"><List size={14}/></div>
-                </div>
+      {/* 2. Timer Principal e Controles */}
+      <Card className="relative overflow-hidden border-0 shadow-2xl bg-white dark:bg-[#0A0A0A] dark:border dark:border-zinc-800 rounded-3xl min-h-[500px] flex flex-col items-center justify-center p-8">
+        
+        {/* Switcher de Modo */}
+        <div className="absolute top-8 w-full px-8">
+             <ModeToggle current={timerType} onSelect={handleModeSwitch} />
+        </div>
+
+        {/* Display do Timer */}
+        <div className="flex flex-col items-center justify-center flex-1 z-10 mt-12">
+             <div className={`mb-6 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border flex items-center gap-2 shadow-sm
+                ${timerMode === 'WORK' 
+                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800' 
+                    : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                }`}
+             >
+                {timerMode === 'WORK' ? <Zap size={12}/> : <Coffee size={12}/>}
+                {timerMode === 'WORK' ? 'Deep Focus' : 'Recharge'}
              </div>
-          </Card>
 
-          {/* Lista de Tarefas */}
-          <Card className="flex-1 flex flex-col p-0 overflow-hidden bg-white dark:bg-[#000000] border-zinc-200 dark:border-zinc-800 min-h-[300px]">
-              <div className="p-4 border-b border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/20 flex justify-between items-center">
-                  <span className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2">
-                      <List size={14}/> Tarefas
-                  </span>
-                  {filteredTasks.length > 0 && <button onClick={() => window.confirm("Limpar tarefas?") && deleteAllTasks()} className="text-zinc-400 hover:text-red-500"><Trash2 size={14}/></button>}
-              </div>
-              
-              <div className="p-3 border-b border-zinc-100 dark:border-zinc-900">
-                  <form onSubmit={handleCreateTask} className="flex gap-2">
+             <div className="text-[8rem] md:text-[10rem] leading-none font-bold text-zinc-900 dark:text-zinc-100 tracking-tighter tabular-nums select-none font-mono filter drop-shadow-sm">
+                {formatTime(timeLeft)}
+             </div>
+
+             {/* Informações Auxiliares */}
+             <div className="mt-8 flex flex-col items-center gap-3">
+                 {timerType === 'POMODORO' ? (
+                     <>
+                        <div className="flex gap-2">
+                             {[...Array(4)].map((_, i) => (
+                                 <div key={i} className={`w-3 h-1.5 rounded-full transition-all ${i < (cycles % 4) ? 'bg-blue-500 w-6' : 'bg-zinc-200 dark:bg-zinc-800'}`} />
+                             ))}
+                        </div>
+                        {/* Configuração Rápida Pomodoro */}
+                        {!isActive && (
+                            <div className="flex gap-2 mt-4 animate-fadeIn">
+                                <PresetBadge 
+                                    active={timerConfig.work === 30} 
+                                    label="30/5" 
+                                    onClick={() => handlePresetChange(POMODORO_PRESETS.SHORT)} 
+                                />
+                                <PresetBadge 
+                                    active={timerConfig.work === 50} 
+                                    label="50/10" 
+                                    onClick={() => handlePresetChange(POMODORO_PRESETS.LONG)} 
+                                />
+                            </div>
+                        )}
+                     </>
+                 ) : (
+                     <div className="flex items-center gap-2 text-zinc-400 text-sm font-medium">
+                        <Clock size={14} /> 
+                        <span>Total Sessão: {formatTime(flowTotalTime)}</span>
+                     </div>
+                 )}
+             </div>
+        </div>
+
+        {/* Barra de Ação Inferior */}
+        <div className="w-full mt-12 flex items-center justify-center gap-6">
+             {/* Reset / Flow Break */}
+             <button 
+                onClick={timerType === 'FLOW' && timerMode === 'WORK' ? startFlowBreak : handleReset}
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
+                title={timerType === 'FLOW' ? "Pausa Rápida" : "Resetar"}
+             >
+                 {timerType === 'FLOW' && timerMode === 'WORK' ? <Coffee size={24}/> : <RotateCcw size={24}/>}
+             </button>
+
+             {/* PLAY / PAUSE (Principal) */}
+             <button 
+                onClick={handlePlayPause}
+                disabled={!selectedTopic && !isActive}
+                className={`w-24 h-24 rounded-[2rem] flex items-center justify-center shadow-xl transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed
+                    ${isActive 
+                        ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border-4 border-zinc-100 dark:border-zinc-700' 
+                        : 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-blue-500/30'
+                    }`}
+             >
+                 {isActive ? <Pause size={40} fill="currentColor"/> : <Play size={40} fill="currentColor" className="ml-2"/>}
+             </button>
+
+             {/* Finalizar */}
+             <button 
+                onClick={handleFinish}
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                title="Finalizar e Salvar"
+             >
+                 <CheckCircle2 size={24}/>
+             </button>
+        </div>
+      </Card>
+
+      {/* 3. Painel de Tarefas Compacto */}
+      {selectedTopic && (
+          <Card className="bg-zinc-50/50 dark:bg-zinc-900/30 border-zinc-200 dark:border-zinc-800 p-0 overflow-hidden">
+              <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-white dark:bg-black/20">
+                  <h3 className="text-xs font-black text-zinc-500 uppercase flex items-center gap-2">
+                      <List size={14}/> Tarefas: {selectedTopic}
+                  </h3>
+                  <div className="flex gap-2">
                       <input 
-                        className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary placeholder:text-zinc-400"
-                        placeholder="Nova tarefa..."
+                        className="bg-transparent border-none text-sm outline-none text-zinc-700 dark:text-zinc-200 placeholder:text-zinc-400 w-48 text-right"
+                        placeholder="Adicionar tarefa rápida..."
                         value={taskText}
                         onChange={e => setTaskText(e.target.value)}
-                        disabled={!selectedSubjectId} // Desabilita apenas se não houver matéria (o que é raro pois seleciona default)
+                        onKeyDown={e => e.key === 'Enter' && handleCreateTask(e)}
                       />
-                      <button type="submit" disabled={!taskText.trim()} className="bg-primary hover:bg-primary-dark text-white rounded-xl w-10 flex items-center justify-center transition-colors disabled:opacity-50">
-                          <Plus size={18}/>
-                      </button>
-                  </form>
+                      <button onClick={handleCreateTask} disabled={!taskText} className="text-primary disabled:opacity-30"><Plus size={18}/></button>
+                  </div>
               </div>
-
-              <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+              <div className="p-2 space-y-1 max-h-[200px] overflow-y-auto custom-scrollbar">
                   {filteredTasks.length === 0 && (
-                      <div className="h-full flex flex-col items-center justify-center text-zinc-400 opacity-50">
-                          <CheckCircle size={24} className="mb-2"/>
-                          <p className="text-xs">Sem tarefas.</p>
-                      </div>
+                      <p className="text-center text-zinc-400 text-xs py-4">Nenhuma tarefa ativa para este tópico.</p>
                   )}
                   {filteredTasks.map(t => (
-                      <div key={t.id} className="group animate-fadeIn bg-white dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 rounded-xl p-3 hover:border-primary/30 transition-all">
-                          <div className="flex items-start gap-3">
-                              <button onClick={() => toggleTask(t.id)} className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors ${t.completed ? 'bg-primary border-primary' : 'border-zinc-300 dark:border-zinc-600'}`}>
-                                  {t.completed && <CheckCircle size={10} className="text-white" />}
-                              </button>
-                              <span className={`text-sm flex-1 leading-tight ${t.completed ? 'text-zinc-400 line-through' : 'text-zinc-700 dark:text-zinc-200'}`}>{t.text}</span>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button onClick={() => addSubTask(t.id, prompt("Sub-tarefa:"))} className="text-zinc-400 hover:text-primary"><Plus size={14}/></button>
-                                  <button onClick={() => deleteTask(t.id)} className="text-zinc-400 hover:text-red-500"><Trash2 size={14}/></button>
-                              </div>
-                          </div>
-                          {t.subTasks?.length > 0 && (
-                              <div className="mt-2 pl-7 space-y-1">
-                                  {t.subTasks.map(sub => (
-                                      <div key={sub.id} className="flex items-center gap-2 text-xs">
-                                          <button onClick={() => toggleSubTask(t.id, sub.id)} className={`w-3 h-3 rounded border flex items-center justify-center ${sub.completed ? 'bg-zinc-400 border-zinc-400' : 'border-zinc-300 dark:border-zinc-700'}`}>
-                                              {sub.completed && <CheckCircle size={8} className="text-white" />}
-                                          </button>
-                                          <span className={`flex-1 ${sub.completed ? 'text-zinc-400 line-through' : 'text-zinc-600 dark:text-zinc-400'}`}>{sub.text}</span>
-                                          <button onClick={() => deleteSubTask(t.id, sub.id)} className="text-zinc-300 hover:text-red-500"><Trash2 size={10}/></button>
-                                      </div>
-                                  ))}
-                              </div>
-                          )}
+                      <div key={t.id} className="flex items-center gap-3 bg-white dark:bg-black/40 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 group hover:border-primary/30 transition-colors">
+                           <button onClick={() => toggleTask(t.id)} className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${t.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600 text-transparent hover:border-primary'}`}>
+                               <CheckCircle2 size={12} fill="currentColor"/>
+                           </button>
+                           <span className={`flex-1 text-sm font-medium ${t.completed ? 'text-zinc-400 line-through' : 'text-zinc-700 dark:text-zinc-200'}`}>{t.text}</span>
+                           <button onClick={() => deleteTask(t.id)} className="text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
                       </div>
                   ))}
               </div>
           </Card>
-      </div>
+      )}
 
-      {/* === MODAL FINALIZAR === */}
-      <Modal isOpen={isFinishModalOpen} onClose={() => setIsFinishModalOpen(false)} title="Sessão Finalizada">
-          <form onSubmit={handleFinishSession} className="space-y-4">
-              <div className="bg-zinc-50 dark:bg-zinc-900 p-4 rounded-xl flex items-center gap-4 border border-zinc-200 dark:border-zinc-800">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center"><Target size={20}/></div>
+      {/* --- MODAIS --- */}
+      
+      {/* Modal de Segurança */}
+      <SafeActionModal 
+        isOpen={safetyModal.open}
+        onClose={() => setSafetyModal({ open: false, action: null })}
+        onConfirm={safetyModal.action}
+        title="Atenção"
+        desc={safetyModal.desc}
+      />
+
+      {/* Modal de Finalização */}
+      <Modal isOpen={isFinishModalOpen} onClose={() => setIsFinishModalOpen(false)} title="Sessão Concluída">
+          <form onSubmit={submitSession} className="space-y-5">
+              <div className="flex items-center gap-4 bg-zinc-50 dark:bg-black/40 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">
+                      <Target size={24}/>
+                  </div>
                   <div>
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase">Tempo Total</p>
-                      <p className="text-2xl font-bold text-zinc-900 dark:text-white tabular-nums">
-                        {formatDuration(timerType === 'FLOW' ? flowTotalTime : elapsedTime)}
+                      <p className="text-xs font-bold text-zinc-400 uppercase">Tempo Focado</p>
+                      <p className="text-3xl font-black text-zinc-900 dark:text-white tabular-nums">
+                          {formatTime(timerType === 'FLOW' ? flowTotalTime : elapsedTime)}
                       </p>
                   </div>
               </div>
-              <div><label className="text-xs text-zinc-500 font-bold uppercase">Notas</label><textarea className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 h-24 text-sm dark:text-white outline-none focus:border-primary resize-none" value={finishForm.notes} onChange={e => setFinishForm({...finishForm, notes: e.target.value})} placeholder="O que você estudou?"/></div>
-              <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-xs text-zinc-500 font-bold uppercase">Questões</label><input type="number" min="0" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 dark:text-white outline-none focus:border-primary" value={finishForm.questions} onChange={e => setFinishForm({...finishForm, questions: e.target.value})}/></div>
-                  <div><label className="text-xs text-zinc-500 font-bold uppercase">Erros</label><input type="number" min="0" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 dark:text-white outline-none focus:border-red-500" value={finishForm.errors} onChange={e => setFinishForm({...finishForm, errors: e.target.value})}/></div>
+
+              <div>
+                <label className="text-xs font-bold text-zinc-500 uppercase mb-1 block">O que foi feito?</label>
+                <textarea 
+                    className="w-full bg-zinc-100 dark:bg-zinc-900 border-transparent focus:bg-white dark:focus:bg-black border focus:border-primary rounded-xl p-3 h-24 text-sm resize-none outline-none transition-all"
+                    placeholder="Resumo da sessão..."
+                    value={finishForm.notes}
+                    onChange={e => setFinishForm({...finishForm, notes: e.target.value})}
+                />
               </div>
-              <div className="flex gap-3 mt-4">
-                  <Button type="button" variant="secondary" onClick={() => setIsFinishModalOpen(false)} className="flex-1">Cancelar</Button>
-                  <Button type="submit" className="flex-[2]">Salvar</Button>
+
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                      <label className="text-xs font-bold text-zinc-500 uppercase mb-1 block">Questões Feitas</label>
+                      <input type="number" min="0" className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-xl p-3 outline-none focus:ring-2 ring-primary/20" value={finishForm.questions} onChange={e => setFinishForm({...finishForm, questions: e.target.value})}/>
+                  </div>
+                  <div>
+                      <label className="text-xs font-bold text-zinc-500 uppercase mb-1 block">Erros</label>
+                      <input type="number" min="0" className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-xl p-3 outline-none focus:ring-2 ring-red-500/20" value={finishForm.errors} onChange={e => setFinishForm({...finishForm, errors: e.target.value})}/>
+                  </div>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                  <Button type="button" variant="secondary" onClick={() => setIsFinishModalOpen(false)} className="flex-1">Descartar</Button>
+                  <Button type="submit" className="flex-[2]">Salvar Progresso</Button>
               </div>
           </form>
-      </Modal>
-
-      {/* === MODAL MANUAL === */}
-      <Modal isOpen={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} title="Lançamento Manual">
-         <form onSubmit={handleManualSession} className="space-y-4">
-            <div><label className="text-xs text-zinc-500 font-bold uppercase">Matéria</label><select className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 dark:text-white outline-none focus:border-primary" value={manualForm.subjectId} onChange={e => setManualForm({...manualForm, subjectId: e.target.value})}>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-            <div><label className="text-xs text-zinc-500 font-bold uppercase">Tempo (min)</label><input type="number" required min="1" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 dark:text-white outline-none focus:border-primary" value={manualForm.minutes} onChange={e => setManualForm({...manualForm, minutes: e.target.value})}/></div>
-            <div><label className="text-xs text-zinc-500 font-bold uppercase">Notas</label><textarea className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 h-20 text-sm dark:text-white outline-none focus:border-primary resize-none" value={manualForm.notes} onChange={e => setManualForm({...manualForm, notes: e.target.value})}/></div>
-            <div className="grid grid-cols-2 gap-4">
-                <div><label className="text-xs text-zinc-500 font-bold uppercase">Questões</label><input type="number" min="0" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 dark:text-white outline-none focus:border-primary" value={manualForm.questions} onChange={e => setManualForm({...manualForm, questions: e.target.value})}/></div>
-                <div><label className="text-xs text-zinc-500 font-bold uppercase">Erros</label><input type="number" min="0" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 dark:text-white outline-none focus:border-primary" value={manualForm.errors} onChange={e => setManualForm({...manualForm, errors: e.target.value})}/></div>
-            </div>
-            <Button type="submit" className="w-full mt-2">Confirmar</Button>
-         </form>
       </Modal>
 
     </div>
