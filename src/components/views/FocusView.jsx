@@ -73,7 +73,9 @@ export const FocusProvider = ({ children }) => {
   const [timerConfig, setTimerConfig] = useStickyState(POMODORO_PRESETS.SHORT, 'focus_timer_config');
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: 30 * 60 });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
-  const [selectedTopic, setSelectedTopic] = useState(""); // <--- MOVIDO PARA CÁ
+  
+  // === MUDANÇA CRÍTICA: Estado do Tópico movido para o Contexto ===
+  const [selectedTopic, setSelectedTopic] = useState(""); 
   
   // Flow States
   const [elapsedTime, setElapsedTime] = useState(0); 
@@ -285,7 +287,7 @@ export const FocusProvider = ({ children }) => {
         countdown, setCountdown, userLevel, unlockedAchievements, 
         
         timerState, setTimerState, timerConfig, setTimerConfig, 
-        selectedSubjectId, setSelectedSubjectId, selectedTopic, setSelectedTopic, // Exposto no Contexto
+        selectedSubjectId, setSelectedSubjectId, selectedTopic, setSelectedTopic, // <--- Aqui está a correção
         elapsedTime, setElapsedTime, flowTotalTime, setFlowTotalTime, startFlowBreak, resetTimer,
         
         setTimerType: (t) => setTimerState(p => ({ ...p, type: t })),
