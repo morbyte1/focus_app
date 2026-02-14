@@ -208,9 +208,7 @@ export const FocusProvider = ({ children }) => {
 
   const addSession = (mins, notes, sId, qs = 0, errs = 0, topic = null) => {
     const id = sId || selectedSubjectId;
-    // Validação extra, embora a View deva impedir isso
     const finalTopic = topic || "Geral"; 
-
     setSessions(p => [...(p||[]), { 
         id: Date.now(), 
         date: new Date().toISOString(), 
@@ -224,30 +222,42 @@ export const FocusProvider = ({ children }) => {
     gainXP(mins * 10, "Foco");
   };
 
-  // CRUDs simplificados para brevidade
-  const addSubject = (n, c, g, isSchool) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Number(g), isSchool }]);
-  const updateSubject = (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Number(g) } : s));
-  const deleteSubject = (id) => subjects.length > 1 && setSubjects(p => p.filter(s => s.id !== id));
+  // --- CRUD TAREFAS (Corrigido e Reforçado) ---
+  const addTask = (text, sId, topic) => setTasks(p => [...(p||[]), { 
+      id: Date.now() + Math.random(), 
+      text, 
+      completed: false, 
+      subjectId: Number(sId), 
+      topic: topic, 
+      subTasks: [] 
+  }]);
 
-  const addTask = (text, sId, topic) => setTasks(p => [...(p||[]), { id: Date.now() + Math.random(), text, completed: false, subjectId: Number(sId), topic: topic, subTasks: [] }]);
-  const addSubTask = (pId, text) => { if(!text) return; setTasks(p => p.map(t => t.id === pId ? { ...t, subTasks: [...(t.subTasks||[]), { id: Date.now() + Math.random(), text, completed: false }] } : t)); };
+  const addSubTask = (pId, text) => { 
+      if(!text) return; 
+      setTasks(p => p.map(t => t.id === pId ? { 
+          ...t, 
+          subTasks: [...(t.subTasks||[]), { id: Date.now() + Math.random(), text, completed: false }] 
+      } : t)); 
+  };
+  
   const toggleTask = (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   const deleteTask = (id) => setTasks(p => p.filter(t => t.id !== id));
   const toggleSubTask = (pId, sId) => setTasks(p => p.map(t => t.id === pId ? { ...t, subTasks: t.subTasks.map(s => s.id === sId ? { ...s, completed: !s.completed } : s) } : t));
   const deleteSubTask = (pId, sId) => setTasks(p => p.map(t => t.id === pId ? { ...t, subTasks: t.subTasks.filter(s => s.id !== sId) } : t));
   const deleteAllTasks = () => setTasks([]);
 
+  // Demais métodos (mantidos para compatibilidade)
+  const addSubject = (n, c, g, isSchool) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Number(g), isSchool }]);
+  const updateSubject = (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Number(g) } : s));
+  const deleteSubject = (id) => subjects.length > 1 && setSubjects(p => p.filter(s => s.id !== id));
   const addMistake = (sId, d, r, sol) => setMistakes(p => [{ id: Date.now(), subjectId: Number(sId), description: d, reason: r, solution: sol, consolidated: false }, ...(p||[])]);
   const deleteMistake = (id) => setMistakes(p => p.filter(x => x.id !== id));
   const consolidateMistake = (id, d, s) => { setMistakes(p => p.map(m => m.id === id ? { ...m, consolidated: true, diagnosis: d, strategy: s } : m)); gainXP(100); };
-  
   const addTheme = (sId, t) => setThemes(p => [...(p||[]), { id: Date.now(), subjectId: Number(sId), title: t, items: [] }]);
   const deleteTheme = (id) => setThemes(p => p.filter(t => t.id !== id));
   const addThemeItem = (tId, txt) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now(), text: txt, completed: false }] } : t));
   const toggleThemeItem = (tId, iId) => setThemes(p => p.map(x => x.id === tId ? { ...x, items: x.items.map(y => y.id === iId ? { ...y, completed: !y.completed } : y) } : x));
   const deleteThemeItem = (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.filter(i => i.id !== iId) } : t));
-
-  // Escola
   const addWork = (sId, t, d, desc, m) => setSchoolWorks(p => [...(p||[]), { id: Date.now(), subjectId: Number(sId), title: t, dueDate: d, description: desc, status: 'pending', maxGrade: Number(m) }]);
   const updateWork = (id, u) => setSchoolWorks(p => p.map(w => w.id === id ? { ...w, ...u } : w));
   const deleteWork = (id) => setSchoolWorks(p => p.filter(w => w.id !== id));
@@ -259,7 +269,6 @@ export const FocusProvider = ({ children }) => {
   const addExam = (e) => { setExams(p => [{ ...e, id: Date.now() }, ...(p||[])]); gainXP(200); };
   const deleteExam = (id) => setExams(p => p.filter(e => e.id !== id));
   const unlockAchievement = (id) => !unlockedAchievements.includes(id) && setUnlockedAchievements(p => [...p, id]);
-  
   const resetAllData = () => { localStorage.clear(); window.location.reload(); };
   const resetXPOnly = () => setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato" });
   const deleteDayHistory = (d) => setSessions(p => p.filter(s => new Date(s.date).toDateString() !== d));
@@ -297,7 +306,7 @@ export const FocusProvider = ({ children }) => {
     const kpiData = {
         todayMinutes: safeSessions.filter(s => new Date(s.date).toDateString() === todayS).reduce((a, c) => a + c.minutes, 0),
         totalHours: (safeSessions.reduce((a, c) => a + c.minutes, 0) / 60).toFixed(1),
-        streak: longestStreak // Simplificado para fins de refatoração
+        streak: longestStreak
     };
     return { yearlyData, longestStreak, weeklyChartData, kpiData, monthlyData: yearlyData };
   }, [sessions]);
@@ -317,8 +326,7 @@ export const FocusProvider = ({ children }) => {
         setTimeLeft: (t) => setTimerState(p => ({ ...p, timeLeft: t })),
         setIsActive: (a) => setTimerState(p => ({ ...p, active: a })),
         setCycles: (c) => setTimerState(p => ({ ...p, cycles: c })),
-        timerType: timerState.type, timerMode: timerState.mode, timeLeft: timerState.timeLeft, isActive: timerState.active, cycles: timerState.cycles,
-
+        
         kpiData: advancedStats.kpiData, weeklyChartData: advancedStats.weeklyChartData, advancedStats,
         
         addSession, addSubject, updateSubject, deleteSubject, addTask, addSubTask, toggleTask, deleteTask, toggleSubTask, deleteSubTask, deleteAllTasks,
