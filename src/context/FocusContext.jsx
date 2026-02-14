@@ -2,7 +2,7 @@ import React, { useState, useEffect, createContext, useMemo, useRef } from 'reac
 import { Crown, Scroll, Shield, Compass, Feather, Sprout } from 'lucide-react';
 
 // --- Constantes e Helpers ---
-// ALTERAÇÃO: Tempos padrão atualizados para 30/6
+// ALTERAÇÃO: Tempos padrão atualizados para 30/6 conforme solicitado
 export const POMODORO = { WORK: 30 * 60, SHORT: 6 * 60, LONG: 15 * 60 };
 
 const DEFAULT_SUB = [
@@ -32,7 +32,6 @@ export const getTitle = l => TITLES.find(t => l >= t.l)?.t || "Novato Curioso";
 export const getRank = l => RANKS.find(s => l >= s.m) || RANKS[RANKS.length - 1];
 export const getXP = l => Math.floor(500 * Math.pow(l, 1.5));
 
-
 // --- Contexto ---
 export const FocusContext = createContext();
 
@@ -47,14 +46,12 @@ export const FocusProvider = ({ children }) => {
   const [themes, setThemes] = useStickyState([], 'focus_themes');
   const [countdown, setCountdown] = useStickyState({ date: null, title: '' }, 'focus_countdown');
   const [userLevel, setUserLevel] = useStickyState({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }, 'focus_rpg');
-  
   const [unlockedAchievements, setUnlockedAchievements] = useStickyState([], 'focus_unlocked_achievements');
 
   // === ESTADO: ESCOLA ===
   const [schoolWorks, setSchoolWorks] = useStickyState([], 'focus_school_works');
   const [schoolAbsences, setSchoolAbsences] = useStickyState([], 'focus_school_absences');
   const [schoolSchedule, setSchoolSchedule] = useStickyState({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, 'focus_school_schedule');
-
   const currentYear = new Date().getFullYear();
   const [schoolCalendar, setSchoolCalendar] = useStickyState({
     startDate: `${currentYear}-02-01`,
@@ -62,34 +59,39 @@ export const FocusProvider = ({ children }) => {
     holidaysStart: `${currentYear}-07-01`,
     holidaysEnd: `${currentYear}-07-31`
   }, 'focus_school_calendar');
-  
   const [schoolExceptions, setSchoolExceptions] = useStickyState([], 'focus_school_exceptions');
-
   const [studySchedule, setStudySchedule] = useStickyState({}, 'my_study_schedule');
   const [exams, setExams] = useStickyState([], 'focus_exams');
 
-  // ALTERAÇÃO: Default config updated to 30/6
+  // TIMER CONFIG
   const [timerConfig, setTimerConfig] = useStickyState({ work: 30, short: 6 }, 'focus_timer_config');
-
-  const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: timerConfig.work * 60 });
+  const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: 30 * 60 });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [flowStoredTime, setFlowStoredTime] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [theme, setTheme] = useStickyState('system', 'focus_theme');
   const refs = useRef({ end: null, start: null, last: 0 });
 
+  // --- NOVA FUNÇÃO: resetTimer (Centralizada) ---
+  const resetTimer = () => {
+    setTimerState(p => ({
+        ...p,
+        active: false,
+        mode: 'WORK',
+        cycles: 0,
+        timeLeft: p.type === 'FLOW' ? 0 : timerConfig.work * 60
+    }));
+    setElapsedTime(0);
+  };
+
   // --- Lógica do Tema ---
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark'); 
-
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
-    localStorage.setItem('focus_theme', theme);
+    } else { root.classList.add(theme); }
   }, [theme]);
 
   useEffect(() => {
@@ -128,7 +130,6 @@ export const FocusProvider = ({ children }) => {
         const delta = Math.round((curr - refs.current.last) / 1000);
         refs.current.last = curr;
         
-        // Acumula tempo total da sessão independentemente dos ciclos
         if (timerState.mode === 'WORK' && delta > 0) setElapsedTime(p => p + delta);
 
         if (timerState.type === 'FLOW' && timerState.mode === 'WORK') {
@@ -142,14 +143,10 @@ export const FocusProvider = ({ children }) => {
             if (timerState.type === 'POMODORO') {
                const nextC = timerState.cycles + (timerState.mode === 'WORK' ? 1 : 0);
                const nextMode = timerState.mode === 'WORK' ? 'BREAK' : 'WORK';
-               
-               const nextTime = nextMode === 'WORK' 
-                  ? timerConfig.work * 60 
-                  : (nextC % 4 === 0 ? POMODORO.LONG : timerConfig.short * 60); // Ajustado para cada 4 ciclos (padrão)
-               
+               const nextTime = nextMode === 'WORK' ? timerConfig.work * 60 : (nextC % 4 === 0 ? POMODORO.LONG : timerConfig.short * 60);
                setTimerState(p => ({ ...p, active: false, mode: nextMode, timeLeft: nextTime, cycles: nextC }));
             } else if (timerState.type === 'FLOW' && timerState.mode === 'BREAK') {
-               // ALTERAÇÃO: Ao voltar da pausa no Flow, o tempo reinicia do 0 (novo ciclo)
+               // RESET DO FLOW APÓS PAUSA: Reinicia em 0 conforme solicitado
                setTimerState(p => ({ ...p, active: false, mode: 'WORK', timeLeft: 0 }));
             }
           } else setTimerState(p => ({ ...p, timeLeft: rem }));
@@ -157,7 +154,7 @@ export const FocusProvider = ({ children }) => {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [timerState.active, timerState.mode, timerState.type, flowStoredTime, timerConfig]);
+  }, [timerState.active, timerState.mode, timerState.type, timerConfig]);
 
   const gainXP = (amt, reason = "") => {
     setUserLevel(prev => {
@@ -166,7 +163,6 @@ export const FocusProvider = ({ children }) => {
       while (cx >= nx && amt > 0) { cx -= nx; level++; nx = getXP(level); alert(`🎉 LEVEL UP! Nível ${level}: ${getTitle(level)}`); }
       return { level, currentXP: cx, totalXP: tx, title: getTitle(level) };
     });
-    if (reason) console.log(`${amt > 0 ? '+' : ''}${amt} XP: ${reason}`);
   };
 
   const addSession = (mins, notes, mSubId = null, qs = 0, errs = 0, topic = null) => {
@@ -174,17 +170,13 @@ export const FocusProvider = ({ children }) => {
     let cleanQs = Math.max(0, parseInt(qs) || 0);
     let cleanErrs = Math.max(0, parseInt(errs) || 0);
     if (cleanErrs > cleanQs) cleanErrs = cleanQs;
-    
     setSessions(p => [...p, { id: Date.now(), date: new Date().toISOString(), minutes: mins, subjectId: sId, notes, questions: cleanQs, errors: cleanErrs, topic }]);
-    
     let xp = (Math.floor(mins / 10) * 50) + (cleanQs * 10);
     const sub = subjects.find(s => s.id === sId);
     if (sub && !sub.isSchool) {
-      const startW = new Date(); 
-      startW.setDate(startW.getDate() - startW.getDay()); 
-      startW.setHours(0,0,0,0);
+      const startW = new Date(); startW.setDate(startW.getDate() - startW.getDay()); startW.setHours(0,0,0,0);
       const prev = sessions.filter(s => s.subjectId === sId && new Date(s.date) >= startW).reduce((a, s) => a + s.minutes, 0);
-      if (prev < sub.goalHours * 60 && (prev + mins) >= sub.goalHours * 60) { xp += 500; alert(`🏆 Meta semanal de ${sub.name} atingida! +500 XP`); }
+      if (prev < sub.goalHours * 60 && (prev + mins) >= sub.goalHours * 60) { xp += 500; alert(`🏆 Meta semanal atingida! +500 XP`); }
     }
     if (xp > 0) gainXP(xp, "Sessão");
   };
@@ -253,22 +245,15 @@ export const FocusProvider = ({ children }) => {
             }
         });
     },
-    deleteAbsenceRecord: (id) => window.confirm("Excluir registro de falta?") && setSchoolAbsences(p => p.filter(a => a.id !== id)),
+    deleteAbsenceRecord: (id) => window.confirm("Excluir falta?") && setSchoolAbsences(p => p.filter(a => a.id !== id)),
     updateSchoolSchedule: (dayId, lessonsArray) => setSchoolSchedule(p => ({ ...p, [dayId]: lessonsArray })),
     updateSchoolCalendar: (newConfig) => setSchoolCalendar(prev => ({ ...prev, ...newConfig })),
     toggleSchoolException: (dateStr) => setSchoolExceptions(prev => prev.includes(dateStr) ? prev.filter(d => d !== dateStr) : [...prev, dateStr]),
-
     unlockAchievement: (id, xpAmount, title) => {
-        setUnlockedAchievements(prev => {
-            if (prev.includes(id)) return prev;
-            gainXP(xpAmount, `Conquista: ${title}`);
-            alert(`🏆 CONQUISTA: ${title}\n+${xpAmount} XP`);
-            return [...prev, id];
-        });
+        setUnlockedAchievements(prev => { if (prev.includes(id)) return prev; gainXP(xpAmount, `Conquista: ${title}`); alert(`🏆 CONQUISTA: ${title}`); return [...prev, id]; });
     },
-
     addExam: (examData) => { setExams(prev => [{ ...examData, id: Date.now() }, ...prev]); gainXP(200, "Prova Registrada"); },
-    deleteExam: (id) => window.confirm("Apagar histórico?") && setExams(prev => prev.filter(e => e.id !== id))
+    deleteExam: (id) => window.confirm("Apagar?") && setExams(prev => prev.filter(e => e.id !== id))
   };
 
   const kpiData = useMemo(() => {
@@ -281,76 +266,38 @@ export const FocusProvider = ({ children }) => {
 
   const weeklyChartData = useMemo(() => {
     const start = new Date(); start.setDate(start.getDate() - start.getDay()); start.setHours(0,0,0,0);
-    return Array.from({ length: 7 }).map((_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return { name: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][i], minutos: sessions.filter(s => new Date(s.date).toDateString() === d.toDateString()).reduce((a, c) => a + c.minutes, 0) }; });
+    return Array.from({ length: 7 }).map((_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return { name: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][i], minutos: sessions.filter(s => new Date(s.date).toDateString() === d.toDateString()).reduce((a, c) => a + c.minutes, 0) }; });
   }, [sessions]);
 
   const advancedStats = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
+    const now = new Date(); const currentMonth = now.getMonth(); const currentYear = now.getFullYear();
     const monthlyData = Array.from({ length: new Date(currentYear, currentMonth + 1, 0).getDate() }, (_, i) => ({
       name: (i + 1).toString(),
-      minutes: sessions.reduce((acc, s) => {
-        const sd = new Date(s.date);
-        return (sd.getDate() === i + 1 && sd.getMonth() === currentMonth && sd.getFullYear() === currentYear) ? acc + s.minutes : acc;
-      }, 0)
+      minutes: sessions.reduce((acc, s) => { const sd = new Date(s.date); return (sd.getDate() === i + 1 && sd.getMonth() === currentMonth && sd.getFullYear() === currentYear) ? acc + s.minutes : acc; }, 0)
     }));
-
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const yearlyData = monthNames.map((name, index) => {
-      return {
-        name,
-        minutes: sessions.reduce((acc, s) => {
-          const sd = new Date(s.date);
-          return (sd.getFullYear() === currentYear && sd.getMonth() === index) ? acc + s.minutes : acc;
-        }, 0)
-      };
-    });
-
+    const yearlyData = monthNames.map((name, index) => ({ name, minutes: sessions.reduce((acc, s) => { const sd = new Date(s.date); return (sd.getFullYear() === currentYear && sd.getMonth() === index) ? acc + s.minutes : acc; }, 0) }));
     const activeSubjects = subjects.filter(s => !s.isSchool);
     const ranked = activeSubjects.map(s => ({ ...s, totalMins: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + c.minutes, 0) })).sort((a, b) => b.totalMins - a.totalMins);
-
     const uniqueDates = [...new Set(sessions.map(s => new Date(s.date).toDateString()))].map(d => new Date(d)).sort((a, b) => a - b);
-    let maxStreak = 0;
-    let currentStreak = 0;
-    uniqueDates.forEach((date, index) => {
-      if (index === 0) { currentStreak = 1; } 
-      else {
-        const prevDate = uniqueDates[index - 1];
-        const diffTime = date.getTime() - prevDate.getTime();
-        if (diffTime === 86400000) { currentStreak++; } else { currentStreak = 1; }
-      }
-      maxStreak = Math.max(maxStreak, currentStreak);
-    });
-
+    let maxStreak = 0, currentStreak = 0;
+    uniqueDates.forEach((date, index) => { if (index === 0) { currentStreak = 1; } else { const diff = date.getTime() - uniqueDates[index - 1].getTime(); if (diff === 86400000) currentStreak++; else currentStreak = 1; } maxStreak = Math.max(maxStreak, currentStreak); });
     return { monthlyData, yearlyData, bestSubject: ranked[0], worstSubject: ranked[ranked.length - 1], longestStreak: maxStreak };
   }, [sessions, subjects]);
 
   return (
     <FocusContext.Provider value={{ 
-        currentView, setCurrentView, 
-        userName, setUserName, 
-        selectedHistoryDate, setSelectedHistoryDate, 
-        subjects, sessions, tasks, mistakes, themes, 
-        schoolWorks, schoolAbsences, schoolSchedule, schoolCalendar, schoolExceptions,
-        countdown, setCountdown, 
-        userLevel, unlockedAchievements, exams, 
-        
+        currentView, setCurrentView, userName, setUserName, selectedHistoryDate, setSelectedHistoryDate, 
+        subjects, sessions, tasks, mistakes, themes, schoolWorks, schoolAbsences, schoolSchedule, schoolCalendar, schoolExceptions,
+        countdown, setCountdown, userLevel, unlockedAchievements, exams, 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
         timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), 
         timeLeft: timerState.timeLeft, setTimeLeft: t => setTimerState(p => ({ ...p, timeLeft: t })), 
         isActive: timerState.active, setIsActive: a => setTimerState(p => ({ ...p, active: a })), 
         cycles: timerState.cycles, setCycles: c => setTimerState(p => ({ ...p, cycles: c })), 
-        
         timerConfig, setTimerConfig, 
-
-        selectedSubjectId, setSelectedSubjectId, 
-        flowStoredTime, setFlowStoredTime, 
-        elapsedTime, setElapsedTime, 
-        kpiData, weeklyChartData, advancedStats, 
-        addSession, 
-        theme, setTheme, 
+        selectedSubjectId, setSelectedSubjectId, flowStoredTime, setFlowStoredTime, elapsedTime, setElapsedTime, 
+        kpiData, weeklyChartData, advancedStats, addSession, theme, setTheme, resetTimer,
         ...methods 
     }}>
       {children}
