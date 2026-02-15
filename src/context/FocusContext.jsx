@@ -158,6 +158,14 @@ export const FocusProvider = ({ children }) => {
                const nextC = timerState.cycles + (timerState.mode === 'WORK' ? 1 : 0);
                const nextMode = timerState.mode === 'WORK' ? 'BREAK' : 'WORK';
 
+               // --- BUG FIX: Persist Work Time ---
+               // Se o modo que acabou foi WORK, precisamos salvar o tempo desse ciclo
+               // no acumulado geral antes de resetar o elapsedTime para a pausa.
+               if (timerState.mode === 'WORK') {
+                  setAccumulatedTime(prev => prev + (timerConfig.work * 60));
+               }
+               // ---------------------------------
+
                const nextTime = nextMode === 'WORK' 
                   ? timerConfig.work * 60 
                   : (nextC % 4 === 0 && nextC > 0 ? POMODORO.LONG : timerConfig.short * 60);
