@@ -67,7 +67,7 @@ export const FocusProvider = ({ children }) => {
   const [exams, setExams] = useStickyState([], 'focus_exams');
 
   // CONFIGURAÇÃO PADRÃO ATUALIZADA: WORK 30, SHORT 6
-  const [timerConfig, setTimerConfig] = useStickyState({ work: 1, short: 1 }, 'focus_timer_config');
+  const [timerConfig, setTimerConfig] = useStickyState({ work: 1, short: 1 }, 'focus_timer_config_test');
 
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: timerConfig.work * 60 });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
