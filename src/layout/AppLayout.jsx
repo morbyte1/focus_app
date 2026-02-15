@@ -16,22 +16,29 @@ import { AchievementsView } from '../components/views/AchievementsView';
 // 2. Importar ExamsView
 import { ExamsView } from '../components/views/ExamsView';
 
+// 3. NOVOS IMPORTS DE UI PARA O AVISO VISUAL
+import { Modal } from '../components/ui/Modal';
+import { Button } from '../components/ui/Button';
+
 export const AppLayout = () => {
-  // ADICIONADO: isActive e setIsActive para verificar o timer
+  // Adicionado isActive e setIsActive
   const { currentView, setCurrentView, userLevel, isActive, setIsActive } = useContext(FocusContext);
   const [menu, setMenu] = useState(false); 
   const [col, setCol] = useState(false);
   
+  // 4. Estados para controlar o Modal de Navegação
+  const [navModalOpen, setNavModalOpen] = useState(false);
+  const [pendingView, setPendingView] = useState(null);
+
   const xpN = getXP(userLevel.level);
   const xpP = Math.min(100, (userLevel.currentXP / xpN) * 100);
   const rk = getRank(userLevel.level);
   
-  // 3. Adicionar item 'exams' na navegação
   const nav = [
     { id: 'dashboard', l: 'Painel', i: LayoutDashboard }, 
     { id: 'school', l: 'Escola', i: GraduationCap },
     { id: 'focus', l: 'Focar', i: Zap }, 
-    { id: 'exams', l: 'Provas', i: ClipboardList }, // <--- NOVO ITEM AQUI
+    { id: 'exams', l: 'Provas', i: ClipboardList },
     { id: 'achievements', l: 'Conquistas', i: Trophy },
     { id: 'mistakes', l: 'Erros', i: AlertTriangle }, 
     { id: 'calendar', l: 'Calendário', i: Calendar }, 
@@ -41,19 +48,26 @@ export const AppLayout = () => {
     { id: 'settings', l: 'Configurações', i: Settings }
   ];
 
-  // NOVA FUNÇÃO: Navigation Guard (Proteção de Navegação)
+  // 5. Função de Navegação Interceptada
   const handleNavigation = (viewId) => {
-    // Se o usuário tentar sair da tela 'focus' enquanto o timer está ativo (isActive)
+    // Se estiver no foco, com timer ativo, e tentando sair
     if (currentView === 'focus' && isActive && viewId !== 'focus') {
-      const confirmLeave = window.confirm("O timer está rodando! Se sair agora, ele será pausado. Deseja continuar?");
-      if (!confirmLeave) return; // Cancela a ação se o usuário clicar em "Cancelar"
-      
-      setIsActive(false); // Pausa o timer se o usuário confirmar a saída
+      setPendingView(viewId); // Salva para onde ele queria ir
+      setNavModalOpen(true);  // Abre o modal visual
+    } else {
+      // Navegação normal
+      setCurrentView(viewId);
+      setMenu(false);
     }
-    
-    // Prossegue com a navegação normal
-    setCurrentView(viewId);
+  };
+
+  // 6. Função para confirmar a saída (executada pelo botão "Sair" do modal)
+  const confirmExitFocus = () => {
+    setIsActive(false); // Pausa o timer
+    setCurrentView(pendingView); // Vai para a view desejada
     setMenu(false);
+    setNavModalOpen(false); // Fecha o modal
+    setPendingView(null);
   };
 
   return (
@@ -84,7 +98,6 @@ export const AppLayout = () => {
             
             <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
                 {nav.map(i => (
-                    // ATUALIZADO: onClick agora chama handleNavigation em vez de setCurrentView diretamente
                     <button key={i.id} onClick={() => handleNavigation(i.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${currentView === i.id ? 'bg-primary/10 text-primary-light font-medium' : 'hover:bg-zinc-100 dark:hover:bg-[#09090b] hover:text-zinc-900 dark:hover:text-white'} ${col ? 'justify-center' : ''}`} title={col ? i.l : ''}>
                         <i.i size={20} />{!col && i.l}
                     </button>
@@ -104,10 +117,34 @@ export const AppLayout = () => {
                 {currentView === 'settings' && <SettingsView />}
                 {currentView === 'school' && <SchoolView />}
                 {currentView === 'achievements' && <AchievementsView />}
-                {/* 4. Renderizar ExamsView */}
                 {currentView === 'exams' && <ExamsView />}
             </div>
         </main>
+
+        {/* 7. Modal de Aviso de Navegação */}
+        <Modal isOpen={navModalOpen} onClose={() => setNavModalOpen(false)} title="Sair do Modo Foco?">
+             <div className="flex flex-col items-center gap-4 text-center">
+                <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-500 mb-2">
+                   <AlertTriangle size={32} />
+                </div>
+                <p className="text-zinc-600 dark:text-zinc-300">
+                   O timer está rodando! 
+                   <br/>
+                   <span className="font-bold text-zinc-900 dark:text-white">Se sair agora, o timer será pausado.</span>
+                </p>
+                <div className="flex gap-3 w-full mt-4">
+                   <Button variant="secondary" onClick={() => setNavModalOpen(false)} className="flex-1">
+                      Continuar
+                   </Button>
+                   <Button 
+                      onClick={confirmExitFocus} 
+                      className="flex-1 bg-amber-500 hover:bg-amber-600 text-white border-amber-600"
+                   >
+                      Sair e Pausar
+                   </Button>
+                </div>
+             </div>
+        </Modal>
     </div>
   );
 };

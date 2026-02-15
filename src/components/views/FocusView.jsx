@@ -277,7 +277,10 @@ export const FocusView = () => {
                   onClick={() => { 
                       const currentCycleTime = timeLeft; // No flow, timeLeft conta pra cima (work)
                       setAccumulatedTime(prev => prev + currentCycleTime); // Consolidar
-                      setCycles(prev => prev + 1); // Correção de ciclo solicitada
+                      
+                      // CORREÇÃO AQUI: Passar o valor direto (cycles + 1), não uma função
+                      setCycles(cycles + 1); 
+                      
                       setTimerMode('BREAK'); 
                       setTimeLeft(Math.floor(currentCycleTime * 0.2)); // 20% do ciclo ATUAL
                       setIsActive(true);
@@ -429,7 +432,7 @@ export const FocusView = () => {
         </form>
       </Modal>
 
-      {/* NOVO: Modal de Aviso para Troca de Modo */}
+      {/* Modal de Aviso para Troca de Modo */}
       <Modal isOpen={switchModal} onClose={() => setSwitchModal(false)} title="Trocar de Modo?">
          <div className="flex flex-col items-center gap-4 text-center">
             <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-500 mb-2">
@@ -448,7 +451,7 @@ export const FocusView = () => {
                   onClick={() => executeModeSwitch(pendingMode)} 
                   className="flex-1 bg-amber-500 hover:bg-amber-600 text-white border-amber-600"
                >
-                  Desejo continuar
+                  Sim, desejo continuar
                </Button>
             </div>
          </div>
