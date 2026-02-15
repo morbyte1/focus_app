@@ -19,6 +19,7 @@ export const FocusView = () => {
     accumulatedTime, setAccumulatedTime,
     setFlowStoredTime,
     themes,
+
     timerConfig, setTimerConfig
   } = useContext(FocusContext);
 
@@ -28,6 +29,7 @@ export const FocusView = () => {
   const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); 
   const [mForm, setMForm] = useState({ t: "", n: "", s: "", q: "", e: "", topic: "" });
 
+  // Estados para o Modal de Troca de Modo (Proteção de Dados)
   const [switchModal, setSwitchModal] = useState(false);
   const [pendingMode, setPendingMode] = useState(null);
 
@@ -52,44 +54,46 @@ export const FocusView = () => {
       .map(i => i.text);
   }, [mForm.s, themes]);
 
-  // --- Lógica Refatorada: Sincronização Bidirecional ---
+  // --- Tarefa 3: Sincronização Bidirecional de Tempo (Bug Fix) ---
   const handleWorkTimeChange = (newWorkMinutes) => {
-    // Define o par de tempo (30/6 ou 60/12)
+    // Regra: 60min Work <-> 12min Break | 30min Work <-> 6min Break
     const pairedBreak = newWorkMinutes === 60 ? 12 : 6;
-    setTimerConfig({ work: newWorkMinutes, short: pairedBreak });
     
-    // Reseta estado ativo para evitar inconsistências
+    setTimerConfig({ work: newWorkMinutes, short: pairedBreak });
     setIsActive(false);
     setElapsedTime(0);
 
-    // Atualiza o display do timer imediatamente baseado na nova config
-    // Se estiver em WORK, assume o novo tempo de trabalho.
-    // Se estiver em BREAK, assume o novo tempo de pausa correspondente.
+    // Atualização imediata do display baseada no modo atual
     if (timerMode === 'WORK') {
-        setTimeLeft(newWorkMinutes * 60);
+      setTimeLeft(newWorkMinutes * 60);
     } else {
-        setTimeLeft(pairedBreak * 60);
+      // Se estiver em pausa, atualiza para o novo tempo de pausa pareado
+      setTimeLeft(pairedBreak * 60);
     }
   };
 
   const handleBreakTimeChange = (newBreakMinutes) => {
-    // Define o par de tempo inverso
+    // Regra: 12min Break <-> 60min Work | 6min Break <-> 30min Work
     const pairedWork = newBreakMinutes === 12 ? 60 : 30;
-    setTimerConfig({ work: pairedWork, short: newBreakMinutes });
     
+    setTimerConfig({ work: pairedWork, short: newBreakMinutes });
     setIsActive(false);
     setElapsedTime(0);
 
-    // Atualização imediata do display
+    // Atualização imediata do display baseada no modo atual
     if (timerMode === 'BREAK') {
-        setTimeLeft(newBreakMinutes * 60);
+      setTimeLeft(newBreakMinutes * 60);
     } else {
-        setTimeLeft(pairedWork * 60);
+      // Se estiver focando, atualiza para o novo tempo de trabalho pareado
+      setTimeLeft(pairedWork * 60);
     }
   };
+  // ---------------------------------------------------------------
 
+  // --- Lógica de Troca de Modo com Segurança ---
   const handleModeSwitchRequest = (newType) => {
     if (timerType === newType) return;
+
     const hasUnsavedProgress = isActive || elapsedTime > 0 || accumulatedTime > 0;
 
     if (hasUnsavedProgress) {
@@ -106,7 +110,7 @@ export const FocusView = () => {
     setTimerMode('WORK');
     setElapsedTime(0);
     setAccumulatedTime(0);
-    setCycles(0);
+    setCycles(0); // Resetar ciclos ao trocar de modo de timer
 
     if (newType === 'POMODORO') {
       setTimeLeft(timerConfig.work * 60);
@@ -117,6 +121,7 @@ export const FocusView = () => {
     setSwitchModal(false);
     setPendingMode(null);
   };
+  // ---------------------------------------------
 
   if (!subjects.length) return <div className="text-center mt-20 text-zinc-400">Adicione matérias em Matérias.</div>;
 
@@ -136,8 +141,7 @@ export const FocusView = () => {
 
       setTimeLeft(timerType === 'FLOW' ? 0 : timerConfig.work * 60); 
       setElapsedTime(0); 
-      setCycles(0);
-      setAccumulatedTime(0); 
+      setCycles(0); 
       setFinMod(false); 
       setFForm({ n: "", q: "", e: "" }); 
       setSelectedTopic(""); 
@@ -170,6 +174,7 @@ export const FocusView = () => {
   };
 
   const filteredTasks = tasks.filter(t => t.subjectId === selectedSubjectId && t.topic === selectedTopic);
+
   const displayTotalTime = accumulatedTime + elapsedTime;
 
   return (
@@ -251,78 +256,75 @@ export const FocusView = () => {
             </div>
           )}
 
-          <div className="z-10 text-center">
+          <div className="z-10 text-center flex flex-col items-center">
             <div className="mb-6">
               <span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase border ${timerMode === 'WORK' ? 'bg-primary/10 text-primary-light border-primary/20' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20'}`}>{timerMode === 'WORK' ? 'Foco Total' : 'Pausa'}</span>
             </div>
 
             <div className="text-8xl md:text-9xl font-mono font-bold text-zinc-900 dark:text-white tracking-tighter mb-4 tabular-nums drop-shadow-sm dark:drop-shadow-2xl">
-                {formatTime(timeLeft)}
+                {timerType === 'FLOW' && timerMode === 'WORK' ? formatTime(timeLeft) : formatTime(timeLeft)}
             </div>
 
-            {/* Nova Visualização de Ciclos em Dots */}
-            <div className="flex flex-col items-center justify-center gap-3 mb-8 min-h-[24px]">
-                <div className="flex gap-2.5">
-                    {/* Renderiza 3 dots. O índice i é comparado com o resto da divisão por 4.
-                        Ciclo 0: 0/3 preenchidos. Ciclo 1: 1/3. Ciclo 2: 2/3. Ciclo 3: 3/3. 
-                        No ciclo 4, (4%4=0), reseta visualmente. */}
-                    {[0, 1, 2].map(i => {
-                        const filled = i < (cycles % 4);
-                        return (
-                            <div 
-                                key={i} 
-                                className={`w-3 h-3 rounded-full transition-all duration-500 ${
-                                    filled 
-                                    ? 'bg-emerald-500 scale-110 shadow-[0_0_10px_rgba(16,185,129,0.5)]' 
-                                    : 'bg-zinc-200 dark:bg-zinc-800'
-                                }`} 
-                            />
-                        );
-                    })}
+            {/* --- Tarefa 2: Implementação Visual de Ciclos (Dots System) --- */}
+            {timerType === 'POMODORO' ? (
+                <div className="flex items-center gap-2 mb-8" title="Progresso até o Descanso Longo">
+                   <span className="text-zinc-400 text-xs font-bold uppercase mr-2 tracking-wider">Ciclo</span>
+                   {[0, 1, 2, 3].map((i) => {
+                      const isActiveDot = i < (cycles % 4);
+                      return (
+                        <div 
+                           key={i} 
+                           className={`w-3 h-3 rounded-full transition-all duration-500 ${isActiveDot ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] scale-110' : 'bg-zinc-200 dark:bg-zinc-800'}`}
+                        />
+                      );
+                   })}
                 </div>
-                
-                {accumulatedTime > 0 && (
-                   <span className="text-xs font-medium text-zinc-400 dark:text-zinc-600 animate-fadeIn">
-                       Total Acumulado: <span className="text-primary dark:text-primary-light font-bold">{formatTime(displayTotalTime)}</span>
-                   </span>
-                )}
-            </div>
+            ) : (
+                <div className="text-zinc-500 dark:text-zinc-400 mb-8 font-medium">
+                    Ciclos: <span className="text-zinc-900 dark:text-white font-bold ml-2">{cycles}</span>
+                    {accumulatedTime > 0 && (
+                       <span className="ml-4 pl-4 border-l border-zinc-300 dark:border-zinc-700">Total: <span className="text-primary font-bold">{formatTime(displayTotalTime)}</span></span>
+                    )}
+                </div>
+            )}
+            {/* ----------------------------------------------------------------- */}
 
-            <div className="flex gap-4 justify-center items-center mt-8">
+            <div className="flex gap-4 justify-center items-center mt-2">
               <button onClick={() => setIsActive(!isActive)} className={`px-8 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg ${isActive ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700' : (timerMode === 'WORK' ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-emerald-500 text-white hover:bg-emerald-600')}`}>
                 {isActive ? <Pause size={24} /> : <Play size={24} />} <span>{isActive ? 'Pausar' : 'Iniciar'}</span>
               </button>
 
-              {/* Botão de RESET com Lógica Corrigida */}
+              {/* --- Tarefa 1: Correção do Botão "Reiniciar" --- */}
               <button 
                 onClick={() => { 
                     setIsActive(false); 
-                    const resetTime = timerType === 'FLOW' 
-                        ? 0 
-                        : (timerMode === 'WORK' ? timerConfig.work * 60 : timerConfig.short * 60); 
+                    setTimerMode('WORK'); // Reseta para modo Trabalho
+                    
+                    const resetTime = timerType === 'FLOW' ? 0 : timerConfig.work * 60; 
                     setTimeLeft(resetTime); 
+                    
                     setElapsedTime(0); 
-                    // Limpeza completa incondicional
-                    setCycles(0); 
-                    setAccumulatedTime(0);
+                    setAccumulatedTime(0); // Zera acumulado explicitamente
+                    setCycles(0); // Zera ciclos explicitamente
                 }} 
                 className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"
-                title="Resetar Timer e Ciclos"
+                title="Reiniciar Timer e Ciclos"
               >
                   <RotateCcw size={24} />
               </button>
+              {/* ----------------------------------------------- */}
 
               {timerType === 'FLOW' && timerMode === 'WORK' && (
                 <button 
                   onClick={() => { 
-                      const currentCycleTime = timeLeft; 
-                      setAccumulatedTime(prev => prev + currentCycleTime); 
+                      const currentCycleTime = timeLeft;
+                      setAccumulatedTime(prev => prev + currentCycleTime);
                       setCycles(cycles + 1); 
                       
                       setTimerMode('BREAK'); 
                       setTimeLeft(Math.floor(currentCycleTime * 0.2)); 
                       setIsActive(true);
-                      setElapsedTime(0); 
+                      setElapsedTime(0);
                   }} 
                   className="p-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-colors"
                 >
@@ -373,6 +375,7 @@ export const FocusView = () => {
                 )}
                 {filteredTasks.map(t => (
                     <div key={t.id} className="animate-fadeIn">
+                        {/* Tarefa Principal */}
                         <div className={`group flex items-center gap-3 p-3 rounded-2xl border transition-all ${t.completed ? 'bg-primary/5 border-primary/20 opacity-60' : 'bg-zinc-50 dark:bg-[#18181B] border-zinc-200 dark:border-zinc-800'}`}>
                             <button onClick={() => toggleTask(t.id)} className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${t.completed ? 'bg-primary border-primary' : 'border-zinc-400 dark:border-zinc-500 hover:border-primary'}`}>
                                 {t.completed && <CheckCircle size={14} className="text-white" />}
@@ -390,6 +393,7 @@ export const FocusView = () => {
                             </button>
                         </div>
 
+                        {/* Sub-tarefas (Indentadas) */}
                         {t.subTasks && t.subTasks.length > 0 && (
                             <div className="ml-6 mt-1 space-y-1 pl-2 border-l-2 border-zinc-100 dark:border-zinc-800">
                                 {t.subTasks.map(sub => (
@@ -416,8 +420,10 @@ export const FocusView = () => {
 
       <div className="lg:col-span-3 mt-12 mb-8 flex flex-col items-center justify-center border-t border-zinc-200 dark:border-zinc-800/50 pt-10"><div className="bg-white dark:bg-[#09090b] p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full text-center"><Clock size={24} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-500 opacity-50" /><p className="text-zinc-500 dark:text-zinc-400 text-sm mb-4">Esqueceu de ligar o timer ou estudou fora do app?</p><button onClick={() => { setMForm({ ...mForm, s: subjects[0]?.id }); setManMod(true); }} className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-primary/10 hover:bg-primary text-primary-light hover:text-white rounded-2xl border border-primary/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-primary/5"><Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> Lançar Estudo Manual</button></div></div>
 
+      {/* Modal de Conclusão de Sessão */}
       <Modal isOpen={finMod} onClose={() => setFinMod(false)} title="Resumo da Sessão"><form onSubmit={finish} className="space-y-4"><div><label className="text-xs text-zinc-500 font-bold uppercase">O que você estudou?</label><textarea className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-sm text-zinc-900 dark:text-white h-24 outline-none focus:border-primary resize-none" value={fForm.n} onChange={e => setFForm({ ...fForm, n: e.target.value })} /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-zinc-500 font-bold uppercase">Questões Feitas</label><input type="number" min="0" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-blue-500" value={fForm.q} onChange={e => setFForm({ ...fForm, q: e.target.value })} /></div><div><label className="text-xs text-zinc-500 font-bold uppercase">Erradas</label><input type="number" min="0" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-red-500" value={fForm.e} onChange={e => setFForm({ ...fForm, e: e.target.value })} /></div></div><div className="pt-2 flex gap-2"><Button type="button" variant="secondary" onClick={() => setFinMod(false)} className="flex-1">Cancelar</Button><Button type="submit" className="flex-[2]">Salvar Sessão</Button></div></form></Modal>
 
+      {/* Modal de Registro Manual */}
       <Modal isOpen={manMod} onClose={() => setManMod(false)} title="Registro Manual">
         <form onSubmit={manual} className="space-y-5">
             <div className="space-y-2">
@@ -466,6 +472,7 @@ export const FocusView = () => {
         </form>
       </Modal>
 
+      {/* Modal de Aviso para Troca de Modo */}
       <Modal isOpen={switchModal} onClose={() => setSwitchModal(false)} title="Trocar de Modo?">
          <div className="flex flex-col items-center gap-4 text-center">
             <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-500 mb-2">
