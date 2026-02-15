@@ -222,12 +222,17 @@ export const FocusView = () => {
 
               <button onClick={() => { setIsActive(false); const resetTime = timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? timerConfig.work * 60 : timerConfig.short * 60); setTimeLeft(resetTime); setElapsedTime(0); if(timerType === 'FLOW') setAccumulatedTime(0); }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"><RotateCcw size={24} /></button>
 
-              {/* Botão de Pausa do Flow: Consolidar tempo antes de iniciar o break */}
+{/* Botão de Pausa do Flow: Consolidar tempo antes de iniciar o break */}
               {timerType === 'FLOW' && timerMode === 'WORK' && (
                 <button 
                   onClick={() => { 
                       const currentCycleTime = timeLeft; // No flow, timeLeft conta pra cima (work)
                       setAccumulatedTime(prev => prev + currentCycleTime); // Consolidar
+                      
+                      // --- CORREÇÃO APLICADA AQUI ---
+                      setCycles(prev => prev + 1); 
+                      // ------------------------------
+                      
                       setTimerMode('BREAK'); 
                       setTimeLeft(Math.floor(currentCycleTime * 0.2)); // 20% do ciclo ATUAL
                       setIsActive(true);
