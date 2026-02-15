@@ -2,7 +2,7 @@ import React, { useState, useEffect, createContext, useMemo, useRef } from 'reac
 import { Crown, Scroll, Shield, Compass, Feather, Sprout } from 'lucide-react';
 
 // --- Constantes e Helpers ---
-export const POMODORO = { WORK: 30 * 60, SHORT: 6 * 60, LONG: 15 * 60 };
+export const POMODORO = { WORK: 1 * 60, SHORT: 1 * 60, LONG: 15 * 60 };
 
 const DEFAULT_SUB = [
   { id: 1, name: 'Programação', color: '#8b5cf6', goalHours: 20, isSchool: false }, 
@@ -67,7 +67,7 @@ export const FocusProvider = ({ children }) => {
   const [exams, setExams] = useStickyState([], 'focus_exams');
 
   // CONFIGURAÇÃO PADRÃO ATUALIZADA: WORK 30, SHORT 6
-  const [timerConfig, setTimerConfig] = useStickyState({ work: 30, short: 6 }, 'focus_timer_config');
+  const [timerConfig, setTimerConfig] = useStickyState({ work: 1, short: 1 }, 'focus_timer_config');
 
   const [timerState, setTimerState] = useState({ mode: 'WORK', type: 'POMODORO', active: false, cycles: 0, timeLeft: timerConfig.work * 60 });
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
