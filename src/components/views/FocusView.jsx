@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo } from 'react';
-import { Play, Pause, RotateCcw, Coffee, CheckCircle, Plus, Clock, Trash2, Watch, CornerDownRight } from 'lucide-react';
+import { Play, Pause, RotateCcw, Coffee, CheckCircle, Plus, Clock, Trash2, Watch, CornerDownRight, AlertTriangle } from 'lucide-react';
 import { FocusContext, POMODORO, formatTime } from '../../context/FocusContext';
 import { triggerCelebration } from '../../utils/celebration';
 import { Card } from '../ui/Card';
@@ -28,6 +28,10 @@ export const FocusView = () => {
   const [manMod, setManMod] = useState(false);
   const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); 
   const [mForm, setMForm] = useState({ t: "", n: "", s: "", q: "", e: "", topic: "" });
+
+  // Estados para o Modal de Troca de Modo (Proteção de Dados)
+  const [switchModal, setSwitchModal] = useState(false);
+  const [pendingMode, setPendingMode] = useState(null);
 
   const [selectedTopic, setSelectedTopic] = useState("");
 
@@ -71,6 +75,41 @@ export const FocusView = () => {
       setElapsedTime(0);
     }
   };
+
+  // --- Lógica de Troca de Modo com Segurança ---
+  const handleModeSwitchRequest = (newType) => {
+    // Se já estiver no modo solicitado, não faz nada
+    if (timerType === newType) return;
+
+    // Verifica se há atividade (Timer rodando OU tempo decorrido/acumulado não salvo)
+    const hasUnsavedProgress = isActive || elapsedTime > 0 || accumulatedTime > 0;
+
+    if (hasUnsavedProgress) {
+      setPendingMode(newType);
+      setSwitchModal(true);
+    } else {
+      executeModeSwitch(newType);
+    }
+  };
+
+  const executeModeSwitch = (newType) => {
+    setIsActive(false);
+    setTimerType(newType);
+    setTimerMode('WORK');
+    setElapsedTime(0);
+    setAccumulatedTime(0);
+
+    // Define o tempo inicial baseado no novo tipo
+    if (newType === 'POMODORO') {
+      setTimeLeft(timerConfig.work * 60);
+    } else {
+      setTimeLeft(0); // Flow começa do 0
+    }
+
+    setSwitchModal(false);
+    setPendingMode(null);
+  };
+  // ---------------------------------------------
 
   if (!subjects.length) return <div className="text-center mt-20 text-zinc-400">Adicione matérias em Matérias.</div>;
 
@@ -139,8 +178,18 @@ export const FocusView = () => {
           <div className={`absolute w-96 h-96 rounded-full blur-[120px] pointer-events-none transition-all duration-1000 ${isActive ? (timerMode === 'WORK' ? 'bg-primary/20 animate-pulse' : 'bg-emerald-500/20 animate-pulse') : 'bg-zinc-200/50 dark:bg-zinc-800/30'}`}></div>
 
           <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-6 z-10 shadow-sm">
-            <button onClick={() => { setIsActive(false); setTimerType('POMODORO'); setTimeLeft(timerConfig.work * 60); setTimerMode('WORK'); setElapsedTime(0); setAccumulatedTime(0); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Pomodoro</button>
-            <button onClick={() => { setIsActive(false); setTimerType('FLOW'); setTimeLeft(0); setTimerMode('WORK'); setElapsedTime(0); setAccumulatedTime(0); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-primary text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}>Flow</button>
+            <button 
+                onClick={() => handleModeSwitchRequest('POMODORO')} 
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'POMODORO' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}
+            >
+                Pomodoro
+            </button>
+            <button 
+                onClick={() => handleModeSwitchRequest('FLOW')} 
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timerType === 'FLOW' ? 'bg-primary text-white shadow' : 'text-zinc-500 dark:text-zinc-400'}`}
+            >
+                Flow
+            </button>
           </div>
 
           <div className="w-full max-w-xs mb-6 z-10 text-center space-y-4">
@@ -222,17 +271,13 @@ export const FocusView = () => {
 
               <button onClick={() => { setIsActive(false); const resetTime = timerType === 'FLOW' ? 0 : (timerMode === 'WORK' ? timerConfig.work * 60 : timerConfig.short * 60); setTimeLeft(resetTime); setElapsedTime(0); if(timerType === 'FLOW') setAccumulatedTime(0); }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors"><RotateCcw size={24} /></button>
 
-{/* Botão de Pausa do Flow: Consolidar tempo antes de iniciar o break */}
+              {/* Botão de Pausa do Flow: Consolidar tempo antes de iniciar o break */}
               {timerType === 'FLOW' && timerMode === 'WORK' && (
                 <button 
                   onClick={() => { 
                       const currentCycleTime = timeLeft; // No flow, timeLeft conta pra cima (work)
                       setAccumulatedTime(prev => prev + currentCycleTime); // Consolidar
-                      
-                      // --- CORREÇÃO APLICADA AQUI ---
-                      setCycles(prev => prev + 1); 
-                      // ------------------------------
-                      
+                      setCycles(prev => prev + 1); // Correção de ciclo solicitada
                       setTimerMode('BREAK'); 
                       setTimeLeft(Math.floor(currentCycleTime * 0.2)); // 20% do ciclo ATUAL
                       setIsActive(true);
@@ -332,8 +377,10 @@ export const FocusView = () => {
 
       <div className="lg:col-span-3 mt-12 mb-8 flex flex-col items-center justify-center border-t border-zinc-200 dark:border-zinc-800/50 pt-10"><div className="bg-white dark:bg-[#09090b] p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 max-w-md w-full text-center"><Clock size={24} className="mx-auto mb-3 text-zinc-400 dark:text-zinc-500 opacity-50" /><p className="text-zinc-500 dark:text-zinc-400 text-sm mb-4">Esqueceu de ligar o timer ou estudou fora do app?</p><button onClick={() => { setMForm({ ...mForm, s: subjects[0]?.id }); setManMod(true); }} className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-primary/10 hover:bg-primary text-primary-light hover:text-white rounded-2xl border border-primary/20 transition-all duration-300 font-bold text-sm shadow-lg shadow-primary/5"><Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> Lançar Estudo Manual</button></div></div>
 
+      {/* Modal de Conclusão de Sessão */}
       <Modal isOpen={finMod} onClose={() => setFinMod(false)} title="Resumo da Sessão"><form onSubmit={finish} className="space-y-4"><div><label className="text-xs text-zinc-500 font-bold uppercase">O que você estudou?</label><textarea className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-sm text-zinc-900 dark:text-white h-24 outline-none focus:border-primary resize-none" value={fForm.n} onChange={e => setFForm({ ...fForm, n: e.target.value })} /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-zinc-500 font-bold uppercase">Questões Feitas</label><input type="number" min="0" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-blue-500" value={fForm.q} onChange={e => setFForm({ ...fForm, q: e.target.value })} /></div><div><label className="text-xs text-zinc-500 font-bold uppercase">Erradas</label><input type="number" min="0" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-red-500" value={fForm.e} onChange={e => setFForm({ ...fForm, e: e.target.value })} /></div></div><div className="pt-2 flex gap-2"><Button type="button" variant="secondary" onClick={() => setFinMod(false)} className="flex-1">Cancelar</Button><Button type="submit" className="flex-[2]">Salvar Sessão</Button></div></form></Modal>
 
+      {/* Modal de Registro Manual */}
       <Modal isOpen={manMod} onClose={() => setManMod(false)} title="Registro Manual">
         <form onSubmit={manual} className="space-y-5">
             <div className="space-y-2">
@@ -380,6 +427,31 @@ export const FocusView = () => {
             </div>
             <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-primary/20">Confirmar</Button>
         </form>
+      </Modal>
+
+      {/* NOVO: Modal de Aviso para Troca de Modo */}
+      <Modal isOpen={switchModal} onClose={() => setSwitchModal(false)} title="Trocar de Modo?">
+         <div className="flex flex-col items-center gap-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-500 mb-2">
+               <AlertTriangle size={32} />
+            </div>
+            <p className="text-zinc-600 dark:text-zinc-300">
+               Você tem um timer em andamento ou tempo não salvo. 
+               <br/>
+               <span className="font-bold text-zinc-900 dark:text-white">Trocar agora fará com que o progresso atual do relógio seja perdido.</span>
+            </p>
+            <div className="flex gap-3 w-full mt-4">
+               <Button variant="secondary" onClick={() => setSwitchModal(false)} className="flex-1">
+                  Cancelar
+               </Button>
+               <Button 
+                  onClick={() => executeModeSwitch(pendingMode)} 
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-white border-amber-600"
+               >
+                  Desejo continuar
+               </Button>
+            </div>
+         </div>
       </Modal>
     </div>
 )};
