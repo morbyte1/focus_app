@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 // 1. Importar Trophy e ClipboardList (Novo ícone para provas)
-import { LayoutDashboard, Zap, Target, BarChart2, History, Settings, Menu, X, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap, Trophy, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Zap, Target, BarChart2, History, Settings, Menu, X, Compass, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap, Trophy, ClipboardList } from 'lucide-react';
 import { FocusContext, getXP, getRank } from '../context/FocusContext';
 
 import { DashboardView } from '../components/views/DashboardView';
