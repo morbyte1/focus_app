@@ -13,6 +13,7 @@ import { SettingsView } from '../components/views/SettingsView';
 import { CalendarTab } from '../components/CalendarTab'; 
 import { SchoolView } from '../components/views/SchoolView'; 
 import { AchievementsView } from '../components/views/AchievementsView';
+import { SimulationView } from '../components/views/SimulationView';
 // 2. Importar ExamsView
 import { ExamsView } from '../components/views/ExamsView';
 
@@ -37,6 +38,7 @@ export const AppLayout = () => {
   const nav = [
     { id: 'dashboard', l: 'Painel', i: LayoutDashboard }, 
     { id: 'school', l: 'Escola', i: GraduationCap },
+    { id: 'simulation', l: 'GPS de Estudos', i: Compass },
     { id: 'focus', l: 'Focar', i: Zap }, 
     { id: 'exams', l: 'Provas', i: ClipboardList },
     { id: 'achievements', l: 'Conquistas', i: Trophy },
@@ -108,6 +110,7 @@ export const AppLayout = () => {
         <main className={`flex-1 overflow-y-auto h-full p-4 md:p-8 bg-zinc-50 dark:bg-[#000000] transition-all duration-300 ${col ? 'md:ml-20' : 'md:ml-64'}`}>
             <div className="max-w-6xl mx-auto h-full">
                 {currentView === 'dashboard' && <DashboardView />} 
+                {currentView === 'simulation' && <SimulationView />}
                 {currentView === 'focus' && <FocusView />} 
                 {currentView === 'calendar' && <CalendarTab />} 
                 {currentView === 'mistakes' && <MistakesView />} 
