@@ -12,6 +12,16 @@ const DEFAULT_SUB = [
 
 export const formatTime = s => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
+// NOVA FUNÇÃO: Formatação de tempo amigável para tópicos
+export const formatMinutesToReadableTime = (totalMinutes) => {
+  if (!totalMinutes || totalMinutes <= 0) return "0 min";
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (mins === 0) return `${hours} hora${hours > 1 ? 's' : ''}`;
+  return `${hours} hora${hours > 1 ? 's' : ''} e ${mins} min`;
+};
+
 function useStickyState(defaultValue, key) {
   const [value, setValue] = useState(() => {
     try {
@@ -75,8 +85,8 @@ export const FocusProvider = ({ children }) => {
   // NOVO: Tempo acumulado de ciclos anteriores (em segundos)
   const [accumulatedTime, setAccumulatedTime] = useState(0);
   
-  const [flowStoredTime, setFlowStoredTime] = useState(0); // Mantido para compatibilidade, mas o accumulatedTime é o principal
-  const [elapsedTime, setElapsedTime] = useState(0); // Tempo do ciclo ATUAL
+  const [flowStoredTime, setFlowStoredTime] = useState(0); 
+  const [elapsedTime, setElapsedTime] = useState(0); 
   const [theme, setTheme] = useStickyState('system', 'focus_theme');
   const refs = useRef({ end: null, start: null, last: 0 });
 
@@ -121,14 +131,12 @@ export const FocusProvider = ({ children }) => {
     let interval = null;
     if (timerState.active) {
       const now = Date.now();
-      // Flow mode: Start reset logic handled in view/state change
       if (timerState.type === 'FLOW' && timerState.mode === 'WORK' && !refs.current.start) {
          refs.current.start = now - (timerState.timeLeft * 1000);
       } else if (timerState.type !== 'FLOW' || timerState.mode !== 'WORK') {
          if(!refs.current.end) refs.current.end = now + (timerState.timeLeft * 1000);
       }
       
-      // Update refs if switching modes/types suddenly
       if (timerState.type === 'FLOW' && timerState.mode === 'WORK') refs.current.end = null;
       else refs.current.start = null;
 
@@ -139,50 +147,41 @@ export const FocusProvider = ({ children }) => {
         const delta = Math.round((curr - refs.current.last) / 1000);
         refs.current.last = curr;
         
-        // Elapsed time counts ONLY current working cycle
         if (timerState.mode === 'WORK' && delta > 0) setElapsedTime(p => p + delta);
 
         if (timerState.type === 'FLOW' && timerState.mode === 'WORK') {
-          // Flow: Count UP
           const currentFlowTime = Math.floor((curr - refs.current.start) / 1000);
           setTimerState(p => ({ ...p, timeLeft: currentFlowTime }));
         } else {
-          // Pomodoro or Break: Count DOWN
           const rem = Math.ceil((refs.current.end - curr) / 1000);
           if (rem <= 0) {
             clearInterval(interval);
-            refs.current.end = null; // Reset end ref
+            refs.current.end = null; 
             try { new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play(); } catch (e) {}
             
             if (timerState.type === 'POMODORO') {
                const nextC = timerState.cycles + (timerState.mode === 'WORK' ? 1 : 0);
                const nextMode = timerState.mode === 'WORK' ? 'BREAK' : 'WORK';
 
-               // --- BUG FIX: Persist Work Time ---
-               // Se o modo que acabou foi WORK, precisamos salvar o tempo desse ciclo
-               // no acumulado geral antes de resetar o elapsedTime para a pausa.
                if (timerState.mode === 'WORK') {
                   setAccumulatedTime(prev => prev + (timerConfig.work * 60));
                }
-               // ---------------------------------
 
                const nextTime = nextMode === 'WORK' 
                   ? timerConfig.work * 60 
                   : (nextC % 4 === 0 && nextC > 0 ? POMODORO.LONG : timerConfig.short * 60);
 
                setTimerState(p => ({ ...p, active: false, mode: nextMode, timeLeft: nextTime, cycles: nextC }));
-               setElapsedTime(0); // Reset visual cycle time for Pomodoro
+               setElapsedTime(0); 
             } else if (timerState.type === 'FLOW' && timerState.mode === 'BREAK') {
-               // End of Flow Break -> Back to Work (New Cycle)
                setTimerState(p => ({ ...p, active: false, mode: 'WORK', timeLeft: 0 }));
                setElapsedTime(0);
-               refs.current.start = Date.now(); // Reset start for new flow cycle
+               refs.current.start = Date.now(); 
             }
           } else setTimerState(p => ({ ...p, timeLeft: rem }));
         }
       }, 1000);
     } else {
-        // Paused: Clear refs so they reset on resume
         refs.current.start = null;
         refs.current.end = null;
     }
@@ -222,7 +221,6 @@ export const FocusProvider = ({ children }) => {
 
     if (xp > 0) gainXP(xp, "Sessão");
     
-    // Reset accumulated time after save
     setAccumulatedTime(0);
   };
 
@@ -263,6 +261,63 @@ export const FocusProvider = ({ children }) => {
         }
     },
     deleteThemeItem: (tId, iId) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.filter(i => i.id !== iId) } : t)),
+    
+    // NOVAS FUNÇÕES: Edição e Drag and Drop
+    renameTheme: (id, newTitle) => setThemes(p => p.map(t => t.id === id ? { ...t, title: newTitle } : t)),
+    
+    renameThemeItem: (themeId, itemId, newText) => {
+        setThemes(p => {
+            let oldText = "";
+            const newThemes = p.map(t => {
+                if (t.id === themeId) {
+                    return {
+                        ...t,
+                        items: t.items.map(i => {
+                            if (i.id === itemId) {
+                                oldText = i.text;
+                                return { ...i, text: newText };
+                            }
+                            return i;
+                        })
+                    };
+                }
+                return t;
+            });
+
+            // Atualiza as sessões silenciosamente para manter o histórico de tempo
+            if (oldText && oldText !== newText) {
+                setSessions(prevSessions => prevSessions.map(s => 
+                    s.topic === oldText ? { ...s, topic: newText } : s
+                ));
+            }
+            return newThemes;
+        });
+    },
+
+    reorderThemes: (subjectId, startIndex, endIndex) => {
+        setThemes(prev => {
+            const subjectThemes = prev.filter(t => t.subjectId === subjectId);
+            const otherThemes = prev.filter(t => t.subjectId !== subjectId);
+            
+            const reordered = Array.from(subjectThemes);
+            const [removed] = reordered.splice(startIndex, 1);
+            reordered.splice(endIndex, 0, removed);
+            
+            return [...otherThemes, ...reordered];
+        });
+    },
+
+    reorderThemeItems: (themeId, startIndex, endIndex) => {
+        setThemes(prev => prev.map(t => {
+            if (t.id === themeId) {
+                const newItems = Array.from(t.items);
+                const [removed] = newItems.splice(startIndex, 1);
+                newItems.splice(endIndex, 0, removed);
+                return { ...t, items: newItems };
+            }
+            return t;
+        }));
+    },
     
     resetXPOnly: () => window.confirm("Resetar nível?") && (setUserLevel({ level: 1, currentXP: 0, totalXP: 0, title: "Novato Curioso" }) || alert("Nível resetado.")),
     resetAllData: () => window.confirm("Apagar TUDO?") && (localStorage.clear() || window.location.reload()),
@@ -324,7 +379,6 @@ export const FocusProvider = ({ children }) => {
     return Array.from({ length: 7 }).map((_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return { name: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][i], minutos: sessions.filter(s => new Date(s.date).toDateString() === d.toDateString()).reduce((a, c) => a + c.minutes, 0) }; });
   }, [sessions]);
 
-  // --- STATS AVANÇADOS REPARADOS ---
   const advancedStats = useMemo(() => {
     if (!sessions || sessions.length === 0) {
         return { 
@@ -339,7 +393,6 @@ export const FocusProvider = ({ children }) => {
 
     const now = new Date(), m = now.getMonth(), y = now.getFullYear();
     
-    // Dados Mensais (Dias do Mês atual)
     const monthlyData = Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => ({ 
         name: (i + 1).toString(), 
         minutes: sessions.reduce((acc, s) => { 
@@ -348,7 +401,6 @@ export const FocusProvider = ({ children }) => {
         }, 0) 
     }));
 
-    // Dados Anuais (12 Meses)
     const yearlyData = Array.from({ length: 12 }, (_, i) => ({
         name: new Date(0, i).toLocaleString('pt-BR', { month: 'short' }),
         minutes: sessions.reduce((acc, s) => {
@@ -406,7 +458,7 @@ export const FocusProvider = ({ children }) => {
         timerConfig, setTimerConfig, 
 
         selectedSubjectId, setSelectedSubjectId, 
-        accumulatedTime, setAccumulatedTime, // Exportando para uso na View
+        accumulatedTime, setAccumulatedTime,
         flowStoredTime, setFlowStoredTime, 
         elapsedTime, setElapsedTime, 
         kpiData, weeklyChartData, advancedStats, 
