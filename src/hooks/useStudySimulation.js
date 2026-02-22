@@ -1,8 +1,8 @@
 import { useContext, useMemo } from 'react';
 import { FocusContext } from '../context/FocusContext';
 
-export const useStudySimulation = (subjectId, deadlineDate) => {
-  const { themes, sessions } = useContext(FocusContext);
+export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60) => {
+  const { themes, sessions, studySchedule } = useContext(FocusContext);
 
   return useMemo(() => {
     // Passo A: Progresso e Extração de Tópicos
@@ -33,16 +33,34 @@ export const useStudySimulation = (subjectId, deadlineDate) => {
       hasEnoughData = true;
     }
 
-    // Passo C: Projeções e Plano de Ação
+    // Passo C: Projeções e Plano de Ação Baseado em Cronograma
     const estimatedTimeRemaining = remainingTopics * avgTimePerTopic;
     
-    let daysRemaining = 0;
-    let dailyMinutesRequired = 0;
+    let scheduledDaysCount = 0;
+    let totalScheduledDaysWithMargin = 0;
+    let minutesPerScheduledDayRequired = 0;
     let weeklyTopicsRequired = 0;
+    
     let isUnrealistic = false;
     let hasDeadline = false;
+    let isNotInSchedule = false;
 
-    if (deadlineDate) {
+    // 1. Identificar em quais dias da semana (1=Segunda a 5=Sexta) a matéria aparece
+    const scheduledWeekdays = [];
+    if (studySchedule) {
+      for (let day = 1; day <= 5; day++) {
+        const daySchedule = studySchedule[day];
+        if (daySchedule && (Number(daySchedule.main) === Number(subjectId) || Number(daySchedule.sec) === Number(subjectId))) {
+          scheduledWeekdays.push(day);
+        }
+      }
+    }
+
+    if (scheduledWeekdays.length === 0) {
+      isNotInSchedule = true;
+    }
+
+    if (deadlineDate && !isNotInSchedule) {
       hasDeadline = true;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -52,15 +70,37 @@ export const useStudySimulation = (subjectId, deadlineDate) => {
       deadline.setMinutes(deadline.getMinutes() + deadline.getTimezoneOffset());
       deadline.setHours(0, 0, 0, 0);
       
-      const diffTime = deadline - today;
-      // Estabelece no mínimo 1 dia de diferença para evitar divisão por 0
-      daysRemaining = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24))); 
+      // 2. Contar dias disponíveis estritamente baseados no cronograma
+      if (deadline > today) {
+        let current = new Date(today);
+        while (current <= deadline) {
+          const dayOfWeek = current.getDay(); // 0=Dom, 1=Seg... 6=Sáb
+          if (scheduledWeekdays.includes(dayOfWeek)) {
+            scheduledDaysCount++;
+          }
+          current.setDate(current.getDate() + 1);
+        }
+      }
 
-      dailyMinutesRequired = estimatedTimeRemaining / daysRemaining;
-      weeklyTopicsRequired = (remainingTopics / daysRemaining) * 7;
+      // 3. Aplicar Margem de Segurança (Abordagem Pessimista - Subtrair 1 semana de folga)
+      const weeklyOccurrences = scheduledWeekdays.length;
+      totalScheduledDaysWithMargin = scheduledDaysCount;
       
-      // Se precisar de mais de 10 horas diárias, marcamos como irrealista (600 minutos)
-      isUnrealistic = dailyMinutesRequired > 600;
+      // Só aplica a margem negativa se o total de dias for maior que a própria margem 
+      // para evitar prazos minúsculos resultarem em dias negativos
+      if (scheduledDaysCount > weeklyOccurrences) {
+        totalScheduledDaysWithMargin -= weeklyOccurrences;
+      }
+
+      // Prevenção absoluta de divisão por zero (mínimo de 1 dia)
+      totalScheduledDaysWithMargin = Math.max(1, totalScheduledDaysWithMargin);
+
+      // 4. Calcular o ritmo necessário projetado para os dias úteis do usuário
+      minutesPerScheduledDayRequired = estimatedTimeRemaining / totalScheduledDaysWithMargin;
+      weeklyTopicsRequired = (remainingTopics / totalScheduledDaysWithMargin) * weeklyOccurrences;
+      
+      // 5. Validação de viabilidade com base no teto de minutos
+      isUnrealistic = minutesPerScheduledDayRequired > maxDailyMinutes;
     }
 
     return {
@@ -69,12 +109,14 @@ export const useStudySimulation = (subjectId, deadlineDate) => {
       remainingTopics,
       avgTimePerTopic,
       hasEnoughData,
-      estimatedTimeRemaining, // tempo retornado em minutos
-      daysRemaining,
-      dailyMinutesRequired,
+      estimatedTimeRemaining,
+      scheduledDaysCount,
+      totalScheduledDaysWithMargin,
+      minutesPerScheduledDayRequired,
       weeklyTopicsRequired,
       isUnrealistic,
-      hasDeadline
+      hasDeadline,
+      isNotInSchedule
     };
-  }, [subjectId, deadlineDate, themes, sessions]);
+  }, [subjectId, deadlineDate, maxDailyMinutes, themes, sessions, studySchedule]);
 };

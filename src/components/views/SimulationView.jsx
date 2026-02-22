@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { Compass, Clock, Target, CalendarDays, AlertTriangle, TrendingUp, CheckCircle } from 'lucide-react';
+import { Compass, Clock, Target, CalendarDays, AlertTriangle, TrendingUp, CheckCircle, CalendarX2 } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { useStudySimulation } from '../../hooks/useStudySimulation';
 import { Card } from '../ui/Card';
@@ -11,8 +11,9 @@ export const SimulationView = () => {
   
   const [selectedSubjectId, setSelectedSubjectId] = useState(activeSubjects.length > 0 ? activeSubjects[0].id : '');
   const [deadlineDate, setDeadlineDate] = useState('');
+  const [maxDailyMinutes, setMaxDailyMinutes] = useState(60);
 
-  const sim = useStudySimulation(selectedSubjectId, deadlineDate);
+  const sim = useStudySimulation(selectedSubjectId, deadlineDate, maxDailyMinutes);
 
   // Helper para formatar o tempo dinamicamente para exibição agradável
   const formatHours = (minutes) => {
@@ -29,13 +30,13 @@ export const SimulationView = () => {
             <Compass className="text-primary" /> GPS de Estudos
         </h1>
         <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-            Projete seu plano de ação com base no seu ritmo real de estudos (Simulation).
+            Projete seu plano de ação pessimista com base no seu ritmo real e cronograma semanal.
         </p>
       </header>
 
       {/* Inputs / Controles */}
-      <Card className="flex flex-col md:flex-row gap-4 items-end bg-zinc-50 dark:bg-[#09090b]">
-         <div className="w-full md:w-1/2">
+      <Card className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-zinc-50 dark:bg-[#09090b]">
+         <div>
              <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">Matéria Alvo</label>
              <select 
                 value={selectedSubjectId} 
@@ -47,13 +48,25 @@ export const SimulationView = () => {
                  ))}
              </select>
          </div>
-         <div className="w-full md:w-1/2">
+         <div>
              <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">Data Limite (Deadline)</label>
              <input 
                 type="date" 
                 value={deadlineDate}
                 onChange={(e) => setDeadlineDate(e.target.value)}
                 className="w-full bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors cursor-pointer"
+             />
+         </div>
+         <div>
+             <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">Teto Diário (Minutos)</label>
+             <input 
+                type="number"
+                min="10"
+                step="10"
+                value={maxDailyMinutes}
+                onChange={(e) => setMaxDailyMinutes(Number(e.target.value))}
+                className="w-full bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors cursor-pointer"
+                placeholder="Ex: 60"
              />
          </div>
       </Card>
@@ -101,10 +114,13 @@ export const SimulationView = () => {
                       <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide flex items-center gap-2 mb-4">
                           <Target size={16} className="text-orange-500" /> O Desafio
                       </h3>
-                      <div className="flex items-end gap-2 mb-6">
+                      <div className="flex items-end gap-2 mb-4">
                           <span className="text-5xl font-black text-zinc-900 dark:text-white">{sim.remainingTopics}</span>
                           <span className="text-zinc-500 font-medium pb-1">tópicos restantes</span>
                       </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                          * A projeção abaixo descarta os dias em que a matéria não está no seu cronograma e prevê uma margem de segurança de 1 semana inteira de imprevistos.
+                      </p>
                   </div>
 
                   <div className="bg-orange-500/10 p-4 rounded-2xl border border-orange-500/20 mt-4">
@@ -122,12 +138,17 @@ export const SimulationView = () => {
               </Card>
 
               {/* Card 3: Plano de Ação Destaque */}
-              <Card className={`md:col-span-2 lg:col-span-1 flex flex-col transition-all duration-300 ${sim.isUnrealistic ? 'border-red-500 animate-pulse bg-red-500/5' : (sim.dailyMinutesRequired > 180 ? 'border-yellow-500 bg-yellow-500/5' : 'border-primary bg-primary/5')}`}>
+              <Card className={`md:col-span-2 lg:col-span-1 flex flex-col transition-all duration-300 ${sim.isNotInSchedule ? 'border-zinc-300 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900' : sim.isUnrealistic ? 'border-red-500 animate-pulse bg-red-500/5' : 'border-primary bg-primary/5'}`}>
                   <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wide flex items-center gap-2 mb-4">
                       <CalendarDays size={16} /> Plano de Ação
                   </h3>
                   
-                  {!sim.hasDeadline ? (
+                  {sim.isNotInSchedule ? (
+                       <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                          <CalendarX2 size={32} className="text-zinc-400 mb-2 opacity-50" />
+                          <p className="text-zinc-500 text-sm font-medium">Esta matéria não está no seu cronograma semanal. Configure-a no Calendário primeiro.</p>
+                      </div>
+                  ) : !sim.hasDeadline ? (
                       <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                           <CalendarDays size={32} className="text-zinc-400 mb-2 opacity-50" />
                           <p className="text-zinc-500 text-sm">Defina uma data limite (Deadline) acima para gerar seu plano diário de estudos.</p>
@@ -146,12 +167,12 @@ export const SimulationView = () => {
                       <div className="flex flex-col h-full justify-between">
                           <div className="space-y-4">
                               <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                                  Para terminar até o prazo de ({sim.daysRemaining} dias), você precisa de:
+                                  Para terminar no prazo, tendo <span className="font-bold">{sim.totalScheduledDaysWithMargin} dias reais agendados</span> livres:
                               </p>
                               <div className="bg-white dark:bg-black p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Ritmo Diário</p>
+                                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Ritmo nos Dias Agendados</p>
                                   <p className={`text-3xl font-black ${sim.isUnrealistic ? 'text-red-500' : 'text-zinc-900 dark:text-white'}`}>
-                                      {formatHours(sim.dailyMinutesRequired)} <span className="text-sm font-medium text-zinc-500">/ dia</span>
+                                      {formatHours(sim.minutesPerScheduledDayRequired)} <span className="text-sm font-medium text-zinc-500">/ dia de estudo</span>
                                   </p>
                               </div>
                               <div className="bg-white dark:bg-black p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
@@ -166,7 +187,7 @@ export const SimulationView = () => {
                               <div className="mt-4 flex items-start gap-2 text-red-500 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
                                   <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                                   <p className="text-xs font-bold leading-tight">
-                                      Atenção: O ritmo necessário é muito alto (+10h/dia). Considere ajustar seu prazo ou focar nos tópicos de maior peso da matéria.
+                                      Atenção: O tempo necessário ultrapassa seu limite diário configurado de {maxDailyMinutes} minutos. Ajuste sua data limite ou aumente seu tempo diário.
                                   </p>
                               </div>
                           )}
