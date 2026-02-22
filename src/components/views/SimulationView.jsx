@@ -1,12 +1,11 @@
-import React, { useState, useContext } from 'react';
-import { Compass, Clock, Target, CalendarDays, AlertTriangle, TrendingUp, CheckCircle, CalendarX2 } from 'lucide-react';
+import React, { useState, useEffect, useContext } from 'react';
+import { Compass, Clock, Target, CalendarDays, AlertTriangle, TrendingUp, CheckCircle, CalendarX2, CalendarCheck } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { useStudySimulation } from '../../hooks/useStudySimulation';
 import { Card } from '../ui/Card';
 
 export const SimulationView = () => {
   const { subjects } = useContext(FocusContext);
-  // Não exibir matérias que são apenas escolares, pois o foco aqui são as metas de longo prazo
   const activeSubjects = subjects.filter(s => !s.isSchool);
   
   const [selectedSubjectId, setSelectedSubjectId] = useState(activeSubjects.length > 0 ? activeSubjects[0].id : '');
@@ -15,12 +14,41 @@ export const SimulationView = () => {
 
   const sim = useStudySimulation(selectedSubjectId, deadlineDate, maxDailyMinutes);
 
-  // Helper para formatar o tempo dinamicamente para exibição agradável
+  // Nova Funcionalidade C: Persistência do Deadline via localStorage
+  useEffect(() => {
+    if (selectedSubjectId) {
+      const savedDate = localStorage.getItem(`study_deadline_${selectedSubjectId}`);
+      if (savedDate) {
+        setDeadlineDate(savedDate);
+      } else {
+        setDeadlineDate('');
+      }
+    }
+  }, [selectedSubjectId]);
+
+  const handleDeadlineChange = (val) => {
+    setDeadlineDate(val);
+    if (selectedSubjectId) {
+      localStorage.setItem(`study_deadline_${selectedSubjectId}`, val);
+    }
+  };
+
   const formatHours = (minutes) => {
     if (minutes < 60) return `${Math.round(minutes)} min`;
     const h = Math.floor(minutes / 60);
     const m = Math.round(minutes % 60);
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  };
+
+  // Nova Funcionalidade B: Formatação Humanizada de Tópicos Semanais
+  const formatWeeklyTopics = (topics) => {
+    if (topics >= 1) {
+      return `${Math.round(topics)} tópicos / semana`;
+    } else if (topics > 0) {
+      const weeks = Math.round(1 / topics);
+      return `1 tópico a cada ${weeks} ${weeks === 1 ? 'semana' : 'semanas'}`;
+    }
+    return '0 tópicos / semana';
   };
 
   return (
@@ -37,7 +65,13 @@ export const SimulationView = () => {
       {/* Inputs / Controles */}
       <Card className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-zinc-50 dark:bg-[#09090b]">
          <div>
-             <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">Matéria Alvo</label>
+             <label className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-2">
+                 Matéria Alvo
+                 {/* Nova Funcionalidade D: Indicador Semáforo */}
+                 {sim.healthStatus === 'green' && <span className="bg-emerald-500 text-white px-2 py-0.5 rounded-full text-[10px] shadow-sm animate-fadeIn">Confortável</span>}
+                 {sim.healthStatus === 'yellow' && <span className="bg-yellow-500 text-white px-2 py-0.5 rounded-full text-[10px] shadow-sm animate-fadeIn">Cuidado</span>}
+                 {sim.healthStatus === 'red' && <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] shadow-sm animate-fadeIn">Alerta</span>}
+             </label>
              <select 
                 value={selectedSubjectId} 
                 onChange={(e) => setSelectedSubjectId(e.target.value)}
@@ -53,7 +87,7 @@ export const SimulationView = () => {
              <input 
                 type="date" 
                 value={deadlineDate}
-                onChange={(e) => setDeadlineDate(e.target.value)}
+                onChange={(e) => handleDeadlineChange(e.target.value)}
                 className="w-full bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-zinc-900 dark:text-white outline-none focus:border-primary transition-colors cursor-pointer"
              />
          </div>
@@ -119,7 +153,7 @@ export const SimulationView = () => {
                           <span className="text-zinc-500 font-medium pb-1">tópicos restantes</span>
                       </div>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                          * A projeção abaixo descarta os dias em que a matéria não está no seu cronograma e prevê uma margem de segurança de 1 semana inteira de imprevistos.
+                          * A projeção abaixo descarta os dias em que a matéria não está no cronograma.
                       </p>
                   </div>
 
@@ -137,10 +171,35 @@ export const SimulationView = () => {
                   </div>
               </Card>
 
-              {/* Card 3: Plano de Ação Destaque */}
-              <Card className={`md:col-span-2 lg:col-span-1 flex flex-col transition-all duration-300 ${sim.isNotInSchedule ? 'border-zinc-300 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900' : sim.isUnrealistic ? 'border-red-500 animate-pulse bg-red-500/5' : 'border-primary bg-primary/5'}`}>
+              {/* Nova Funcionalidade A: Card 3 - Previsão de Conclusão */}
+              <Card className="flex flex-col justify-between">
+                  <div>
+                      <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide flex items-center gap-2 mb-4">
+                          <CalendarCheck size={16} className="text-purple-500" /> Previsão de Conclusão
+                      </h3>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                          * Calculado com base no seu ritmo, seu teto diário de {maxDailyMinutes} min, nos dias em que estuda a matéria e <span className="font-bold">adicionando 1 semana de segurança</span>.
+                      </p>
+                  </div>
+
+                  <div className="bg-purple-500/10 p-4 rounded-2xl border border-purple-500/20 mt-4">
+                      <p className="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase mb-1 flex items-center gap-1">
+                          Você terminará dia:
+                      </p>
+                      {sim.projectedEndDate ? (
+                          <p className="text-2xl font-black text-purple-600 dark:text-purple-400 capitalize">
+                              {sim.projectedEndDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </p>
+                      ) : (
+                          <p className="text-xs text-purple-500 italic">Estude mais para gerar esta previsão.</p>
+                      )}
+                  </div>
+              </Card>
+
+              {/* Card 4: Plano de Ação Destaque */}
+              <Card className={`md:col-span-2 lg:col-span-3 flex flex-col transition-all duration-300 ${sim.isNotInSchedule ? 'border-zinc-300 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900' : sim.isUnrealistic ? 'border-red-500 animate-pulse bg-red-500/5' : 'border-primary bg-primary/5'}`}>
                   <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wide flex items-center gap-2 mb-4">
-                      <CalendarDays size={16} /> Plano de Ação
+                      <CalendarDays size={16} /> Plano de Ação (Até o Deadline)
                   </h3>
                   
                   {sim.isNotInSchedule ? (
@@ -165,10 +224,12 @@ export const SimulationView = () => {
                       </div>
                   ) : (
                       <div className="flex flex-col h-full justify-between">
-                          <div className="space-y-4">
-                              <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                                  Para terminar no prazo, tendo <span className="font-bold">{sim.totalScheduledDaysWithMargin} dias reais agendados</span> livres:
-                              </p>
+                          <div className="space-y-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="md:col-span-2">
+                                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                                      Para terminar no prazo, tendo <span className="font-bold">{sim.totalScheduledDaysWithMargin} dias reais agendados</span> livres (já descontando imprevistos):
+                                  </p>
+                              </div>
                               <div className="bg-white dark:bg-black p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
                                   <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Ritmo nos Dias Agendados</p>
                                   <p className={`text-3xl font-black ${sim.isUnrealistic ? 'text-red-500' : 'text-zinc-900 dark:text-white'}`}>
@@ -176,9 +237,9 @@ export const SimulationView = () => {
                                   </p>
                               </div>
                               <div className="bg-white dark:bg-black p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Ritmo Semanal</p>
-                                  <p className="text-xl font-bold text-zinc-900 dark:text-white">
-                                      {sim.weeklyTopicsRequired.toFixed(1)} <span className="text-sm font-medium text-zinc-500">tópicos / semana</span>
+                                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Ritmo Semanal Exigido</p>
+                                  <p className="text-xl font-bold text-zinc-900 dark:text-white mt-1">
+                                      {formatWeeklyTopics(sim.weeklyTopicsRequired)}
                                   </p>
                               </div>
                           </div>
@@ -187,7 +248,7 @@ export const SimulationView = () => {
                               <div className="mt-4 flex items-start gap-2 text-red-500 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
                                   <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                                   <p className="text-xs font-bold leading-tight">
-                                      Atenção: O tempo necessário ultrapassa seu limite diário configurado de {maxDailyMinutes} minutos. Ajuste sua data limite ou aumente seu tempo diário.
+                                      Atenção: O tempo necessário ultrapassa seu limite diário configurado de {maxDailyMinutes} minutos. Você precisa ajustar sua data limite ou aumentar seu tempo de dedicação diária.
                                   </p>
                               </div>
                           )}

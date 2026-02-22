@@ -15,20 +15,17 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
     const remainingTopics = totalTopics - completedTopics;
 
     // Passo B: Ritmo Atual (Média de Tempo CORRIGIDA)
-    // 1. Mapeamos os tópicos concluídos para rastrear o tempo de cada um
     const timePerCompletedTopic = {};
     completedTopicsList.forEach(item => {
         timePerCompletedTopic[item.text] = 0;
     });
 
-    // 2. Somamos os minutos das sessões que correspondem a esses tópicos
     sessions.forEach(session => {
         if (session.subjectId === Number(subjectId) && timePerCompletedTopic[session.topic] !== undefined) {
             timePerCompletedTopic[session.topic] += session.minutes;
         }
     });
 
-    // 3. Filtramos apenas os tópicos que realmente tiveram tempo > 0 no timer
     const validTopicTimes = Object.values(timePerCompletedTopic).filter(mins => mins > 0);
     const validCompletedTopicsCount = validTopicTimes.length;
     const totalMinutesSpent = validTopicTimes.reduce((acc, mins) => acc + mins, 0);
@@ -36,7 +33,6 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
     let avgTimePerTopic = 0;
     let hasEnoughData = false;
 
-    // 4. A média agora é baseada ESTRITAMENTE nos tópicos com dados reais
     if (validCompletedTopicsCount > 0) {
       avgTimePerTopic = totalMinutesSpent / validCompletedTopicsCount;
       hasEnoughData = true;
@@ -69,13 +65,40 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
       isNotInSchedule = true;
     }
 
+    // Nova Funcionalidade A: Calcular Data Exata de Conclusão (independente do deadline)
+    let projectedEndDate = null;
+    if (hasEnoughData && !isNotInSchedule && remainingTopics > 0) {
+      // Assumimos que o usuário estuda o limite diário nos dias agendados
+      const daysNeeded = Math.ceil(estimatedTimeRemaining / maxDailyMinutes);
+      let current = new Date();
+      current.setHours(0, 0, 0, 0);
+      let daysFound = 0;
+      let maxIterations = 365 * 5; // Trava de segurança (5 anos)
+
+      while (daysFound < daysNeeded && maxIterations > 0) {
+        current.setDate(current.getDate() + 1);
+        if (scheduledWeekdays.includes(current.getDay())) {
+          daysFound++;
+        }
+        maxIterations--;
+      }
+
+      // Adicionar Margem de Segurança (1 semana inteira)
+      current.setDate(current.getDate() + 7);
+      projectedEndDate = current;
+    } else if (remainingTopics === 0) {
+      projectedEndDate = new Date(); // Matéria já zerada
+    }
+
+    // Status de Saúde da Matéria
+    let healthStatus = 'none';
+
     if (deadlineDate && !isNotInSchedule) {
       hasDeadline = true;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const deadline = new Date(deadlineDate);
       
-      // Ajuste de fuso horário para garantir que o "dia" seja calculado corretamente
       deadline.setMinutes(deadline.getMinutes() + deadline.getTimezoneOffset());
       deadline.setHours(0, 0, 0, 0);
       
@@ -83,7 +106,7 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
       if (deadline > today) {
         let current = new Date(today);
         while (current <= deadline) {
-          const dayOfWeek = current.getDay(); // 0=Dom, 1=Seg... 6=Sáb
+          const dayOfWeek = current.getDay(); 
           if (scheduledWeekdays.includes(dayOfWeek)) {
             scheduledDaysCount++;
           }
@@ -91,7 +114,7 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
         }
       }
 
-      // 3. Aplicar Margem de Segurança (Abordagem Pessimista - Subtrair 1 semana de folga)
+      // 3. Aplicar Margem de Segurança 
       const weeklyOccurrences = scheduledWeekdays.length;
       totalScheduledDaysWithMargin = scheduledDaysCount;
       
@@ -101,17 +124,29 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
 
       totalScheduledDaysWithMargin = Math.max(1, totalScheduledDaysWithMargin);
 
-      // 4. Calcular o ritmo necessário projetado para os dias úteis do usuário
+      // 4. Calcular o ritmo necessário projetado para os dias úteis
       minutesPerScheduledDayRequired = estimatedTimeRemaining / totalScheduledDaysWithMargin;
       weeklyTopicsRequired = (remainingTopics / totalScheduledDaysWithMargin) * weeklyOccurrences;
       
-      // 5. Validação de viabilidade com base no teto de minutos
+      // 5. Validação de viabilidade
       isUnrealistic = minutesPerScheduledDayRequired > maxDailyMinutes;
+
+      // Nova Funcionalidade D: Indicador de Saúde (Verde / Amarelo / Vermelho)
+      if (hasEnoughData) {
+        const usageRatio = minutesPerScheduledDayRequired / maxDailyMinutes;
+        if (isUnrealistic || usageRatio > 0.9) {
+          healthStatus = 'red';
+        } else if (usageRatio > 0.6) {
+          healthStatus = 'yellow';
+        } else {
+          healthStatus = 'green';
+        }
+      }
     }
 
     return {
       totalTopics,
-      completedTopics, // Mantemos o total real para a UI mostrar a porcentagem correta
+      completedTopics,
       remainingTopics,
       avgTimePerTopic,
       hasEnoughData,
@@ -122,7 +157,9 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
       weeklyTopicsRequired,
       isUnrealistic,
       hasDeadline,
-      isNotInSchedule
+      isNotInSchedule,
+      projectedEndDate, // Exportado para exibir o dia exato
+      healthStatus      // Exportado para o "Semáforo"
     };
   }, [subjectId, deadlineDate, maxDailyMinutes, themes, sessions, studySchedule]);
 };
