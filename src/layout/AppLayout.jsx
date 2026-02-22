@@ -38,7 +38,7 @@ export const AppLayout = () => {
   const nav = [
     { id: 'dashboard', l: 'Painel', i: LayoutDashboard }, 
     { id: 'school', l: 'Escola', i: GraduationCap },
-    { id: 'simulation', l: 'Simulação de Conclusão', i: Compass },
+    { id: 'simulation', l: 'Simulação', i: Compass },
     { id: 'focus', l: 'Focar', i: Zap }, 
     { id: 'exams', l: 'Provas', i: ClipboardList },
     { id: 'achievements', l: 'Conquistas', i: Trophy },
