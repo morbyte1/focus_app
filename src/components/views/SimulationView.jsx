@@ -55,10 +55,10 @@ export const SimulationView = () => {
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-white mb-1 flex items-center gap-2">
-            <Compass className="text-primary" /> GPS de Estudos
+            <Compass className="text-primary" /> Simulação de Conclusão
         </h1>
         <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-            Projete seu plano de ação pessimista com base no seu ritmo real e cronograma semanal.
+            Projete seu plano de ação com base no seu ritmo real e cronograma semanal.
         </p>
       </header>
 
@@ -146,7 +146,7 @@ export const SimulationView = () => {
               <Card className="flex flex-col justify-between">
                   <div>
                       <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide flex items-center gap-2 mb-4">
-                          <Target size={16} className="text-orange-500" /> O Desafio
+                          <Target size={16} className="text-orange-500" /> Meta
                       </h3>
                       <div className="flex items-end gap-2 mb-4">
                           <span className="text-5xl font-black text-zinc-900 dark:text-white">{sim.remainingTopics}</span>
@@ -159,7 +159,7 @@ export const SimulationView = () => {
 
                   <div className="bg-orange-500/10 p-4 rounded-2xl border border-orange-500/20 mt-4">
                       <p className="text-xs text-orange-600 dark:text-orange-400 font-bold uppercase mb-1 flex items-center gap-1">
-                          <Clock size={12}/> Projeção Total de Tempo
+                          <Clock size={12}/> Projeção Total de Tempo 
                       </p>
                       {sim.hasEnoughData ? (
                           <p className="text-2xl font-black text-orange-600 dark:text-orange-400">
@@ -199,7 +199,7 @@ export const SimulationView = () => {
               {/* Card 4: Plano de Ação Destaque */}
               <Card className={`md:col-span-2 lg:col-span-3 flex flex-col transition-all duration-300 ${sim.isNotInSchedule ? 'border-zinc-300 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900' : sim.isUnrealistic ? 'border-red-500 animate-pulse bg-red-500/5' : 'border-primary bg-primary/5'}`}>
                   <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wide flex items-center gap-2 mb-4">
-                      <CalendarDays size={16} /> Plano de Ação (Até o Deadline)
+                      <CalendarDays size={16} /> Plano de Ação
                   </h3>
                   
                   {sim.isNotInSchedule ? (
@@ -227,11 +227,11 @@ export const SimulationView = () => {
                           <div className="space-y-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="md:col-span-2">
                                   <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                                      Para terminar no prazo, tendo <span className="font-bold">{sim.totalScheduledDaysWithMargin} dias reais agendados</span> livres (já descontando imprevistos):
+                                      Para terminar no prazo, tendo <span className="font-bold">{sim.totalScheduledDaysWithMargin} dias reais agendados</span>:
                                   </p>
                               </div>
                               <div className="bg-white dark:bg-black p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Ritmo nos Dias Agendados</p>
+                                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Ritmo nos dias de estudos</p>
                                   <p className={`text-3xl font-black ${sim.isUnrealistic ? 'text-red-500' : 'text-zinc-900 dark:text-white'}`}>
                                       {formatHours(sim.minutesPerScheduledDayRequired)} <span className="text-sm font-medium text-zinc-500">/ dia de estudo</span>
                                   </p>
