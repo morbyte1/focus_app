@@ -10,7 +10,6 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 
-// Banco de Frases Motivacionais
 const QUOTES = [
   "A dor da disciplina é menor que a dor do arrependimento.",
   "Não espere por inspiração. Torne-se disciplinado.",
@@ -26,15 +25,12 @@ export const DashboardView = () => {
   const { 
     kpiData, weeklyChartData, setCurrentView, 
     countdown, setCountdown, userLevel, userName,
-    tasks, subjects, sessions
+    tasks, subjects, sessions, 
+    studySchedule // --- ADICIONADO AQUI: Consumindo a fonte única de verdade ---
   } = useContext(FocusContext);
 
-  // --- LER DADOS DO CALENDAR (LOCAL STORAGE) ---
-  // Lemos diretamente aqui para não precisar alterar o FocusContext.jsx
-  const [studySchedule] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('my_study_schedule')) || {} } 
-    catch { return {} }
-  });
+  // Removido o useState que lia 'my_study_schedule' do localStorage diretamente.
+
   const [examCycle] = useState(() => {
     try { return JSON.parse(localStorage.getItem('my_exam_cycle')) || [] }
     catch { return [] }

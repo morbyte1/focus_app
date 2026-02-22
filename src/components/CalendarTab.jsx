@@ -1,39 +1,36 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Settings, Calendar as CalIcon, BookOpen, Layers, X, Check, Plus, Trash2, Trophy } from 'lucide-react';
-// Importamos o contexto do App para pegar as matérias salvas
 import { FocusContext } from '../context/FocusContext';
 
-// Hook para persistir o cronograma no LocalStorage (Usado pelo Dashboard também)
-function useStickyState(defaultValue, key) {
-  const [value, setValue] = useState(() => {
-    try {
-      const stickyValue = window.localStorage.getItem(key);
-      return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
-    } catch (error) { return defaultValue; }
-  });
-  useEffect(() => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value]);
-  return [value, setValue];
-}
+// Removida a função useStickyState local que causava a duplicação de estado.
 
 const DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 export function CalendarTab() {
-  const { subjects } = useContext(FocusContext); 
+  // Extraímos studySchedule e setStudySchedule do Contexto Global, 
+  // renomeando para 'schedule' para manter a compatibilidade com o resto do código.
+  const { subjects, studySchedule: schedule, setStudySchedule: setSchedule } = useContext(FocusContext); 
+  
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isConfigOpen, setIsConfigOpen] = useState(false);
 
-  // Estado do Cronograma Semanal (Seg-Sex)
-  const [schedule, setSchedule] = useStickyState({}, 'my_study_schedule');
+  // Removido: const [schedule, setSchedule] = useStickyState({}, 'my_study_schedule');
 
   // Estado do Ciclo de Simulados (Finais de Semana)
-  // Formato: [{ id: 1, name: "ETEC", color: "#ff0000" }, ...]
-  const [examCycle, setExamCycle] = useStickyState([], 'my_exam_cycle');
+  // Nota: Idealmente, o examCycle também deveria ir para o FocusContext no futuro.
+  const [examCycle, setExamCycle] = useState(() => {
+    try {
+      const stickyValue = window.localStorage.getItem('my_exam_cycle');
+      return stickyValue !== null ? JSON.parse(stickyValue) : [];
+    } catch (error) { return []; }
+  });
 
-  // Estados temporários para adicionar novo simulado no modal
+  useEffect(() => {
+    window.localStorage.setItem('my_exam_cycle', JSON.stringify(examCycle));
+  }, [examCycle]);
+
   const [newExamName, setNewExamName] = useState('');
   const [newExamColor, setNewExamColor] = useState('#4d4dff');
 

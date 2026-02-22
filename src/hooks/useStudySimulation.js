@@ -14,22 +14,31 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
     const completedTopics = completedTopicsList.length;
     const remainingTopics = totalTopics - completedTopics;
 
-    // Passo B: Ritmo Atual (Média de Tempo)
-    const completedTopicNames = completedTopicsList.map(item => item.text);
-    
-    // Filtrar sessões cruzando o subjectId e o nome do tópico que já foi concluído
-    const relevantSessions = sessions.filter(
-      session => session.subjectId === Number(subjectId) && completedTopicNames.includes(session.topic)
-    );
-    
-    const totalMinutesSpent = relevantSessions.reduce((acc, session) => acc + session.minutes, 0);
+    // Passo B: Ritmo Atual (Média de Tempo CORRIGIDA)
+    // 1. Mapeamos os tópicos concluídos para rastrear o tempo de cada um
+    const timePerCompletedTopic = {};
+    completedTopicsList.forEach(item => {
+        timePerCompletedTopic[item.text] = 0;
+    });
+
+    // 2. Somamos os minutos das sessões que correspondem a esses tópicos
+    sessions.forEach(session => {
+        if (session.subjectId === Number(subjectId) && timePerCompletedTopic[session.topic] !== undefined) {
+            timePerCompletedTopic[session.topic] += session.minutes;
+        }
+    });
+
+    // 3. Filtramos apenas os tópicos que realmente tiveram tempo > 0 no timer
+    const validTopicTimes = Object.values(timePerCompletedTopic).filter(mins => mins > 0);
+    const validCompletedTopicsCount = validTopicTimes.length;
+    const totalMinutesSpent = validTopicTimes.reduce((acc, mins) => acc + mins, 0);
 
     let avgTimePerTopic = 0;
     let hasEnoughData = false;
 
-    // Prevenção de divisão por zero
-    if (completedTopics > 0) {
-      avgTimePerTopic = totalMinutesSpent / completedTopics;
+    // 4. A média agora é baseada ESTRITAMENTE nos tópicos com dados reais
+    if (validCompletedTopicsCount > 0) {
+      avgTimePerTopic = totalMinutesSpent / validCompletedTopicsCount;
       hasEnoughData = true;
     }
 
@@ -86,13 +95,10 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
       const weeklyOccurrences = scheduledWeekdays.length;
       totalScheduledDaysWithMargin = scheduledDaysCount;
       
-      // Só aplica a margem negativa se o total de dias for maior que a própria margem 
-      // para evitar prazos minúsculos resultarem em dias negativos
       if (scheduledDaysCount > weeklyOccurrences) {
         totalScheduledDaysWithMargin -= weeklyOccurrences;
       }
 
-      // Prevenção absoluta de divisão por zero (mínimo de 1 dia)
       totalScheduledDaysWithMargin = Math.max(1, totalScheduledDaysWithMargin);
 
       // 4. Calcular o ritmo necessário projetado para os dias úteis do usuário
@@ -105,7 +111,7 @@ export const useStudySimulation = (subjectId, deadlineDate, maxDailyMinutes = 60
 
     return {
       totalTopics,
-      completedTopics,
+      completedTopics, // Mantemos o total real para a UI mostrar a porcentagem correta
       remainingTopics,
       avgTimePerTopic,
       hasEnoughData,
