@@ -92,16 +92,42 @@ export const AppLayout = () => {
             
             <div className={`mx-4 mb-6 p-3 bg-zinc-50 dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 rounded-3xl ${col ? 'flex justify-center' : ''}`}>
                 <div className={`flex items-center gap-3 ${col ? 'justify-center' : 'mb-2'}`}>
-                    <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${rk.b} flex items-center justify-center text-xs text-white font-bold`}>{userLevel.level}</div>
-                    {!col && <div className="flex-1 min-w-0"><p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{userLevel.title}</p><p className="text-[10px] text-zinc-500">{userLevel.currentXP}/{xpN} XP</p></div>}
+                    {/* Adicionado flex-shrink-0 na badge de level para evitar distorções */}
+                    <div className={`w-8 h-8 flex-shrink-0 rounded-full bg-gradient-to-br ${rk.b} flex items-center justify-center text-xs text-white font-bold`}>
+                        {userLevel.level}
+                    </div>
+                    {!col && (
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{userLevel.title}</p>
+                            <p className="text-[10px] text-zinc-500">{userLevel.currentXP}/{xpN} XP</p>
+                        </div>
+                    )}
                 </div>
-                {!col && <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full bg-gradient-to-r ${rk.b}`} style={{ width: `${xpP}%` }} /></div>}
+                {!col && (
+                    <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div className={`h-full bg-gradient-to-r ${rk.b}`} style={{ width: `${xpP}%` }} />
+                    </div>
+                )}
             </div>
             
             <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
                 {nav.map(i => (
-                    <button key={i.id} onClick={() => handleNavigation(i.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${currentView === i.id ? 'bg-primary/10 text-primary-light font-medium' : 'hover:bg-zinc-100 dark:hover:bg-[#09090b] hover:text-zinc-900 dark:hover:text-white'} ${col ? 'justify-center' : ''}`} title={col ? i.l : ''}>
-                        <i.i size={20} />{!col && i.l}
+                    <button 
+                        key={i.id} 
+                        onClick={() => handleNavigation(i.id)} 
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
+                            currentView === i.id 
+                                ? 'bg-primary/10 text-primary-light font-medium' 
+                                : 'hover:bg-zinc-100 dark:hover:bg-[#09090b] hover:text-zinc-900 dark:hover:text-white'
+                        } ${col ? 'justify-center' : 'justify-start'}`} 
+                        title={col ? i.l : ''}
+                    >
+                        {/* Wrapper do ícone com flex-shrink-0 para ancorar as proporções */}
+                        <div className="flex-shrink-0 flex items-center justify-center">
+                            <i.i size={20} />
+                        </div>
+                        {/* Texto isolado na span e renderizado apenas quando expandido */}
+                        {!col && <span className="truncate">{i.l}</span>}
                     </button>
                 ))}
             </nav>
