@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { Target, Plus, ChevronRight, ChevronDown, Trash2, CheckSquare, X, Settings, ArrowLeft, Percent, GraduationCap, GripVertical, Edit2, Check, Clock } from 'lucide-react';
+import { Target, Plus, ChevronRight, AlertTriangle, ListFilter, ChevronDown, Trash2, CheckSquare, X, Settings, ArrowLeft, Percent, GraduationCap, GripVertical, Edit2, Check, Clock } from 'lucide-react';
 import { FocusContext, formatMinutesToReadableTime } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -10,7 +10,7 @@ export const GoalsView = () => {
   const { 
     subjects, sessions, addSubject, updateSubject, deleteSubject, 
     themes, addTheme, deleteTheme, addThemeItem, toggleThemeItem, deleteThemeItem,
-    renameTheme, renameThemeItem, reorderThemes, reorderThemeItems 
+    renameTheme, renameThemeItem, reorderThemes, reorderThemeItems, updateThemeItemImportance
   } = useContext(FocusContext);
   
   const [viewSub, setViewSub] = useState(null); 
@@ -34,11 +34,29 @@ export const GoalsView = () => {
       return { h: (wM / 60).toFixed(1), p: Math.min(100, p || 0) }; 
   };
 
-  const getTopicTime = (subjectId, topicText) => {
-      const mins = sessions
+const getTopicStats = (subjectId, topicText) => {
+      return sessions
           .filter(s => s.subjectId === subjectId && s.topic === topicText)
-          .reduce((acc, s) => acc + s.minutes, 0);
-      return formatMinutesToReadableTime(mins);
+          .reduce((acc, s) => ({
+              questions: acc.questions + (s.questions || 0),
+              errors: acc.errors + (s.errors || 0)
+          }), { questions: 0, errors: 0 });
+  };
+
+  const getImportanceStyle = (imp) => {
+      switch(imp) {
+          case 'high': return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-500/10 border-red-200 dark:border-red-500/20';
+          case 'medium': return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-500/10 border-yellow-200 dark:border-yellow-500/20';
+          default: return 'text-emerald-600 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20';
+      }
+  };
+
+  const getImportanceLabel = (imp) => {
+      switch(imp) {
+          case 'high': return 'Alta';
+          case 'medium': return 'Média';
+          default: return 'Baixa';
+      }
   };
 
   const handleDragEnd = (result) => {
@@ -185,11 +203,51 @@ export const GoalsView = () => {
                                             </div>
                                           )}
 
-                                          {/* Badge de Tempo Estudado */}
-                                          <div className="flex items-center gap-1 bg-zinc-200/50 dark:bg-zinc-800/50 px-2 py-1 rounded-md text-zinc-500 dark:text-zinc-400 text-xs font-medium whitespace-nowrap">
-                                            <Clock size={12} />
-                                            {getTopicTime(s.id, i.text)}
-                                          </div>
+{/* Adicione isso logo acima do render das badges para preparar os dados */}
+{(() => {
+  const stats = getTopicStats(s.id, i.text);
+  const currentImp = i.importance || 'low'; // Garantia para itens antigos
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Badge de Importância (Clicável) */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation(); // Essencial para não bugar o Drag and Drop
+          const nextImp = currentImp === 'low' ? 'medium' : currentImp === 'medium' ? 'high' : 'low';
+          updateThemeItemImportance(t.id, i.id, nextImp);
+        }}
+        className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer hover:opacity-80 ${getImportanceStyle(currentImp)}`}
+        title="Alternar Importância"
+      >
+        <ListFilter size={10} />
+        {getImportanceLabel(currentImp)}
+      </button>
+
+      {/* Badge de Tempo Estudado (Mantida e melhorada) */}
+      <div className="flex items-center gap-1 bg-zinc-200/50 dark:bg-zinc-800/50 px-2 py-1 rounded-md text-zinc-500 dark:text-zinc-400 text-xs font-medium whitespace-nowrap">
+        <Clock size={12} />
+        {getTopicTime(s.id, i.text)}
+      </div>
+
+      {/* Badge de Questões (Renderiza apenas se > 0) */}
+      {stats.questions > 0 && (
+        <div className="flex items-center gap-1 bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap" title="Questões Feitas">
+          <CheckSquare size={12} />
+          {stats.questions}
+        </div>
+      )}
+
+      {/* Badge de Erros (Renderiza apenas se > 0) */}
+      {stats.errors > 0 && (
+        <div className="flex items-center gap-1 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap" title="Erros Cometidos">
+          <AlertTriangle size={12} />
+          {stats.errors}
+        </div>
+      )}
+    </div>
+  );
+})()}
 
                                           <button onClick={() => deleteThemeItem(t.id, i.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-400 hover:text-red-500 shrink-0"><X size={14} /></button>
                                         </div>

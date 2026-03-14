@@ -249,7 +249,8 @@ export const FocusProvider = ({ children }) => {
     
     addTheme: (sId, t) => setThemes(p => [...p, { id: Date.now(), subjectId: sId, title: t, items: [] }]),
     deleteTheme: (id) => window.confirm("Excluir?") && setThemes(p => p.filter(t => t.id !== id)),
-    addThemeItem: (tId, txt) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text: txt, completed: false }] } : t)),
+    addThemeItem: (tId, txt) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: [...t.items, { id: Date.now() + Math.random(), text: txt, completed: false, importance: 'low' }] } : t)),
+    updateThemeItemImportance: (tId, iId, imp) => setThemes(p => p.map(t => t.id === tId ? { ...t, items: t.items.map(i => i.id === iId ? { ...i, importance: imp } : i) } : t)),
     toggleThemeItem: (tId, iId) => {
         const theme = themes.find(x => x.id === tId);
         const item = theme?.items.find(x => x.id === iId);
@@ -463,7 +464,7 @@ export const FocusProvider = ({ children }) => {
         flowStoredTime, setFlowStoredTime, 
         elapsedTime, setElapsedTime, 
         kpiData, weeklyChartData, advancedStats, 
-        addSession, 
+        addSession,
         theme, setTheme, 
         ...methods 
     }}>
