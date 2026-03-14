@@ -458,7 +458,7 @@ export const FocusProvider = ({ children }) => {
         unlockedAchievements,
         exams, 
         studySchedule, setStudySchedule,
-        schoolBimesters, updateSchoolBimester,
+        schoolBimesters, 
 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
         timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), 
