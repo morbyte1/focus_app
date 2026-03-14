@@ -34,6 +34,13 @@ export const GoalsView = () => {
       return { h: (wM / 60).toFixed(1), p: Math.min(100, p || 0) }; 
   };
 
+  const getTopicTime = (subjectId, topicText) => {
+      const totalMins = sessions
+          .filter(s => s.subjectId === subjectId && s.topic === topicText)
+          .reduce((acc, s) => acc + (s.minutes || 0), 0);
+      return formatMinutesToReadableTime(totalMins);
+  };
+
 const getTopicStats = (subjectId, topicText) => {
       return sessions
           .filter(s => s.subjectId === subjectId && s.topic === topicText)
