@@ -325,7 +325,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
 
                 {/* 3. NOVO: Card Faltas no Bimestre Atual */}
                 <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col justify-center">
-                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2 truncate">Faltas: {stats.currentBimesterName}</p>
+                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2 truncate">Faltas neste bimestre</p>
                     <div className="flex items-baseline gap-2">
                         <span className="text-4xl font-bold text-zinc-900 dark:text-white">{stats.totalLostCurrentBimester}</span>
                         <span className="text-sm text-zinc-500">aulas</span>
