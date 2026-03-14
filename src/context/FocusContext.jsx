@@ -72,6 +72,13 @@ export const FocusProvider = ({ children }) => {
     holidaysEnd: `${currentYear}-07-31`
   }, 'focus_school_calendar');
 
+  const [schoolBimesters, setSchoolBimesters] = useStickyState([
+    { id: 1, name: "1º Bimestre", startDate: `${currentYear}-02-01`, endDate: `${currentYear}-04-15` },
+    { id: 2, name: "2º Bimestre", startDate: `${currentYear}-04-16`, endDate: `${currentYear}-06-30` },
+    { id: 3, name: "3º Bimestre", startDate: `${currentYear}-08-01`, endDate: `${currentYear}-09-30` },
+    { id: 4, name: "4º Bimestre", startDate: `${currentYear}-10-01`, endDate: `${currentYear}-12-15` }
+  ], 'focus_school_bimesters');
+
   const [schoolExceptions, setSchoolExceptions] = useStickyState([], 'focus_school_exceptions');
   const [studySchedule, setStudySchedule] = useStickyState({}, 'my_study_schedule');
   const [exams, setExams] = useStickyState([], 'focus_exams');
@@ -235,6 +242,7 @@ export const FocusProvider = ({ children }) => {
         } else if(subjects.length<=1) alert("Mantenha uma matéria."); 
     },
     
+    updateSchoolBimester: (id, updates) => setSchoolBimesters(p => p.map(b => b.id === id ? { ...b, ...updates } : b)),
     addTask: (t, sId, topic) => setTasks(p => [...p, { id: Date.now(), text: t, completed: false, subjectId: sId, topic, subTasks: [] }]),
     addSubTask: (parentId, text) => setTasks(p => p.map(t => t.id === parentId ? { ...t, subTasks: [...(t.subTasks || []), { id: Date.now() + Math.random(), text, completed: false }] } : t)),
     toggleTask: (id) => setTasks(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t)),
@@ -450,6 +458,7 @@ export const FocusProvider = ({ children }) => {
         unlockedAchievements,
         exams, 
         studySchedule, setStudySchedule,
+        schoolBimesters, updateSchoolBimester,
 
         timerMode: timerState.mode, setTimerMode: m => setTimerState(p => ({ ...p, mode: m })), 
         timerType: timerState.type, setTimerType: t => setTimerState(p => ({ ...p, type: t })), 

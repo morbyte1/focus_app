@@ -11,8 +11,8 @@ import { Modal } from '../ui/Modal';
 
 // === SUB-COMPONENTES AUXILIARES ===
 
-// Modal de Configuração da Grade Horária
-const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, updateSchoolSchedule }) => {
+// Modal de Configuração da Grade Horária & Bimestres
+const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, updateSchoolSchedule, schoolBimesters, updateSchoolBimester }) => {
     const days = [
         { id: 1, name: "Segunda" }, { id: 2, name: "Terça" }, { id: 3, name: "Quarta" },
         { id: 4, name: "Quinta" }, { id: 5, name: "Sexta" },
@@ -34,81 +34,141 @@ const ScheduleConfigModal = ({ isOpen, onClose, subjects, schoolSchedule, update
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Configurar Grade Horária">
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar p-1">
-                <p className="text-sm text-zinc-500">Defina suas aulas semanais para calcular os limites de faltas e organizar o calendário.</p>
+        <Modal isOpen={isOpen} onClose={onClose} title="Configuração Acadêmica">
+            <div className="space-y-8 max-h-[75vh] overflow-y-auto custom-scrollbar p-1">
                 
-                <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
-                    {days.map(d => (
-                        <div key={d.id} className="min-w-[160px] flex-1 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-3 flex flex-col">
-                            <h4 className="font-bold text-center text-zinc-900 dark:text-white mb-3 uppercase text-xs tracking-wider">{d.name}</h4>
-                            <div className="flex-1 space-y-2 mb-3">
-                                {(schoolSchedule[d.id] || []).map((lessonSubId, idx) => {
-                                    const sub = subjects.find(s => s.id === lessonSubId);
-                                    return (
-                                        <div key={idx} className="flex items-center justify-between bg-white dark:bg-black p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs shadow-sm">
-                                            <div className="flex items-center gap-2 truncate">
-                                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub?.color || '#555' }}></div>
-                                                <span className="truncate text-zinc-700 dark:text-zinc-300 font-medium">{sub?.name || '?'}</span>
+                {/* Seção 1: Grade Horária */}
+                <div>
+                    <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-4 uppercase tracking-wider">Grade Semanal</h3>
+                    <p className="text-xs text-zinc-500 mb-4">Defina suas aulas semanais para calcular os limites de faltas e organizar o calendário.</p>
+                    <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+                        {days.map(d => (
+                            <div key={d.id} className="min-w-[160px] flex-1 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-3 flex flex-col">
+                                <h4 className="font-bold text-center text-zinc-900 dark:text-white mb-3 uppercase text-xs tracking-wider">{d.name}</h4>
+                                <div className="flex-1 space-y-2 mb-3">
+                                    {(schoolSchedule[d.id] || []).map((lessonSubId, idx) => {
+                                        const sub = subjects.find(s => s.id === lessonSubId);
+                                        return (
+                                            <div key={idx} className="flex items-center justify-between bg-white dark:bg-black p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs shadow-sm">
+                                                <div className="flex items-center gap-2 truncate">
+                                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub?.color || '#555' }}></div>
+                                                    <span className="truncate text-zinc-700 dark:text-zinc-300 font-medium">{sub?.name || '?'}</span>
+                                                </div>
+                                                <button onClick={() => removeLesson(d.id, idx)} className="text-zinc-400 hover:text-red-500"><Trash2 size={12}/></button>
                                             </div>
-                                            <button onClick={() => removeLesson(d.id, idx)} className="text-zinc-400 hover:text-red-500"><Trash2 size={12}/></button>
-                                        </div>
-                                    )
-                                })}
-                                {(schoolSchedule[d.id] || []).length === 0 && <p className="text-center text-zinc-400 text-[10px] italic py-2">Sem aulas</p>}
-                            </div>
-                            {addingToDay === d.id ? (
-                                <div className="animate-fadeIn">
-                                    <select 
-                                        autoFocus
-                                        className="w-full text-xs bg-white dark:bg-black border border-primary rounded-xl p-2 outline-none mb-2"
-                                        onChange={(e) => e.target.value && addLesson(d.id, e.target.value)}
-                                        onBlur={() => setAddingToDay(null)}
-                                        defaultValue=""
-                                    >
-                                        <option value="">Escolha...</option>
-                                        {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
+                                        )
+                                    })}
+                                    {(schoolSchedule[d.id] || []).length === 0 && <p className="text-center text-zinc-400 text-[10px] italic py-2">Sem aulas</p>}
                                 </div>
-                            ) : (
-                                <button onClick={() => setAddingToDay(d.id)} className="w-full py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-xl text-zinc-600 dark:text-zinc-400 text-xs font-bold transition-colors">
-                                    + Adicionar
-                                </button>
-                            )}
-                        </div>
-                    ))}
+                                {addingToDay === d.id ? (
+                                    <div className="animate-fadeIn">
+                                        <select 
+                                            autoFocus
+                                            className="w-full text-xs bg-white dark:bg-black border border-primary rounded-xl p-2 outline-none mb-2"
+                                            onChange={(e) => e.target.value && addLesson(d.id, e.target.value)}
+                                            onBlur={() => setAddingToDay(null)}
+                                            defaultValue=""
+                                        >
+                                            <option value="">Escolha...</option>
+                                            {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <button onClick={() => setAddingToDay(d.id)} className="w-full py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-xl text-zinc-600 dark:text-zinc-400 text-xs font-bold transition-colors">
+                                        + Adicionar
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
+
+                {/* Seção 2: Bimestres */}
+                <div>
+                    <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-4 uppercase tracking-wider">Períodos Letivos (Bimestres)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {schoolBimesters && schoolBimesters.map(bim => (
+                            <div key={bim.id} className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                                <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-2">{bim.name}</p>
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <label className="text-[10px] text-zinc-500 uppercase">Início</label>
+                                        <input 
+                                            type="date" 
+                                            value={bim.startDate} 
+                                            onChange={(e) => updateSchoolBimester(bim.id, { startDate: e.target.value })} 
+                                            className="w-full text-xs bg-white dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 outline-none focus:border-primary"
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="text-[10px] text-zinc-500 uppercase">Fim</label>
+                                        <input 
+                                            type="date" 
+                                            value={bim.endDate} 
+                                            onChange={(e) => updateSchoolBimester(bim.id, { endDate: e.target.value })} 
+                                            className="w-full text-xs bg-white dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 outline-none focus:border-primary"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
             </div>
         </Modal>
     );
 };
 
-// === TAB: FALTAS (COM SIMULADOR) ===
-const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen, schoolCalendar, schoolExceptions, simulatedAbsences }) => {
+// === TAB: FALTAS (COM SIMULADOR E BIMESTRES) ===
+const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRecord, setIsAddAbsenceModalOpen, schoolCalendar, schoolExceptions, simulatedAbsences, schoolBimesters }) => {
     const stats = useMemo(() => {
         const absencesCountMap = {}; 
         let totalLost = 0;
         const reasonMap = {};
         let simulatedLost = 0;
 
-        // 1. Contar Faltas Reais
+        // Variáveis do Bimestre
+        let totalLostCurrentBimester = 0;
+        let currentBimesterName = "Fora de Período";
+
+        const now = new Date();
+        now.setHours(0,0,0,0);
+
+        // Identifica o bimestre atual com base na data de hoje
+        const activeBimester = schoolBimesters?.find(b => {
+            const s = new Date(b.startDate + 'T00:00:00');
+            const e = new Date(b.endDate + 'T23:59:59');
+            return now >= s && now <= e;
+        });
+
+        if (activeBimester) {
+            currentBimesterName = activeBimester.name;
+        }
+
+        // 1. Contar Faltas Reais e Agrupar por Bimestre
         schoolAbsences.forEach(record => {
+            const recordDate = new Date(record.date + 'T00:00:00');
+            const isCurrentBim = activeBimester && recordDate >= new Date(activeBimester.startDate + 'T00:00:00') && recordDate <= new Date(activeBimester.endDate + 'T23:59:59');
+
+            let dailyLost = 0;
             Object.entries(record.lessons).forEach(([subId, count]) => {
                 if (count > 0) {
                     absencesCountMap[subId] = (absencesCountMap[subId] || 0) + count;
                     totalLost += count;
+                    dailyLost += count;
                 }
             });
-            const dailyLost = Object.values(record.lessons).reduce((a, b) => a + b, 0);
+            
             if (dailyLost > 0) {
                 reasonMap[record.reason] = (reasonMap[record.reason] || 0) + dailyLost;
+                if (isCurrentBim) {
+                    totalLostCurrentBimester += dailyLost;
+                }
             }
         });
 
-        // 2. Algoritmo Progressivo Dinâmico (Com Simulação)
-        const now = new Date();
-        now.setHours(0,0,0,0);
-
+        // 2. Algoritmo Progressivo Dinâmico (Com Simulação Corrigida)
         const startD = new Date(schoolCalendar.startDate + 'T00:00:00');
         const endD = new Date(schoolCalendar.endDate + 'T00:00:00');
         const hStart = new Date(schoolCalendar.holidaysStart + 'T00:00:00');
@@ -117,6 +177,15 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
         let totalClassesRealizedGlobal = 0; 
         let totalClassesAnnualGlobal = 0;   
         const annualClassesMap = {}; 
+
+        // CRÍTICO: Define o teto máximo de processamento da projeção
+        let maxDate = new Date(now);
+        if (simulatedAbsences.length > 0) {
+            const simDates = simulatedAbsences.map(d => new Date(d + 'T00:00:00'));
+            const maxSim = new Date(Math.max(...simDates));
+            if (maxSim > maxDate) maxDate = maxSim;
+        }
+        maxDate.setHours(23, 59, 59, 999);
 
         for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
             if (d >= hStart && d <= hEnd) continue; // Férias
@@ -128,9 +197,9 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
             const lessonsForDay = schoolSchedule[dayOfWeek] || []; 
 
             if (lessonsForDay.length > 0) {
-                // Se é hoje/passado OU é um dia simulado
+                // Aula realizada se a data for igual ou inferior ao teto de simulação
+                const isRealized = d <= maxDate;
                 const isSimulated = simulatedAbsences.includes(dateStr);
-                const isRealized = d <= now || isSimulated;
 
                 lessonsForDay.forEach(subId => {
                     annualClassesMap[subId] = (annualClassesMap[subId] || 0) + 1;
@@ -139,7 +208,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                     if (isRealized) {
                         totalClassesRealizedGlobal++;
                         
-                        // Se for simulado, conta como falta extra
+                        // Se for um dia especificamente simulado, registra a falta extra
                         if (isSimulated) {
                             absencesCountMap[subId] = (absencesCountMap[subId] || 0) + 1;
                             totalLost++;
@@ -180,17 +249,16 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
             color: s.color
         })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
 
-        const REASON_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#6366f1']; // Indigo para simulação
+        const REASON_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#6366f1'];
         const reasonChartData = Object.entries(reasonMap).map(([reason, count], index) => ({
             name: reason,
             value: count,
             color: reason === 'Simulação' ? '#6366f1' : REASON_COLORS[index % REASON_COLORS.length]
         })).sort((a, b) => b.value - a.value);
 
-        return { totalLost, totalClassesRealizedGlobal, critical, globalRate, riskData, reasonChartData, subjectChartData, simulatedLost };
-    }, [schoolAbsences, subjects, schoolSchedule, schoolCalendar, schoolExceptions, simulatedAbsences]);
+        return { totalLost, totalClassesRealizedGlobal, critical, globalRate, riskData, reasonChartData, subjectChartData, simulatedLost, totalLostCurrentBimester, currentBimesterName };
+    }, [schoolAbsences, subjects, schoolSchedule, schoolCalendar, schoolExceptions, simulatedAbsences, schoolBimesters]);
 
-    // Lógica de Cores
     const getPresenceColors = (rateStr, isSimulating) => {
         if (isSimulating) return { text: 'text-indigo-500', bar: 'bg-indigo-500', glow: 'bg-indigo-500/10' };
         
@@ -216,16 +284,17 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Ajuste do grid para 4 colunas em telas maiores (md:grid-cols-4) */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 
-                {/* 1. Card Presença Global (Com Modo Simulação) */}
-                <div className={`md:col-span-3 bg-white dark:bg-[#09090b] border ${isSimulating ? 'border-indigo-500/50' : 'border-zinc-200 dark:border-zinc-800'} p-6 rounded-3xl shadow-sm relative overflow-hidden transition-all duration-500`}>
+                {/* 1. Card Presença Global */}
+                <div className={`md:col-span-4 bg-white dark:bg-[#09090b] border ${isSimulating ? 'border-indigo-500/50' : 'border-zinc-200 dark:border-zinc-800'} p-6 rounded-3xl shadow-sm relative overflow-hidden transition-all duration-500`}>
                      <div className={`absolute top-0 right-0 w-64 h-64 blur-3xl rounded-full pointer-events-none ${presenceColors.glow}`}></div>
                      
                      <div className="relative z-10">
                         <div className="flex justify-between items-start">
                              <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isSimulating ? 'text-indigo-500' : 'text-zinc-500'}`}>
-                                {isSimulating ? 'Presença Projetada (Simulação)' : 'Presença Global (Até Hoje)'}
+                                {isSimulating ? 'Presença Projetada (Simulação)' : 'Presença Global'}
                              </p>
                              {isSimulating && <span className="text-[10px] font-bold bg-indigo-500/10 text-indigo-500 px-2 py-1 rounded-full animate-pulse">+ {stats.simulatedLost} aulas simuladas</span>}
                         </div>
@@ -254,7 +323,16 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                     )}
                 </div>
 
-                {/* 3. Card Total Acumulado */}
+                {/* 3. NOVO: Card Faltas no Bimestre Atual */}
+                <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col justify-center">
+                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2 truncate">Faltas: {stats.currentBimesterName}</p>
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-bold text-zinc-900 dark:text-white">{stats.totalLostCurrentBimester}</span>
+                        <span className="text-sm text-zinc-500">aulas</span>
+                    </div>
+                </div>
+
+                {/* 4. Card Total Acumulado */}
                 <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col justify-center">
                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider mb-2">Total Acumulado</p>
                     <div className="flex items-baseline gap-2">
@@ -263,7 +341,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
                     </div>
                 </div>
 
-                 {/* 4. Gráficos */}
+                 {/* 5. Gráficos */}
                  <div className="bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 p-6 rounded-3xl shadow-sm flex flex-col justify-center relative min-h-[220px]">
                     <p className="absolute top-6 left-6 text-xs text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-2">
                         <Clock size={14}/> Faltas por Matéria
@@ -372,7 +450,7 @@ const AbsencesTab = ({ subjects, schoolAbsences, schoolSchedule, deleteAbsenceRe
 
             {/* Histórico (Apenas reais) */}
             <div>
-                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-4 mt-2">Histórico Registrado (Real)</h3>
+                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-4 mt-2">Histórico Registrado</h3>
                 <div className="space-y-3">
                     {schoolAbsences.length === 0 ? <p className="text-zinc-500 italic text-sm">Nenhum registro.</p> : 
                     [...schoolAbsences].sort((a,b) => new Date(b.date) - new Date(a.date)).map(record => (
@@ -611,7 +689,8 @@ export const SchoolView = () => {
     subjects, schoolWorks, addWork, updateWork, deleteWork, 
     schoolAbsences, addAbsenceRecord, deleteAbsenceRecord,
     schoolSchedule, updateSchoolSchedule,
-    schoolCalendar, schoolExceptions, toggleSchoolException 
+    schoolCalendar, schoolExceptions, toggleSchoolException,
+    schoolBimesters, updateSchoolBimester
   } = useContext(FocusContext);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -744,7 +823,7 @@ export const SchoolView = () => {
         
         <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setIsScheduleModalOpen(true)} className="py-2 text-xs">
-                <Settings size={16}/> Grade Horária
+                <Settings size={16}/> Configurações
             </Button>
             <div className="bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl flex gap-1">
                 {[
@@ -770,7 +849,7 @@ export const SchoolView = () => {
                   {gradeStats.length > 0 && (
                       <div className="mb-2">
                          <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-2">
-                            <TrendingUp size={14}/> Médias Atuais (Normalizadas 0-10)
+                            <TrendingUp size={14}/> Médias Atuais
                          </h3>
                          <div className="flex gap-3 overflow-x-auto pb-4 custom-scrollbar">
                             {gradeStats.map(stat => {
@@ -855,12 +934,11 @@ export const SchoolView = () => {
               </div>
           )}
 
-          {activeTab === 'absences' && <AbsencesTab subjects={subjects} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} deleteAbsenceRecord={deleteAbsenceRecord} setIsAddAbsenceModalOpen={setIsAddAbsenceModalOpen} schoolCalendar={schoolCalendar} schoolExceptions={schoolExceptions} simulatedAbsences={simulatedAbsences} />}
+          {activeTab === 'absences' && <AbsencesTab subjects={subjects} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} deleteAbsenceRecord={deleteAbsenceRecord} setIsAddAbsenceModalOpen={setIsAddAbsenceModalOpen} schoolCalendar={schoolCalendar} schoolExceptions={schoolExceptions} simulatedAbsences={simulatedAbsences} schoolBimesters={schoolBimesters} />}
           {activeTab === 'calendar' && <CalendarTab subjects={subjects} schoolWorks={schoolWorks} schoolAbsences={schoolAbsences} schoolSchedule={schoolSchedule} schoolExceptions={schoolExceptions} toggleSchoolException={toggleSchoolException} isSimulationMode={isSimulationMode} setIsSimulationMode={setIsSimulationMode} simulatedAbsences={simulatedAbsences} toggleSimulatedDay={toggleSimulatedDay} />}
       </div>
 
-      {/* MODAIS (MANTIDOS) */}
-      <ScheduleConfigModal isOpen={isScheduleModalOpen} onClose={() => setIsScheduleModalOpen(false)} subjects={subjects} schoolSchedule={schoolSchedule} updateSchoolSchedule={updateSchoolSchedule} />
+      <ScheduleConfigModal isOpen={isScheduleModalOpen} onClose={() => setIsScheduleModalOpen(false)} subjects={subjects} schoolSchedule={schoolSchedule} updateSchoolSchedule={updateSchoolSchedule} schoolBimesters={schoolBimesters} updateSchoolBimester={updateSchoolBimester} />
       
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Novo Trabalho">
         <form onSubmit={handleAddSubmit} className="space-y-4">
