@@ -28,7 +28,8 @@ export const LanguageProvider = ({ children }) => {
         words: words || [],
         grammar: grammar || '',
         skills: skills || [],
-        materials: materials || ''
+        materials: materials || '',
+        languageId: activeLanguage
     }]);
   };
 

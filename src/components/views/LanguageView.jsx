@@ -15,9 +15,17 @@ const useLanguageStats = (sessions) => {
     }, 0);
 
     const chartData = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
+    
+    // TAREFA 3: Encontrar o Domingo desta semana (Semana Estática Dom-Sáb)
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay()); 
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // Gerando de Domingo (0) a Sábado (6)
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
       const dateStr = d.toDateString();
       const daySessions = sessions.filter(s => new Date(s.date).toDateString() === dateStr);
       
@@ -52,7 +60,8 @@ export const LanguageView = () => {
   const { activeLanguage, setActiveLanguage, languageSessions, getTheme } = useContext(LanguageContext);
   const { setCurrentView } = useContext(FocusContext);
   
-  const stats = useLanguageStats(languageSessions);
+  // TAREFA 1: Filtrando apenas pelo idioma ativo (com fallback de retrocompatibilidade)
+  const stats = useLanguageStats(languageSessions.filter(s => !s.languageId || s.languageId === activeLanguage));
   const theme = getTheme();
 
   // Fase B: Onboarding

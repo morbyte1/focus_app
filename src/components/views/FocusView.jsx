@@ -77,6 +77,7 @@ export const FocusView = () => {
   const [taskT, setTaskT] = useState(""); 
   const [finMod, setFinMod] = useState(false); 
   const [manMod, setManMod] = useState(false);
+  const [langFinMod, setLangFinMod] = useState(false);
   const [mForm, setMForm] = useState({ t: "", n: "", s: "", q: "", e: "", topic: "" });
   const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); 
   const [manualDate, setManualDate] = useState('');
@@ -86,6 +87,29 @@ export const FocusView = () => {
   const [selectedTopic, setSelectedTopic] = useState("");
 
   const { langForm, setLangForm, handleKeyDownWord, removeWord, toggleSkill, resetLangForm } = useLanguageForm();
+
+const finishLanguageTimer = (e) => {
+      e.preventDefault();
+      const totalSeconds = accumulatedTime + elapsedTime;
+      const mins = Math.round(totalSeconds / 60); 
+      
+      if (mins > 0) {
+          // Lança nas estatísticas exclusivas da aba Idiomas
+          addLanguageSession(mins, langForm.words, langForm.grammarText, langForm.skills, langForm.materials);
+          // Lança no KPI global para contar progresso de horas/streak gerais
+          addSession(mins, langForm.materials || "Prática de Idioma", LANG_SUBJECT_ID, 0, 0, "Idioma");
+          triggerCelebration(); 
+      }
+      
+      // Rotina de Reset do Timer
+      setIsActive(false); 
+      setTimerMode('WORK'); 
+      setTimeLeft(timerType === 'FLOW' ? 0 : timerConfig.work * 60); 
+      setElapsedTime(0); 
+      setCycles(0);
+      setLangFinMod(false); 
+      resetLangForm(); 
+  };
 
   // Tópicos disponíveis (Filtragem original)
   const availableTopics = useMemo(() => {
@@ -275,7 +299,14 @@ export const FocusView = () => {
                 {isActive ? <Pause size={24} /> : <Play size={24} />} <span>{isActive ? 'Pausar' : 'Iniciar'}</span>
               </button>
               <button onClick={() => { setIsActive(false); setTimerMode('WORK'); setTimeLeft(timerType === 'FLOW' ? 0 : timerConfig.work * 60); setElapsedTime(0); setAccumulatedTime(0); setCycles(0); }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 transition-colors"><RotateCcw size={24} /></button>
-              <button onClick={() => { setIsActive(false); setFinMod(true); }} className="p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 transition-colors"><CheckCircle size={24} /></button>
+              <button onClick={() => { 
+    setIsActive(false); 
+    if (selectedSubjectId === LANG_SUBJECT_ID) {
+        setLangFinMod(true);
+    } else {
+        setFinMod(true); 
+    }
+}} className="p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 transition-colors"><CheckCircle size={24} /></button>
             </div>
           </div>
         </Card>
@@ -341,6 +372,46 @@ export const FocusView = () => {
                 <div><label className="text-xs text-zinc-500 font-bold uppercase">Erradas</label><input type="number" min="0" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 rounded-2xl p-3 outline-none focus:border-red-500" value={fForm.e} onChange={e => setFForm({ ...fForm, e: e.target.value })} /></div>
             </div>
             <div className="pt-2 flex gap-2"><Button type="button" variant="secondary" onClick={() => setFinMod(false)} className="flex-1">Cancelar</Button><Button type="submit" className="flex-[2]">Salvar Sessão</Button></div>
+        </form>
+      </Modal>
+
+{/* MODAL DE RESUMO (FIM DO TIMER REAL-TIME DE IDIOMAS) */}
+      <Modal isOpen={langFinMod} onClose={() => setLangFinMod(false)} title="Resumo: Prática de Idioma">
+        <form onSubmit={finishLanguageTimer} className="space-y-4">
+            <div className="space-y-4 animate-fadeIn mb-4">
+                <div>
+                    <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-1"><Type size={14}/> Palavras Aprendidas</label>
+                    <input type="text" placeholder="Pressione Enter..." className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 rounded-xl p-3 text-sm outline-none focus:border-primary" value={langForm.currentWord} onChange={e => setLangForm(p => ({ ...p, currentWord: e.target.value }))} onKeyDown={handleKeyDownWord}/>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        {langForm.words.map((w, idx) => (
+                            <span key={idx} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2">{w} <button type="button" onClick={() => removeWord(idx)}><X size={12}/></button></span>
+                        ))}
+                    </div>
+                </div>
+                <div className="bg-zinc-50 dark:bg-[#09090b] p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                    <div className="flex justify-between items-center cursor-pointer" onClick={() => setLangForm(p => ({...p, hasGrammar: !p.hasGrammar}))}>
+                        <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase">Aprendeu gramática?</span>
+                        <div className={`w-10 h-6 rounded-full px-1 flex items-center ${langForm.hasGrammar ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-700'}`}><div className={`w-4 h-4 bg-white rounded-full transition-transform ${langForm.hasGrammar ? 'translate-x-4' : ''}`}/></div>
+                    </div>
+                    {langForm.hasGrammar && <textarea className="w-full mt-3 bg-white dark:bg-black border border-zinc-200 rounded-xl p-3 text-sm outline-none focus:border-primary resize-none h-20 animate-fadeIn" placeholder="Regras..." value={langForm.grammarText} onChange={e => setLangForm(p => ({ ...p, grammarText: e.target.value }))}/>}
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">Habilidades</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[ { id: 'escuta', l: 'Escuta', i: Ear }, { id: 'leitura', l: 'Leitura', i: Eye }, { id: 'fala', l: 'Fala', i: Mic }, { id: 'escrita', l: 'Escrita', i: BookOpen } ].map(s => (
+                            <button type="button" key={s.id} onClick={() => toggleSkill(s.id)} className={`flex items-center gap-2 p-3 rounded-xl border text-sm font-bold transition-all ${langForm.skills.includes(s.id) ? 'bg-primary/10 text-primary border-primary/30' : 'bg-zinc-50 dark:bg-[#09090b] text-zinc-500 border-zinc-200 dark:border-zinc-800'}`}><s.i size={16}/> {s.l}</button>
+                        ))}
+                    </div>
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-zinc-500 uppercase">Materiais</label>
+                    <input type="text" placeholder="Duolingo, Livros..." className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 rounded-xl p-3 text-sm outline-none focus:border-primary" value={langForm.materials} onChange={e => setLangForm(p => ({ ...p, materials: e.target.value }))}/>
+                </div>
+            </div>
+            <div className="pt-2 flex gap-2">
+                <Button type="button" variant="secondary" onClick={() => setLangFinMod(false)} className="flex-1">Cancelar</Button>
+                <Button type="submit" className="flex-[2]">Salvar Sessão</Button>
+            </div>
         </form>
       </Modal>
 
