@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { Target, Plus, ChevronRight, AlertTriangle, ListFilter, ChevronDown, Trash2, CheckSquare, X, Settings, ArrowLeft, Percent, GraduationCap, GripVertical, Edit2, Check, Clock } from 'lucide-react';
+import { Target, Plus, ChevronRight, AlertTriangle, ListFilter, ChevronDown, Trash2, CheckSquare, X, Settings, ArrowLeft, Percent, GraduationCap, GripVertical, Edit2, Check, Clock, BookOpen } from 'lucide-react';
 import { FocusContext, formatMinutesToReadableTime } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -16,11 +16,10 @@ export const GoalsView = () => {
   const [viewSub, setViewSub] = useState(null); 
   const [col, setCol] = useState({}); 
   const [modal, setModal] = useState(false); 
-  const [f, setF] = useState({ name: "", goal: 60, color: "#8b5cf6", isSchool: false }); 
+  const [f, setF] = useState({ name: "", goal: 60, color: "#8b5cf6", isSchool: false, isCursinho: false }); 
   const [edit, setEdit] = useState({ id: null, val: "" }); 
   const [newTheme, setNewTheme] = useState("");
 
-  // Estados para edição in-line
   const [editingTheme, setEditingTheme] = useState({ id: null, text: "" });
   const [editingItem, setEditingItem] = useState({ id: null, text: "" });
   
@@ -41,7 +40,7 @@ export const GoalsView = () => {
       return formatMinutesToReadableTime(totalMins);
   };
 
-const getTopicStats = (subjectId, topicText) => {
+  const getTopicStats = (subjectId, topicText) => {
       return sessions
           .filter(s => s.subjectId === subjectId && s.topic === topicText)
           .reduce((acc, s) => ({
@@ -74,7 +73,6 @@ const getTopicStats = (subjectId, topicText) => {
     if (type === 'THEME') {
       reorderThemes(viewSub, source.index, destination.index);
     } else if (type === 'ITEM') {
-      // droppableId para itens é o ID do tema
       reorderThemeItems(Number(source.droppableId), source.index, destination.index);
     }
   };
@@ -94,203 +92,177 @@ const getTopicStats = (subjectId, topicText) => {
           <div>
             <span className="text-xs font-bold uppercase px-2 py-1 rounded text-white mb-2 inline-block" style={{ backgroundColor: s.color }}>{s.name}</span>
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Conteúdo</h1>
-            <div className="flex items-center gap-4 mt-2">
-              <div className="flex items-center gap-2 text-zinc-500 text-sm"><CheckSquare size={16} className="text-primary" /><span>{comp} / {tot} Tópicos</span></div>
-              <div className="flex items-center gap-2 text-zinc-500 text-sm"><Percent size={16} className="text-primary" /><span>{tot ? Math.round((comp / tot) * 100) : 0}% Concluído</span></div>
-            </div>
-          </div>
-          {!s.isSchool && <div className="text-right text-2xl font-bold text-zinc-900 dark:text-white">{s.goalHours}h <span className="text-xs text-zinc-500 block font-normal">Meta Semanal</span></div>}
-          {s.isSchool && <div className="text-right text-zinc-500"><div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full"><GraduationCap size={16}/> <span className="text-xs font-bold uppercase">Escolar</span></div></div>}
-        </header>
-        
-        <div className="bg-zinc-100 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex gap-4 items-center">
-          <div className="flex-1">
-            <label className="text-xs text-zinc-500 uppercase font-bold mb-1">Novo Tema</label>
-            <input className="w-full bg-white dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-2xl p-2 text-zinc-900 dark:text-white" value={newTheme} onChange={e => setNewTheme(e.target.value)} onKeyDown={e => e.key === 'Enter' && newTheme && addTheme(viewSub, newTheme) && setNewTheme("")} />
-          </div>
-          <Button onClick={() => newTheme && addTheme(viewSub, newTheme) && setNewTheme("")}>Adicionar</Button>
-        </div>
-        
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="themes-list" type="THEME">
-            {(provided) => (
-              <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-6">
-                {sTh.map((t, index) => { 
-                  const p = t.items.length ? Math.round((t.items.filter(i => i.completed).length / t.items.length) * 100) : 0; 
-                  return (
-                    <Draggable key={t.id.toString()} draggableId={`theme-${t.id}`} index={index}>
-                      {(providedTheme) => (
-                        <Card 
-                          innerRef={providedTheme.innerRef}
-                          {...providedTheme.draggableProps}
-                          className="relative group transition-all duration-300"
-                        >
-                          <div className="flex justify-between items-start mb-4">
-                            <div className="flex gap-3 w-full items-center">
-                              {/* Drag Handle */}
-                              <div {...providedTheme.dragHandleProps} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-grab active:cursor-grabbing">
-                                <GripVertical size={20} />
-                              </div>
-                              <button onClick={() => setCol({ ...col, [t.id]: !col[t.id] })} className="text-zinc-500">{col[t.id] ? <ChevronRight /> : <ChevronDown />}</button>
-                              
-                              <div className="flex-1 flex items-center gap-2">
-                                {editingTheme.id === t.id ? (
-                                  <div className="flex items-center gap-2 w-full max-w-sm">
-                                    <input 
-                                      autoFocus
-                                      className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1 text-zinc-900 dark:text-white" 
-                                      value={editingTheme.text} 
-                                      onChange={e => setEditingTheme({ ...editingTheme, text: e.target.value })}
-                                      onKeyDown={e => {
-                                        if (e.key === 'Enter') {
-                                          renameTheme(t.id, editingTheme.text);
-                                          setEditingTheme({ id: null, text: "" });
-                                        }
-                                      }}
-                                    />
-                                    <button onClick={() => { renameTheme(t.id, editingTheme.text); setEditingTheme({ id: null, text: "" }); }} className="text-green-500"><Check size={18} /></button>
-                                    <button onClick={() => setEditingTheme({ id: null, text: "" })} className="text-zinc-400"><X size={18} /></button>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <h3 onClick={() => setCol({ ...col, [t.id]: !col[t.id] })} className="text-xl font-bold text-zinc-900 dark:text-white cursor-pointer select-none">{t.title}</h3>
-                                    <button onClick={() => setEditingTheme({ id: t.id, text: t.title })} className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-opacity"><Edit2 size={14} /></button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-4">
-                              <div className="hidden sm:flex items-center gap-2 mt-1">
-                                <div className="h-1.5 w-24 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-primary" style={{ width: `${p}%` }} /></div>
-                                <span className="text-xs text-zinc-500">{p}%</span>
-                              </div>
-                              <button onClick={() => deleteTheme(t.id)} className="text-zinc-400 hover:text-red-500"><Trash2 size={16} /></button>
-                            </div>
-                          </div>
-
-                          {!col[t.id] && (
-                            <Droppable droppableId={t.id.toString()} type="ITEM">
-                              {(providedItemDrop) => (
-                                <div {...providedItemDrop.droppableProps} ref={providedItemDrop.innerRef} className="space-y-2 mb-4 animate-fadeIn pl-8">
-                                  {t.items.map((i, itemIdx) => (
-                                    <Draggable key={i.id.toString()} draggableId={`item-${i.id}`} index={itemIdx}>
-                                      {(providedItemDrag) => (
-                                        <div 
-                                          ref={providedItemDrag.innerRef}
-                                          {...providedItemDrag.draggableProps}
-                                          className="flex gap-3 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 rounded-2xl group/item items-center"
-                                        >
-                                          <div {...providedItemDrag.dragHandleProps} className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 cursor-grab active:cursor-grabbing">
-                                            <GripVertical size={14} />
-                                          </div>
-                                          <button onClick={() => toggleThemeItem(t.id, i.id)} className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${i.completed ? 'bg-primary border-primary' : 'border-zinc-400 dark:border-zinc-600'}`}>{i.completed && <CheckSquare size={14} className="text-white" />}</button>
-                                          
-                                          {editingItem.id === i.id ? (
-                                            <div className="flex-1 flex items-center gap-2">
-                                              <input 
-                                                autoFocus
-                                                className="flex-1 bg-white dark:bg-black border border-zinc-300 dark:border-zinc-600 rounded px-2 py-0.5 text-sm text-zinc-900 dark:text-white"
-                                                value={editingItem.text}
-                                                onChange={e => setEditingItem({ ...editingItem, text: e.target.value })}
-                                                onKeyDown={e => {
-                                                  if (e.key === 'Enter') {
-                                                    renameThemeItem(t.id, i.id, editingItem.text);
-                                                    setEditingItem({ id: null, text: "" });
-                                                  }
-                                                }}
-                                              />
-                                              <button onClick={() => { renameThemeItem(t.id, i.id, editingItem.text); setEditingItem({ id: null, text: "" }); }} className="text-green-500"><Check size={16} /></button>
-                                              <button onClick={() => setEditingItem({ id: null, text: "" })} className="text-zinc-400"><X size={16} /></button>
-                                            </div>
-                                          ) : (
-                                            <div className="flex-1 flex items-center gap-2">
-                                              <span className={`text-sm ${i.completed ? 'text-zinc-500 line-through' : 'text-zinc-700 dark:text-zinc-200'}`}>{i.text}</span>
-                                              <button onClick={() => setEditingItem({ id: i.id, text: i.text })} className="opacity-0 group-hover/item:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-opacity"><Edit2 size={12} /></button>
-                                            </div>
-                                          )}
-
-{/* Adicione isso logo acima do render das badges para preparar os dados */}
-{(() => {
-  const stats = getTopicStats(s.id, i.text);
-  const currentImp = i.importance || 'low'; // Garantia para itens antigos
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {/* Badge de Importância (Clicável) */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation(); // Essencial para não bugar o Drag and Drop
-          const nextImp = currentImp === 'low' ? 'medium' : currentImp === 'medium' ? 'high' : 'low';
-          updateThemeItemImportance(t.id, i.id, nextImp);
-        }}
-        className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer hover:opacity-80 ${getImportanceStyle(currentImp)}`}
-        title="Alternar Importância"
-      >
-        <ListFilter size={10} />
-        {getImportanceLabel(currentImp)}
-      </button>
-
-      {/* Badge de Tempo Estudado (Mantida e melhorada) */}
-      <div className="flex items-center gap-1 bg-zinc-200/50 dark:bg-zinc-800/50 px-2 py-1 rounded-md text-zinc-500 dark:text-zinc-400 text-xs font-medium whitespace-nowrap">
-        <Clock size={12} />
-        {getTopicTime(s.id, i.text)}
-      </div>
-
-      {/* Badge de Questões (Renderiza apenas se > 0) */}
-      {stats.questions > 0 && (
-        <div className="flex items-center gap-1 bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap" title="Questões Feitas">
-          <CheckSquare size={12} />
-          {stats.questions}
-        </div>
-      )}
-
-      {/* Badge de Erros (Renderiza apenas se > 0) */}
-      {stats.errors > 0 && (
-        <div className="flex items-center gap-1 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap" title="Erros Cometidos">
-          <AlertTriangle size={12} />
-          {stats.errors}
-        </div>
-      )}
-    </div>
-  );
-})()}
-
-                                          <button onClick={() => deleteThemeItem(t.id, i.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-400 hover:text-red-500 shrink-0"><X size={14} /></button>
-                                        </div>
-                                      )}
-                                    </Draggable>
-                                  ))}
-                                  {providedItemDrop.placeholder}
-                                  
-                                  <form onSubmit={e => { e.preventDefault(); if (e.target.item.value) { addThemeItem(t.id, e.target.item.value); e.target.reset(); } }} className="flex gap-2 mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800/50">
-                                    <input name="item" className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl px-3 py-1.5 text-sm text-zinc-900 dark:text-white" placeholder="Tópico (Ctrl+V para lista)..." onPaste={e => { const d = e.clipboardData.getData('text'); if (d.includes('\n')) { e.preventDefault(); d.split('\n').map(l => l.trim()).filter(l => l).forEach(l => addThemeItem(t.id, l)); } }} />
-                                    <button type="submit" className="p-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-primary text-zinc-900 dark:text-white hover:text-white rounded"><Plus size={16} /></button>
-                                  </form>
-                                </div>
-                              )}
-                            </Droppable>
-                          )}
-                        </Card>
-                      )}
-                    </Draggable>
-                  ) 
-                })}
-                {provided.placeholder}
+            {!s.isCursinho && (
+              <div className="flex items-center gap-4 mt-2">
+                <div className="flex items-center gap-2 text-zinc-500 text-sm"><CheckSquare size={16} className="text-primary" /><span>{comp} / {tot} Tópicos</span></div>
+                <div className="flex items-center gap-2 text-zinc-500 text-sm"><Percent size={16} className="text-primary" /><span>{tot ? Math.round((comp / tot) * 100) : 0}% Concluído</span></div>
               </div>
             )}
-          </Droppable>
-        </DragDropContext>
+          </div>
+          {!s.isSchool && !s.isCursinho && <div className="text-right text-2xl font-bold text-zinc-900 dark:text-white">{s.goalHours}h <span className="text-xs text-zinc-500 block font-normal">Meta Semanal</span></div>}
+          {s.isSchool && <div className="text-right text-zinc-500"><div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full"><GraduationCap size={16}/> <span className="text-xs font-bold uppercase">Escolar</span></div></div>}
+          {s.isCursinho && <div className="text-right text-zinc-500"><div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full text-blue-500"><BookOpen size={16}/> <span className="text-xs font-bold uppercase">Cursinho</span></div></div>}
+        </header>
+        
+        {s.isCursinho ? (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><Clock size={20}/> Histórico de Sessões</h3>
+            {sessions.filter(session => session.subjectId === s.id).length === 0 ? (
+              <p className="text-zinc-500 text-center py-10">Nenhuma sessão registrada no cursinho ainda.</p>
+            ) : (
+              sessions.filter(session => session.subjectId === s.id)
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .map(session => (
+                  <Card key={session.id} className="bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+                    <div className="flex flex-col sm:flex-row justify-between gap-4">
+                      <div>
+                        <h4 className="font-bold text-zinc-900 dark:text-white capitalize">
+                          {new Date(session.date).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </h4>
+                        <div className="flex items-center gap-4 text-sm mt-2">
+                          <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300"><Clock size={14}/> {session.minutes} min</span>
+                          {session.questions > 0 && <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400"><CheckSquare size={14} /> {session.questions}</span>}
+                          {session.errors > 0 && <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400"><AlertTriangle size={14} /> {session.errors}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {session.notes && (
+                      <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 w-full">
+                        <p className="text-xs font-bold text-zinc-500 uppercase mb-1">Diário / Anotações</p>
+                        <div className="text-sm text-zinc-600 dark:text-zinc-300 italic whitespace-pre-wrap leading-relaxed">"{session.notes}"</div>
+                      </div>
+                    )}
+                  </Card>
+                ))
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="bg-zinc-100 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex gap-4 items-center">
+              <div className="flex-1">
+                <label className="text-xs text-zinc-500 uppercase font-bold mb-1">Novo Tema</label>
+                <input className="w-full bg-white dark:bg-black border border-zinc-300 dark:border-zinc-700 rounded-2xl p-2 text-zinc-900 dark:text-white" value={newTheme} onChange={e => setNewTheme(e.target.value)} onKeyDown={e => e.key === 'Enter' && newTheme && addTheme(viewSub, newTheme) && setNewTheme("")} />
+              </div>
+              <Button onClick={() => newTheme && addTheme(viewSub, newTheme) && setNewTheme("")}>Adicionar</Button>
+            </div>
+            
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="themes-list" type="THEME">
+                {(provided) => (
+                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-6">
+                    {sTh.map((t, index) => { 
+                      const p = t.items.length ? Math.round((t.items.filter(i => i.completed).length / t.items.length) * 100) : 0; 
+                      return (
+                        <Draggable key={t.id.toString()} draggableId={`theme-${t.id}`} index={index}>
+                          {(providedTheme) => (
+                            <Card 
+                              innerRef={providedTheme.innerRef}
+                              {...providedTheme.draggableProps}
+                              className="relative group transition-all duration-300"
+                            >
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="flex gap-3 w-full items-center">
+                                  <div {...providedTheme.dragHandleProps} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 cursor-grab active:cursor-grabbing">
+                                    <GripVertical size={20} />
+                                  </div>
+                                  <button onClick={() => setCol({ ...col, [t.id]: !col[t.id] })} className="text-zinc-500">{col[t.id] ? <ChevronRight /> : <ChevronDown />}</button>
+                                  
+                                  <div className="flex-1 flex items-center gap-2">
+                                    {editingTheme.id === t.id ? (
+                                      <div className="flex items-center gap-2 w-full max-w-sm">
+                                        <input autoFocus className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1 text-zinc-900 dark:text-white" value={editingTheme.text} onChange={e => setEditingTheme({ ...editingTheme, text: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') { renameTheme(t.id, editingTheme.text); setEditingTheme({ id: null, text: "" }); } }} />
+                                        <button onClick={() => { renameTheme(t.id, editingTheme.text); setEditingTheme({ id: null, text: "" }); }} className="text-green-500"><Check size={18} /></button>
+                                        <button onClick={() => setEditingTheme({ id: null, text: "" })} className="text-zinc-400"><X size={18} /></button>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <h3 onClick={() => setCol({ ...col, [t.id]: !col[t.id] })} className="text-xl font-bold text-zinc-900 dark:text-white cursor-pointer select-none">{t.title}</h3>
+                                        <button onClick={() => setEditingTheme({ id: t.id, text: t.title })} className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-opacity"><Edit2 size={14} /></button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <div className="hidden sm:flex items-center gap-2 mt-1">
+                                    <div className="h-1.5 w-24 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className="h-full bg-primary" style={{ width: `${p}%` }} /></div>
+                                    <span className="text-xs text-zinc-500">{p}%</span>
+                                  </div>
+                                  <button onClick={() => deleteTheme(t.id)} className="text-zinc-400 hover:text-red-500"><Trash2 size={16} /></button>
+                                </div>
+                              </div>
+
+                              {!col[t.id] && (
+                                <Droppable droppableId={t.id.toString()} type="ITEM">
+                                  {(providedItemDrop) => (
+                                    <div {...providedItemDrop.droppableProps} ref={providedItemDrop.innerRef} className="space-y-2 mb-4 animate-fadeIn pl-8">
+                                      {t.items.map((i, itemIdx) => (
+                                        <Draggable key={i.id.toString()} draggableId={`item-${i.id}`} index={itemIdx}>
+                                          {(providedItemDrag) => (
+                                            <div ref={providedItemDrag.innerRef} {...providedItemDrag.draggableProps} className="flex gap-3 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 rounded-2xl group/item items-center">
+                                              <div {...providedItemDrag.dragHandleProps} className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 cursor-grab active:cursor-grabbing"><GripVertical size={14} /></div>
+                                              <button onClick={() => toggleThemeItem(t.id, i.id)} className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${i.completed ? 'bg-primary border-primary' : 'border-zinc-400 dark:border-zinc-600'}`}>{i.completed && <CheckSquare size={14} className="text-white" />}</button>
+                                              
+                                              {editingItem.id === i.id ? (
+                                                <div className="flex-1 flex items-center gap-2">
+                                                  <input autoFocus className="flex-1 bg-white dark:bg-black border border-zinc-300 dark:border-zinc-600 rounded px-2 py-0.5 text-sm text-zinc-900 dark:text-white" value={editingItem.text} onChange={e => setEditingItem({ ...editingItem, text: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') { renameThemeItem(t.id, i.id, editingItem.text); setEditingItem({ id: null, text: "" }); } }} />
+                                                  <button onClick={() => { renameThemeItem(t.id, i.id, editingItem.text); setEditingItem({ id: null, text: "" }); }} className="text-green-500"><Check size={16} /></button>
+                                                  <button onClick={() => setEditingItem({ id: null, text: "" })} className="text-zinc-400"><X size={16} /></button>
+                                                </div>
+                                              ) : (
+                                                <div className="flex-1 flex items-center gap-2">
+                                                  <span className={`text-sm ${i.completed ? 'text-zinc-500 line-through' : 'text-zinc-700 dark:text-zinc-200'}`}>{i.text}</span>
+                                                  <button onClick={() => setEditingItem({ id: i.id, text: i.text })} className="opacity-0 group-hover/item:opacity-100 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-opacity"><Edit2 size={12} /></button>
+                                                </div>
+                                              )}
+
+                                              {(() => {
+                                                const stats = getTopicStats(s.id, i.text);
+                                                const currentImp = i.importance || 'low';
+                                                return (
+                                                  <div className="flex flex-wrap items-center gap-2">
+                                                    <button onClick={(e) => { e.stopPropagation(); const nextImp = currentImp === 'low' ? 'medium' : currentImp === 'medium' ? 'high' : 'low'; updateThemeItemImportance(t.id, i.id, nextImp); }} className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-colors cursor-pointer hover:opacity-80 ${getImportanceStyle(currentImp)}`} title="Alternar Importância">
+                                                      <ListFilter size={10} />
+                                                      {getImportanceLabel(currentImp)}
+                                                    </button>
+                                                    <div className="flex items-center gap-1 bg-zinc-200/50 dark:bg-zinc-800/50 px-2 py-1 rounded-md text-zinc-500 dark:text-zinc-400 text-xs font-medium whitespace-nowrap"><Clock size={12} />{getTopicTime(s.id, i.text)}</div>
+                                                    {stats.questions > 0 && <div className="flex items-center gap-1 bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap" title="Questões Feitas"><CheckSquare size={12} />{stats.questions}</div>}
+                                                    {stats.errors > 0 && <div className="flex items-center gap-1 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap" title="Erros Cometidos"><AlertTriangle size={12} />{stats.errors}</div>}
+                                                  </div>
+                                                );
+                                              })()}
+                                              <button onClick={() => deleteThemeItem(t.id, i.id)} className="opacity-0 group-hover/item:opacity-100 text-zinc-400 hover:text-red-500 shrink-0"><X size={14} /></button>
+                                            </div>
+                                          )}
+                                        </Draggable>
+                                      ))}
+                                      {providedItemDrop.placeholder}
+                                      <form onSubmit={e => { e.preventDefault(); if (e.target.item.value) { addThemeItem(t.id, e.target.item.value); e.target.reset(); } }} className="flex gap-2 mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800/50">
+                                        <input name="item" className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl px-3 py-1.5 text-sm text-zinc-900 dark:text-white" placeholder="Tópico (Ctrl+V para lista)..." onPaste={e => { const d = e.clipboardData.getData('text'); if (d.includes('\n')) { e.preventDefault(); d.split('\n').map(l => l.trim()).filter(l => l).forEach(l => addThemeItem(t.id, l)); } }} />
+                                        <button type="submit" className="p-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-primary text-zinc-900 dark:text-white hover:text-white rounded"><Plus size={16} /></button>
+                                      </form>
+                                    </div>
+                                  )}
+                                </Droppable>
+                              )}
+                            </Card>
+                          )}
+                        </Draggable>
+                      ) 
+                    })}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+          </>
+        )}
       </div>
     );
   }
 
-  // ... (O restante do componente principal renderizando as matérias mantém-se inalterado)
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-       {/* Conteúdo original da View principal mantido... */}
-       {/* Cole aqui o restante original do arquivo a partir de `header className="flex justify-between items-center mb-4"` */}
-       <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Matérias e Metas</h1><Button onClick={() => setModal(true)}><Plus size={18} /> Nova</Button></header>
+      <header className="flex justify-between items-center mb-4"><h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Matérias e Metas</h1><Button onClick={() => setModal(true)}><Plus size={18} /> Nova</Button></header>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {subjects.map(s => { 
           const { h, p } = getProg(s.id, s.goalHours); 
@@ -298,23 +270,24 @@ const getTopicStats = (subjectId, topicText) => {
             <Card key={s.id} className="relative overflow-hidden group cursor-pointer hover:border-primary/50">
               <div onClick={() => setViewSub(s.id)}>
                 <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: s.color }} />
-                <div className="mb-4"><h3 className="text-xl font-bold text-zinc-900 dark:text-white">{s.name}</h3>
-                {s.isSchool ? (
+                <div className="mb-4">
+                  <h3 className="text-xl font-bold text-zinc-900 dark:text-white">{s.name}</h3>
+                  {s.isSchool ? (
                     <p className="text-xs font-bold text-zinc-400 uppercase mt-1 flex items-center gap-1"><GraduationCap size={14}/> Apenas Escolar</p>
-                ) : (
+                  ) : s.isCursinho ? (
+                    <p className="text-xs font-bold text-blue-400 uppercase mt-1 flex items-center gap-1"><BookOpen size={14}/> Cursinho (S/ Meta)</p>
+                  ) : (
                     edit.id !== s.id && <p className="text-sm text-zinc-500">Meta: {s.goalHours}h</p>
-                )}
+                  )}
                 </div>
-                
-                {!s.isSchool && edit.id !== s.id && (<><div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-zinc-900 dark:text-white">{h}h</span><span className="text-sm font-medium" style={{ color: s.color }}>{p}%</span></div><div className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{ width: `${p}%`, backgroundColor: s.color }} /></div></>)}
+                {!s.isSchool && !s.isCursinho && edit.id !== s.id && (<><div className="mb-2 flex justify-between items-end"><span className="text-3xl font-bold text-zinc-900 dark:text-white">{h}h</span><span className="text-sm font-medium" style={{ color: s.color }}>{p}%</span></div><div className="w-full h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{ width: `${p}%`, backgroundColor: s.color }} /></div></>)}
               </div>
-              
               <div className="absolute top-4 right-4 flex gap-2">
                 {edit.id === s.id ? (
                   <div className="flex gap-2 bg-black/80 p-1 rounded-2xl"><input type="number" className="w-16 bg-black border border-zinc-600 rounded-2xl px-1 text-sm text-white" value={edit.val} onChange={e => setEdit({ ...edit, val: e.target.value })} autoFocus /><button onClick={() => { updateSubject(s.id, edit.val / 60); setEdit({ id: null, val: "" }) }} className="text-green-400 text-xs font-bold">OK</button></div>
                 ) : (
                   <>
-                    {!s.isSchool && <button onClick={e => { e.stopPropagation(); setEdit({ id: s.id, val: Math.round(s.goalHours * 60) }) }} className="p-2 rounded-2xl bg-zinc-100 dark:bg-[#18181B]"><Settings size={16} className="text-zinc-400" /></button>}
+                    {!s.isSchool && !s.isCursinho && <button onClick={e => { e.stopPropagation(); setEdit({ id: s.id, val: Math.round(s.goalHours * 60) }) }} className="p-2 rounded-2xl bg-zinc-100 dark:bg-[#18181B]"><Settings size={16} className="text-zinc-400" /></button>}
                     <button onClick={e => { e.stopPropagation(); deleteSubject(s.id) }} className="p-2 rounded-2xl bg-zinc-100 dark:bg-[#18181B]"><Trash2 size={16} className="text-zinc-400 hover:text-red-500" /></button>
                   </>
                 )}
@@ -324,18 +297,24 @@ const getTopicStats = (subjectId, topicText) => {
         })}
       </div>
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Nova Matéria">
-        <form onSubmit={e => { e.preventDefault(); addSubject(f.name, f.color, f.isSchool ? 0 : f.goal / 60, f.isSchool); setModal(false); setF({ name: "", goal: 60, color: "#8b5cf6", isSchool: false }); }} className="space-y-4">
+        <form onSubmit={e => { e.preventDefault(); addSubject(f.name, f.color, (f.isSchool || f.isCursinho) ? 0 : f.goal / 60, f.isSchool, f.isCursinho); setModal(false); setF({ name: "", goal: 60, color: "#8b5cf6", isSchool: false, isCursinho: false }); }} className="space-y-4">
           <div><label className="text-sm text-zinc-500">Nome</label><input required className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2 text-zinc-900 dark:text-white" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} /></div>
           
-          <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800">
-             <input type="checkbox" id="isSchool" className="w-5 h-5 rounded text-primary focus:ring-primary" checked={f.isSchool} onChange={e => setF({...f, isSchool: e.target.checked})} />
-             <label htmlFor="isSchool" className="text-sm font-bold text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">Apenas Escolar (Não conta nas estatísticas)</label>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800">
+              <input type="checkbox" id="isSchool" className="w-5 h-5 rounded text-primary focus:ring-primary" checked={f.isSchool} onChange={e => setF({...f, isSchool: e.target.checked, isCursinho: e.target.checked ? false : f.isCursinho})} />
+              <label htmlFor="isSchool" className="text-sm font-bold text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">Apenas Escolar (Não conta nas estatísticas)</label>
+            </div>
+            <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800">
+              <input type="checkbox" id="isCursinho" className="w-5 h-5 rounded text-primary focus:ring-primary" checked={f.isCursinho} onChange={e => setF({...f, isCursinho: e.target.checked, isSchool: e.target.checked ? false : f.isSchool})} />
+              <label htmlFor="isCursinho" className="text-sm font-bold text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">Cursinho Preparatório (Sem meta, sem tópicos)</label>
+            </div>
           </div>
 
-          {!f.isSchool && (
+          {(!f.isSchool && !f.isCursinho) && (
             <div className="animate-fadeIn">
-                <label className="text-sm text-zinc-500">Meta Semanal (minutos)</label>
-                <input required type="number" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2 text-zinc-900 dark:text-white" value={f.goal} onChange={e => setF({ ...f, goal: e.target.value })} />
+              <label className="text-sm text-zinc-500">Meta Semanal (minutos)</label>
+              <input required type="number" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-2xl p-2 text-zinc-900 dark:text-white" value={f.goal} onChange={e => setF({ ...f, goal: e.target.value })} />
             </div>
           )}
 

@@ -231,8 +231,11 @@ export const FocusProvider = ({ children }) => {
     setAccumulatedTime(0);
   };
 
-  const methods = {
-    addSubject: (n, c, g, isSchool = false) => setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool }]),
+const methods = {
+    // ATUALIZAÇÃO: Adicionado o parâmetro isCursinho
+    addSubject: (n, c, g, isSchool = false, isCursinho = false) => 
+      setSubjects(p => [...p, { id: Date.now(), name: n, color: c, goalHours: Math.max(0, Number(g)), isSchool, isCursinho }]),
+    
     updateSubject: (id, g) => setSubjects(p => p.map(s => s.id === id ? { ...s, goalHours: Math.max(0, Number(g)) } : s)),
     deleteSubject: (id) => { 
         if (subjects.length > 1 && window.confirm("Excluir?")) { 
