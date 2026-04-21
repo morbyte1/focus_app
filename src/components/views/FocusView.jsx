@@ -64,7 +64,7 @@ export const FocusView = () => {
   const LANG_SUBJECT_ID = 999999;
   const languagePseudoSubject = useMemo(() => langTheme ? { 
       id: LANG_SUBJECT_ID, 
-      name: `Idiomas — ${langTheme.flag} ${langTheme.name}`, 
+      name: `Idiomas - ${langTheme.name}`, 
       color: langTheme.colors.primary, 
       isLanguage: true 
   } : null, [langTheme]);
