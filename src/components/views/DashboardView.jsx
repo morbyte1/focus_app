@@ -1,8 +1,9 @@
+// src/views/DashboardView.jsx
 import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { 
-  Zap, Clock, Flame, Flag, BarChart2, 
+  Zap, Clock, Flag, BarChart2, 
   Infinity as InfinityIcon, ArrowRight, CheckCircle, 
-  Trophy, Calendar, Sparkles, ChevronRight, BookOpen 
+  Sparkles, ChevronRight, BookOpen 
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from 'recharts';
 import { FocusContext, getXP, getRank, RANKS } from '../../context/FocusContext';
@@ -26,10 +27,8 @@ export const DashboardView = () => {
     kpiData, weeklyChartData, setCurrentView, 
     countdown, setCountdown, userLevel, userName,
     tasks, subjects, sessions, 
-    studySchedule // --- ADICIONADO AQUI: Consumindo a fonte única de verdade ---
+    studySchedule 
   } = useContext(FocusContext);
-
-  // Removido o useState que lia 'my_study_schedule' do localStorage diretamente.
 
   const [examCycle] = useState(() => {
     try { return JSON.parse(localStorage.getItem('my_exam_cycle')) || [] }
@@ -81,25 +80,6 @@ export const DashboardView = () => {
   const upcomingTasks = useMemo(() => {
     return tasks.filter(t => !t.completed).slice(0, 3);
   }, [tasks]);
-
-  // --- ROADMAP CORRIGIDO (35 DIAS / BLOCOS MENORES - APENAS DIAS ÚTEIS) ---
-  const heatMapData = useMemo(() => { 
-      const d = []; 
-      const end = new Date(); 
-      const start = new Date();
-      start.setDate(end.getDate() - 34); // Pega exatamente 35 dias (5 semanas)
-
-      for (let c = new Date(start); c <= end; c.setDate(c.getDate() + 1)) {
-          // Filtra: se não for Domingo (0) nem Sábado (6)
-          if (c.getDay() !== 0 && c.getDay() !== 6) {
-              d.push({ 
-                date: new Date(c), 
-                hasStudy: sessions.some(s => new Date(s.date).toDateString() === c.toDateString()) 
-              }); 
-          }
-      }
-      return d; 
-  }, [sessions]);
 
   // --- LÓGICA DO CRONOGRAMA (PUXANDO DO CALENDAR) ---
   const todaysPlan = useMemo(() => {
@@ -208,7 +188,7 @@ export const DashboardView = () => {
         </div>
 
         {/* 3. KPI CARDS */}
-        <div className="md:col-span-4">
+        <div className="md:col-span-6">
           <Card className="h-full flex flex-col justify-center bg-zinc-50 dark:bg-zinc-900/50 hover:bg-white dark:hover:bg-zinc-900 transition-colors border-l-4 border-l-primary">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-primary/10 rounded-2xl text-primary"><Clock size={24} /></div>
@@ -216,15 +196,7 @@ export const DashboardView = () => {
             </div>
           </Card>
         </div>
-        <div className="md:col-span-4">
-           <Card className="h-full flex flex-col justify-center bg-zinc-50 dark:bg-zinc-900/50 hover:bg-white dark:hover:bg-zinc-900 transition-colors border-l-4 border-l-orange-500">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-orange-500/10 rounded-2xl text-orange-500"><Flame size={24} className={kpiData.streak > 0 ? "animate-pulse" : ""} /></div>
-              <div><p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Sequência</p><p className="text-3xl font-black text-zinc-900 dark:text-white">{kpiData.streak} <span className="text-sm font-medium text-zinc-500">dias</span></p></div>
-            </div>
-          </Card>
-        </div>
-        <div className="md:col-span-4">
+        <div className="md:col-span-6">
            <Card className="h-full flex flex-col justify-center bg-zinc-50 dark:bg-zinc-900/50 hover:bg-white dark:hover:bg-zinc-900 transition-colors border-l-4 border-l-blue-500">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500"><InfinityIcon size={24} /></div>
@@ -270,34 +242,7 @@ export const DashboardView = () => {
             )}
           </Card>
 
-          {/* ROADMAP DE CONSISTÊNCIA - CORRIGIDO (Menor e mais limpo) */}
-          <Card className="flex-1 min-h-[160px]">
-             <div className="flex items-center justify-between mb-4">
-               <h3 className="font-bold text-zinc-900 dark:text-white flex items-center gap-2 text-sm uppercase tracking-wide">
-                 <Calendar size={16} className="text-green-500" /> Consistência
-               </h3>
-               <span className="text-[10px] font-bold text-zinc-400">35 Dias</span>
-             </div>
-             {/* Grid compacta com quadradinhos menores (w-3 h-3) e gap menor (gap-1) */}
-             <div className="grid grid-cols-7 gap-1.5 justify-center">
-                {heatMapData.map((d, i) => (
-                    <div 
-                      key={i} 
-                      title={`${d.date.toLocaleDateString()}: ${d.hasStudy ? 'Estudou' : 'Sem registro'}`} 
-                      className={`
-                        w-3 h-3 rounded-sm transition-all 
-                        ${d.hasStudy 
-                            ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' 
-                            : 'bg-zinc-100 dark:bg-zinc-800'
-                        }
-                      `}
-                    />
-                ))}
-             </div>
-             <p className="text-[10px] text-zinc-400 mt-4 text-center">Mantenha os quadrados verdes!</p>
-          </Card>
-
-          {/* NOVA SEÇÃO: CRONOGRAMA DE HOJE (Puxando do Calendário) */}
+          {/* CRONOGRAMA DE HOJE */}
           <Card className="flex-1">
              <h3 className="font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
                <BookOpen size={16} className="text-blue-500" /> Cronograma de Hoje

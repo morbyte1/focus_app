@@ -1,17 +1,14 @@
+// src/views/StatsView.jsx
 import React, { useContext, useMemo } from 'react';
-// ADICIONADO: Import do ícone 'Flame'
-import { BarChart2, Trophy, Clock, CheckSquare, Activity, CheckCircle, AlertTriangle, Calendar, Layers, Infinity as InfinityIcon, Flame } from 'lucide-react';
+import { BarChart2, Trophy, Clock, CheckSquare, Activity, CheckCircle, AlertTriangle, Layers, Infinity as InfinityIcon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
 
 export const StatsView = () => {
-  // ADICIONADO: 'yearlyData' e 'longestStreak' extraídos de advancedStats
   const { sessions, subjects, mistakes, themes, advancedStats, exams } = useContext(FocusContext);
-  const { monthlyData, yearlyData, longestStreak } = advancedStats;
+  const { monthlyData, yearlyData } = advancedStats;
   
-  // ... (código existente de totQ, totE, perfData, misReasons, compTopics, wrnQ, heat, hi permanece igual) ...
-
   const activeSubjects = subjects.filter(s => !s.isSchool);
   const totQ = sessions.reduce((a, s) => a + (s.questions || 0), 0);
   const totE = sessions.reduce((a, s) => a + (s.errors || 0), 0);
@@ -25,33 +22,37 @@ export const StatsView = () => {
   
   const misReasons = Object.entries(mistakes.reduce((a, m) => ({ ...a, [m.reason]: (a[m.reason] || 0) + 1 }), {})).map(([k, v]) => ({ name: k, quantidade: v }));
   
-  const compTopics = activeSubjects.map(s => ({ name: s.name, value: themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0), color: s.color })).filter(d => d.value > 0);
+  const compTopics = activeSubjects.map(s => {
+      const value = s.isCursinho 
+        ? sessions.filter(x => x.subjectId === s.id).length 
+        : themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0);
+      
+      return { name: s.name, value, color: s.color };
+  }).filter(d => d.value > 0);
   
   const wrnQ = activeSubjects.map(s => ({ name: s.name, value: sessions.filter(x => x.subjectId === s.id).reduce((a, c) => a + (c.errors || 0), 0), color: s.color })).filter(d => d.value > 0);
   
-  const heat = useMemo(() => { 
-      const d = []; 
-      const end = new Date(); 
-      for (let c = new Date(end.getFullYear(), 0, 1); c <= end; c.setDate(c.getDate() + 1)) {
-          if (c.getDay() !== 0 && c.getDay() !== 6) {
-              d.push({ 
-                date: new Date(c), 
-                hasStudy: sessions.some(s => new Date(s.date).toDateString() === c.toDateString()) 
-              }); 
-          }
-      }
-      return d; 
-  }, [sessions]);
-  
   const hi = useMemo(() => {
     if (!activeSubjects.length) return null;
-    const agg = activeSubjects.map(s => { const ss = sessions.filter(x => x.subjectId === s.id); return { name: s.name, min: ss.reduce((a, c) => a + c.minutes, 0), q: ss.reduce((a, c) => a + (c.questions || 0), 0), e: ss.reduce((a, c) => a + (c.errors || 0), 0), t: themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0) }; });
+    const agg = activeSubjects.map(s => { 
+        const ss = sessions.filter(x => x.subjectId === s.id); 
+        const t = s.isCursinho 
+            ? ss.length 
+            : themes.filter(t => t.subjectId === s.id).reduce((a, t) => a + t.items.filter(i => i.completed).length, 0);
+
+        return { 
+            name: s.name, 
+            min: ss.reduce((a, c) => a + c.minutes, 0), 
+            q: ss.reduce((a, c) => a + (c.questions || 0), 0), 
+            e: ss.reduce((a, c) => a + (c.errors || 0), 0), 
+            t 
+        }; 
+    });
     const sMin = [...agg].sort((a, b) => b.min - a.min), sTop = [...agg].sort((a, b) => b.t - a.t), sQ = [...agg].sort((a, b) => b.q - a.q);
     return { ms: sMin[0], ls: sMin[sMin.length - 1], mt: sTop[0], lt: sTop[sTop.length - 1], mq: sQ[0], lq: sQ[sQ.length - 1], mc: [...agg].sort((a, b) => (b.q - b.e) - (a.q - a.e))[0], me: [...agg].sort((a, b) => b.e - a.e)[0] };
   }, [activeSubjects, sessions, themes]);
 
   const examStats = useMemo(() => {
-    // ... (Lógica existente de examStats permanece igual) ...
     if (!exams || exams.length === 0) return null;
     const subjectGrades = {};
     let totalMinutes = 0;
@@ -95,21 +96,11 @@ export const StatsView = () => {
   const displayCards = useMemo(() => {
       const cards = [];
       
-      // NOVO CARD: Maior Sequência
-      cards.push({
-         l: 'Maior Sequência', 
-         v: `${longestStreak} dias`, 
-         s: 'Recorde Histórico', 
-         i: Flame, 
-         c: 'orange-600'
-      });
-
       if (hi) {
           cards.push(
             { l: 'Mais Estudada', v: hi.ms.name, s: `${Math.round(hi.ms.min / 60)}h`, i: Clock, c: '#1100ab' },
             { l: 'Menos Estudada', v: hi.ls.name, s: `${Math.round(hi.ls.min / 60)}h`, i: Clock, c: 'zinc-500' },
             { l: 'Mais Tópicos', v: hi.mt.name, s: `${hi.mt.t} feitos`, i: CheckSquare, c: 'emerald-500' },
-            // ... (restante dos cards originais mantidos)
             { l: 'Menos Tópicos', v: hi.lt.name, s: `${hi.lt.t} feitos`, i: CheckSquare, c: 'zinc-500' },
             { l: 'Mais Questões', v: hi.mq.name, s: `${hi.mq.q} total`, i: Activity, c: 'blue-500' },
             { l: 'Menos Questões', v: hi.lq.name, s: `${hi.lq.q} total`, i: Activity, c: 'zinc-500' },
@@ -129,15 +120,15 @@ export const StatsView = () => {
           }
       }
       return cards;
-  }, [hi, examStats, longestStreak]);
+  }, [hi, examStats]);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white mb-6">Central de Dados</h1>
       
-      {/* KPI Cards Superiores (Mantidos) */}
+      {/* KPI Cards Superiores */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[{ l: 'Tempo Total', v: `${(sessions.reduce((a, s) => a + s.minutes, 0) / 60).toFixed(1)}h`, c: '#1100ab' }, { l: 'Questões', v: totQ, c: 'blue-500' }, { l: 'Precisão Global', v: `${totQ > 0 ? Math.round(((totQ - totE) / totQ) * 100) : 0}%`, c: 'emerald-500' }, { l: 'Tópicos Feitos', v: themes.reduce((a, t) => a + t.items.filter(i => i.completed).length, 0), c: 'yellow-500' }].map((x, i) => (
+        {[{ l: 'Tempo Total', v: `${(sessions.reduce((a, s) => a + s.minutes, 0) / 60).toFixed(1)}h`, c: '#1100ab' }, { l: 'Questões', v: totQ, c: 'blue-500' }, { l: 'Precisão Global', v: `${totQ > 0 ? Math.round(((totQ - totE) / totQ) * 100) : 0}%`, c: 'emerald-500' }, { l: 'Tópicos Feitos', v: compTopics.reduce((a, t) => a + t.value, 0), c: 'yellow-500' }].map((x, i) => (
           <Card key={i} className={`flex flex-col gap-1 border-l-4 border-l-[${x.c}]`}>
             <span className="text-xs text-zinc-500 uppercase font-bold">{x.l}</span>
             <span className="text-2xl font-bold text-zinc-900 dark:text-white">{x.v}</span>
@@ -177,7 +168,7 @@ export const StatsView = () => {
           </div>
         </Card>
         <Card className="min-h-[300px]">
-          <h3 className="text-zinc-900 dark:text-white font-semibold mb-6 flex items-center gap-2"><Calendar size={18} className="text-blue-500" /> Atividade Mensal</h3>
+          <h3 className="text-zinc-900 dark:text-white font-semibold mb-6 flex items-center gap-2"><Clock size={18} className="text-blue-500" /> Atividade Mensal</h3>
           <div className="h-[250px] w-full">
             <ResponsiveContainer>
               <BarChart data={monthlyData}>
@@ -191,7 +182,7 @@ export const StatsView = () => {
         </Card>
       </div>
 
-      {/* NOVA GRID PARA EVOLUÇÃO ANUAL */}
+      {/* EVOLUÇÃO ANUAL */}
       <div className="grid grid-cols-1 gap-6">
         <Card className="min-h-[300px]">
           <h3 className="text-zinc-900 dark:text-white font-semibold mb-6 flex items-center gap-2">
@@ -210,7 +201,6 @@ export const StatsView = () => {
         </Card>
       </div>
       
-      {/* Restante dos gráficos (Pizza, Erros, Heatmap) permanecem iguais */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="min-h-[300px]">
           <h3 className="text-zinc-900 dark:text-white font-semibold mb-6 flex items-center gap-2"><Layers size={18} className="text-purple-500" /> Tópicos Finalizados</h3>
@@ -262,16 +252,6 @@ export const StatsView = () => {
           </div>
         </Card>
       </div>
-      
-      <Card>
-        <h3 className="text-zinc-900 dark:text-white font-semibold mb-4 flex items-center gap-2"><InfinityIcon size={18} className="text-yellow-500" /> Roadmap de Consistência</h3>
-        <div className="flex flex-wrap gap-1">
-          {heat.map((d, i) => (
-            <div key={i} title={`${d.date.toLocaleDateString()}: ${d.hasStudy ? 'Estudou' : 'Sem registro'}`} className={`w-3 h-3 rounded-sm transition-all hover:scale-125 ${d.hasStudy ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-zinc-300 dark:bg-zinc-800'}`}></div>
-          ))}
-        </div>
-        <p className="text-xs text-zinc-500 mt-3">Cada quadrado representa um dia deste ano.</p>
-      </Card>
     </div>
   );
 };
