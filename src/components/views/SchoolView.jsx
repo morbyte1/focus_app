@@ -686,13 +686,15 @@ const CalendarTab = ({ subjects, schoolWorks, schoolAbsences, schoolSchedule, sc
 
 export const SchoolView = () => {
   const { 
-    subjects, schoolWorks, addWork, updateWork, deleteWork, 
+    subjects: allSubjects, schoolWorks, addWork, updateWork, deleteWork, 
     schoolAbsences, addAbsenceRecord, deleteAbsenceRecord,
     schoolSchedule, updateSchoolSchedule,
     schoolCalendar, schoolExceptions, toggleSchoolException,
     schoolBimesters, updateSchoolBimester
   } = useContext(FocusContext);
   
+  const subjects = useMemo(() => allSubjects.filter(subject => !subject.isCursinho), [allSubjects]);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedWork, setSelectedWork] = useState(null); 

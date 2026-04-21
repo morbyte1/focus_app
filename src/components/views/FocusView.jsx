@@ -26,8 +26,9 @@ export const FocusView = () => {
   const [taskT, setTaskT] = useState(""); 
   const [finMod, setFinMod] = useState(false); 
   const [manMod, setManMod] = useState(false);
-  const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); 
   const [mForm, setMForm] = useState({ t: "", n: "", s: "", q: "", e: "", topic: "" });
+  const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); 
+  const [manualDate, setManualDate] = useState('');
 
   const [switchModal, setSwitchModal] = useState(false);
   const [pendingMode, setPendingMode] = useState(null);
@@ -152,9 +153,10 @@ export const FocusView = () => {
       if (!mForm.t || !mForm.s) return alert("Preencha tempo e matéria."); 
       const tValid = Math.max(1, parseInt(mForm.t) || 0);
 
-      addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e, mForm.topic); 
+      addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e, mForm.topic, isManSubCursinho && manualDate ? manualDate : null); 
 
       setMForm({ t: "", n: "", s: "", q: "", e: "", topic: "" }); 
+      setManualDate('');
       setManMod(false); 
       triggerCelebration();
   };
@@ -454,6 +456,13 @@ export const FocusView = () => {
                       ))}
                   </select>
               </div>
+            )}
+
+            {isManSubCursinho && (
+                <div className="space-y-2 animate-fadeIn">
+                    <label className="text-xs font-bold text-zinc-500 uppercase">Data do Estudo</label>
+                    <input type="date" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 text-zinc-900 dark:text-white outline-none focus:border-primary" value={manualDate} onChange={e => setManualDate(e.target.value)} />
+                </div>
             )}
 
             <div className="space-y-2">

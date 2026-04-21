@@ -275,7 +275,7 @@ export const GoalsView = () => {
                   {s.isSchool ? (
                     <p className="text-xs font-bold text-zinc-400 uppercase mt-1 flex items-center gap-1"><GraduationCap size={14}/> Apenas Escolar</p>
                   ) : s.isCursinho ? (
-                    <p className="text-xs font-bold text-blue-400 uppercase mt-1 flex items-center gap-1"><BookOpen size={14}/> Cursinho (S/ Meta)</p>
+                    <p className="text-xs font-bold text-blue-400 uppercase mt-1 flex items-center gap-1"><BookOpen size={14}/> Cursinho Preparatório</p>
                   ) : (
                     edit.id !== s.id && <p className="text-sm text-zinc-500">Meta: {s.goalHours}h</p>
                   )}
