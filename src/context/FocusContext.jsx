@@ -123,7 +123,11 @@ export const FocusProvider = ({ children }) => {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
-  useEffect(() => { if (subjects.length > 0 && !subjects.find(s => s.id === selectedSubjectId)) setSelectedSubjectId(subjects[0].id); }, [subjects, selectedSubjectId]);
+  useEffect(() => { 
+  if (subjects.length > 0 && selectedSubjectId !== 999999 && !subjects.find(s => s.id === selectedSubjectId)) {
+    setSelectedSubjectId(subjects[0].id); 
+  }
+}, [subjects, selectedSubjectId]);
 
   useEffect(() => { 
     if (themes.length > 0) {

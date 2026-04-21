@@ -73,14 +73,17 @@ export const HistoryView = () => {
                 {isOpen && (
                   <div className="mt-6 space-y-3 animate-fadeIn border-t border-zinc-200 dark:border-zinc-800/50 pt-4">
                     {items.map(s => {
-                      const subject = subjects.find(sub => sub.id === s.subjectId);
+                      
+                      // ✅ CORREÇÃO BUG 2: Fallback limpo para a pseudo-matéria de Idiomas
+                      const subject = s.subjectId === 999999 
+                        ? { name: 'Prática de Idioma', color: '#3b82f6' } 
+                        : subjects.find(sub => sub.id === s.subjectId);
+
                       return (
                         <div key={s.id} className="bg-zinc-50 dark:bg-zinc-900/40 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                               <div className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]" style={{ color: subject?.color || '#555', backgroundColor: subject?.color || '#555' }}></div>
-                              
-                              {/* ATUALIZAÇÃO AQUI: Mostra Tópico se existir */}
                               <span className="text-zinc-700 dark:text-zinc-200 font-medium">
                                 {subject?.name || 'Matéria Excluída'}
                                 {s.topic && ` - ${s.topic}`}

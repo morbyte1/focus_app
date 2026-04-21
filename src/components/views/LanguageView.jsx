@@ -60,8 +60,8 @@ export const LanguageView = () => {
   const { activeLanguage, setActiveLanguage, languageSessions, getTheme } = useContext(LanguageContext);
   const { setCurrentView } = useContext(FocusContext);
   
-  // TAREFA 1: Filtrando apenas pelo idioma ativo (com fallback de retrocompatibilidade)
-  const stats = useLanguageStats(languageSessions.filter(s => !s.languageId || s.languageId === activeLanguage));
+  // ✅ CORREÇÃO BUG 3: Filtro estrito removendo o "!s.languageId"
+  const stats = useLanguageStats(languageSessions.filter(s => s.languageId === activeLanguage));
   const theme = getTheme();
 
   // Fase B: Onboarding
