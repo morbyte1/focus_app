@@ -1,5 +1,6 @@
 import React from 'react';
 import { FocusProvider } from './context/FocusContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { AppLayout } from './layout/AppLayout';
 
 // Estilos globais (Scrollbar, animações)
@@ -16,8 +17,10 @@ const GlobalStyles = () => (
 
 const App = () => (
   <FocusProvider>
-    <GlobalStyles />
-    <AppLayout />
+    <LanguageProvider>
+      <GlobalStyles />
+      <AppLayout />
+    </LanguageProvider>
   </FocusProvider>
 );
 

@@ -1,6 +1,5 @@
 import React, { useContext, useState } from 'react';
-// 1. Importar Trophy e ClipboardList (Novo ícone para provas)
-import { LayoutDashboard, Zap, Target, BarChart2, History, Settings, Menu, X, Compass, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap, Trophy, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Zap, Globe, Target, BarChart2, History, Settings, Menu, X, Compass, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap, Trophy, ClipboardList } from 'lucide-react';
 import { FocusContext, getXP, getRank } from '../context/FocusContext';
 
 import { DashboardView } from '../components/views/DashboardView';
@@ -13,10 +12,8 @@ import { SettingsView } from '../components/views/SettingsView';
 import { CalendarTab } from '../components/CalendarTab'; 
 import { SchoolView } from '../components/views/SchoolView'; 
 import { AchievementsView } from '../components/views/AchievementsView';
-// 2. Importar ExamsView
+import { LanguageView } from '../components/views/LanguageView';
 import { ExamsView } from '../components/views/ExamsView';
-
-// 3. NOVOS IMPORTS DE UI PARA O AVISO VISUAL
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 
@@ -40,6 +37,7 @@ export const AppLayout = () => {
     { id: 'focus', l: 'Focar', i: Zap }, 
     { id: 'exams', l: 'Provas', i: ClipboardList },
     { id: 'achievements', l: 'Conquistas', i: Trophy },
+    { id: 'languages', l: 'Idiomas', i: Globe },
     { id: 'mistakes', l: 'Erros', i: AlertTriangle }, 
     { id: 'calendar', l: 'Calendário', i: Calendar }, 
     { id: 'goals', l: 'Matérias', i: Target }, 
@@ -142,6 +140,7 @@ export const AppLayout = () => {
                 {currentView === 'history' && <HistoryView />} 
                 {currentView === 'settings' && <SettingsView />}
                 {currentView === 'school' && <SchoolView />}
+                {currentView === 'languages' && <LanguageView />}
                 {currentView === 'achievements' && <AchievementsView />}
                 {currentView === 'exams' && <ExamsView />}
             </div>
