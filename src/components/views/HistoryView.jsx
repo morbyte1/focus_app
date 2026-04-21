@@ -1,10 +1,12 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { History, Clock, CheckSquare, AlertTriangle, Trash2, ChevronDown } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
+import { LanguageContext } from '../../context/LanguageContext';
 import { Card } from '../ui/Card';
 
 export const HistoryView = () => {
   const { sessions, subjects, deleteDayHistory } = useContext(FocusContext);
+  const { languageSessions, deleteLanguageSessionsByDate } = useContext(LanguageContext);
   const [openDates, setOpenDates] = useState({});
 
   const history = useMemo(() => {
@@ -61,7 +63,15 @@ export const HistoryView = () => {
                   </div>
                   
                   <div className="flex items-center gap-4">
-                    <button onClick={(e) => { e.stopPropagation(); deleteDayHistory(date); }} className="p-2 hover:bg-red-500/10 rounded-full text-zinc-400 hover:text-red-500 transition-colors" title="Apagar dia inteiro">
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        deleteDayHistory(date); 
+                        deleteLanguageSessionsByDate(date); 
+                      }} 
+                      className="p-2 hover:bg-red-500/10 rounded-full text-zinc-400 hover:text-red-500 transition-colors" 
+                      title="Apagar dia inteiro"
+                    >
                       <Trash2 size={16} />
                     </button>
                     <div className={`p-2 rounded-full bg-zinc-100 dark:bg-zinc-900 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
@@ -74,9 +84,20 @@ export const HistoryView = () => {
                   <div className="mt-6 space-y-3 animate-fadeIn border-t border-zinc-200 dark:border-zinc-800/50 pt-4">
                     {items.map(s => {
                       
-                      // ✅ CORREÇÃO BUG 2: Fallback limpo para a pseudo-matéria de Idiomas
+                      // Lógica de Cruzamento: Se for matéria virtual (999999), identifica o idioma real.
                       const subject = s.subjectId === 999999 
-                        ? { name: 'Prática de Idioma', color: '#3b82f6' } 
+                        ? (() => {
+                            const langSession = languageSessions.find(ls => 
+                              new Date(ls.date).toDateString() === new Date(s.date).toDateString() &&
+                              ls.minutes === s.minutes
+                            );
+                            if (langSession) {
+                                if (langSession.languageId === 'EN') return { name: 'Idiomas - Inglês', color: '#1e3a8a' };
+                                if (langSession.languageId === 'ES') return { name: 'Idiomas - Espanhol', color: '#ca8a04' };
+                                if (langSession.languageId === 'DE') return { name: 'Idiomas - Alemão', color: '#991b1b' };
+                            }
+                            return { name: 'Prática de Idioma', color: '#3b82f6' };
+                          })()
                         : subjects.find(sub => sub.id === s.subjectId);
 
                       return (

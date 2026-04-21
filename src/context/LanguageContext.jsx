@@ -10,6 +10,7 @@ function useStickyState(defaultValue, key) {
       return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
     } catch (error) { return defaultValue; }
   });
+
   useEffect(() => {
     window.localStorage.setItem(key, JSON.stringify(value));
   }, [key, value]);
@@ -52,11 +53,23 @@ export const LanguageProvider = ({ children }) => {
     return null;
   };
 
+  // --- NOVAS FUNÇÕES: GERENCIAMENTO DE ESTADO ---
+  const deleteLanguageSessionsByDate = (dateStr) => {
+    setLanguageSessions(prev => prev.filter(s => new Date(s.date).toDateString() !== dateStr));
+  };
+
+  const resetLanguageData = () => {
+    setLanguageSessions([]);
+    setActiveLanguage(null);
+  };
+
   return (
     <LanguageContext.Provider value={{
       activeLanguage, setActiveLanguage,
       languageSessions, addLanguageSession,
-      getTheme
+      getTheme,
+      deleteLanguageSessionsByDate,
+      resetLanguageData
     }}>
       {children}
     </LanguageContext.Provider>

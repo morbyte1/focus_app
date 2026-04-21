@@ -2,8 +2,10 @@ import React, { useContext } from 'react';
 import { Settings, Sun, Moon, Monitor, HardDrive, Download, Upload, Trash2, Crown, RotateCcw, User, Calendar } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { Card } from '../ui/Card';
+import { LanguageContext } from '../../context/LanguageContext';
 
 export const SettingsView = () => {
+  const { resetLanguageData } = useContext(LanguageContext);
   const { resetAllData, resetXPOnly, theme, setTheme, userName, setUserName, schoolCalendar, updateSchoolCalendar } = useContext(FocusContext);
   
   // Função de Exportar Dados (Completa)
@@ -131,18 +133,27 @@ export const SettingsView = () => {
            </div>
         </Card>
         
-        {/* CARTÃO DADOS */}
+{/* CARTÃO DADOS */}
         <Card>
           <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><HardDrive size={20} className="text-primary" /> Dados do Sistema</h3>
-           <div className="space-y-4">
+          <div className="space-y-4">
             <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
               <div className="flex gap-3">
                 <button onClick={hExp} className="flex-1 py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"><Download size={16} /> Exportar</button>
                 <label className="flex-1 py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer transition-colors"><Upload size={16} /> Importar<input type="file" className="hidden" onChange={hImp} /></label>
               </div>
             </div>
-            <div className="bg-red-500/5 p-4 rounded-2xl border border-red-500/10">
-              <button onClick={resetAllData} className="w-full py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl text-sm flex items-center justify-center gap-2 transition-all"><Trash2 size={16} /> Resetar TUDO (Fábrica)</button>
+            {/* NOVO BLOCO DE RESETS COM O BOTÃO DE IDIOMAS */}
+            <div className="bg-red-500/5 p-4 rounded-2xl border border-red-500/10 space-y-3">
+              <button onClick={resetAllData} className="w-full py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
+                <Trash2 size={16} /> Resetar TUDO (Fábrica)
+              </button>
+              <button 
+                onClick={() => { if(window.confirm("Apagar todo o progresso e estatísticas de idiomas?")) resetLanguageData(); }} 
+                className="w-full py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl text-sm flex items-center justify-center gap-2 transition-all"
+              >
+                <Trash2 size={16} /> Apagar Dados de Idiomas
+              </button>
             </div>
           </div>
         </Card>
