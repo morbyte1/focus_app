@@ -125,7 +125,7 @@ export const HistoryView = () => {
                                     if (!ls) return null;
                                     
                                     return (
-                                        <div className="mt-2 ml-6 flex flex-col gap-2">
+                                        <div className="mt-2 ml-6 flex flex-wrap items-center gap-3">
                                             {ls.materials && Array.isArray(ls.materials) && ls.materials.length > 0 ? (
                                                 <div className="flex flex-wrap gap-2">
                                                     {ls.materials.map((m, idx) => (
@@ -141,11 +141,17 @@ export const HistoryView = () => {
                                                     </span>
                                                 )
                                             )}
+                                            
                                             {ls.skills && ls.skills.length > 0 && (
-                                                <div className="flex gap-2">
+                                                <div className="flex flex-wrap gap-2">
                                                     {ls.skills.map(skill => {
                                                         const IconComp = SKILL_ICONS[skill];
-                                                        return IconComp ? <IconComp key={skill} size={14} className="text-zinc-400" title={skill} /> : null;
+                                                        const skillName = skill.charAt(0).toUpperCase() + skill.slice(1);
+                                                        return IconComp ? (
+                                                            <span key={skill} className="flex items-center gap-1.5 text-xs bg-zinc-100 dark:bg-zinc-800/50 px-2 py-1 rounded-md text-zinc-600 dark:text-zinc-300 font-bold border border-zinc-200 dark:border-zinc-700">
+                                                                <IconComp size={16} /> {skillName}
+                                                            </span>
+                                                        ) : null;
                                                     })}
                                                 </div>
                                             )}
