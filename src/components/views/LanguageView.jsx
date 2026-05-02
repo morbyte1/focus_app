@@ -2,7 +2,7 @@ import React, { useContext, useMemo, useState } from 'react';
 import { 
   Globe, ArrowRight, BarChart2, PieChart as PieChartIcon, 
   Calendar, Clock, Edit2, RefreshCw, Ear, Eye, Mic, BookOpen, 
-  Plus, Trash2, ExternalLink 
+  Plus, Trash2, ExternalLink, Flame
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { LanguageContext } from '../../context/LanguageContext';
@@ -31,8 +31,40 @@ const useLanguageStats = (sessions) => {
 
     let totalMinutes = 0;
     const skillsCount = {};
+    const materialsCount = {};
     const chartData = [];
-  
+
+    // Cálculo de Streaks (Sequências)
+    const dates = [...new Set(sessions.map(s => new Date(s.date).setHours(0,0,0,0)))].sort((a, b) => a - b);
+    let maxStreak = 0;
+    let currentStreak = 0;
+    let tempStreak = 0;
+    let prevDate = null;
+    const today = new Date().setHours(0,0,0,0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    dates.forEach(time => {
+        if (!prevDate) {
+            tempStreak = 1;
+        } else {
+            const diffDays = Math.round((time - prevDate) / (1000 * 60 * 60 * 24));
+            if (diffDays === 1) {
+                tempStreak++;
+            } else if (diffDays > 1) {
+                tempStreak = 1;
+            }
+        }
+        if (tempStreak > maxStreak) maxStreak = tempStreak;
+        prevDate = time;
+    });
+
+    if (prevDate === today || prevDate === yesterday.getTime()) {
+        currentStreak = tempStreak;
+    } else {
+        currentStreak = 0;
+    }
+
     // Configurando janela de 7 dias (Domingo a Sábado atual)
     const now = new Date();
     const startOfWeek = new Date(now);
@@ -44,7 +76,7 @@ const useLanguageStats = (sessions) => {
       d.setDate(startOfWeek.getDate() + i);
       const dateStr = d.toDateString();
       const daySessions = sessions.filter(s => new Date(s.date).toDateString() === dateStr);
- 
+
       chartData.push({
         name: d.toLocaleDateString('pt-BR', { weekday: 'short' }),
         minutes: daySessions.reduce((a, b) => a + b.minutes, 0),
@@ -54,10 +86,25 @@ const useLanguageStats = (sessions) => {
 
     sessions.forEach(s => {
         totalMinutes += s.minutes;
+        
+        // Contagem Habilidades
         if (s.skills && Array.isArray(s.skills)) {
             s.skills.forEach(skill => {
                 skillsCount[skill] = (skillsCount[skill] || 0) + 1;
             });
+        }
+
+        // Contagem Tempo por Material
+        if (s.materials) {
+            if (Array.isArray(s.materials)) {
+                s.materials.forEach(m => {
+                    const mName = m.name;
+                    const mMins = Number(m.minutes) || s.minutes;
+                    if (mName) materialsCount[mName] = (materialsCount[mName] || 0) + mMins;
+                });
+            } else if (typeof s.materials === 'string') {
+                materialsCount[s.materials] = (materialsCount[s.materials] || 0) + s.minutes;
+            }
         }
     });
 
@@ -76,7 +123,9 @@ const useLanguageStats = (sessions) => {
     }
 
     const skillsData = Object.entries(skillsCount).map(([name, value]) => ({ name, value }));
-    return { totalWords, totalGrammarRules, chartData, formattedTime, skillsData };
+    const materialsData = Object.entries(materialsCount).map(([name, value]) => ({ name, value }));
+
+    return { totalWords, totalGrammarRules, chartData, formattedTime, skillsData, materialsData, currentStreak, maxStreak };
   }, [sessions]);
 };
 
@@ -106,6 +155,17 @@ const CustomPieTooltip = ({ active, payload }) => {
     return null;
 };
 
+const CustomMaterialTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-[#09090b] border border-zinc-800 p-3 rounded-xl shadow-xl text-white">
+          <p className="text-xs text-zinc-300 font-bold capitalize">{payload[0].name}: <span className="text-white font-black">{payload[0].value} minutos</span></p>
+        </div>
+      );
+    }
+    return null;
+};
+
 // --- VIEW PRINCIPAL ---
 export const LanguageView = () => {
   const { 
@@ -114,8 +174,8 @@ export const LanguageView = () => {
     languageSchedule, updateLanguageScheduleDay,
     languageMaterials, addLanguageMaterial, deleteLanguageMaterial
   } = useContext(LanguageContext);
-  
   const { setCurrentView } = useContext(FocusContext);
+  
   const stats = useLanguageStats(languageSessions.filter(s => s.languageId === activeLanguage));
   const theme = getTheme();
 
@@ -125,7 +185,7 @@ export const LanguageView = () => {
   // Estados - Cronograma
   const [editingDay, setEditingDay] = useState(null);
   const [scheduleForm, setScheduleForm] = useState({ material: [], minMinutes: 30, skills: [], notes: '' });
-  
+
   // Estados - Materiais
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [materialForm, setMaterialForm] = useState({ name: '', level: 'A1', link: '', instructions: '' });
@@ -135,6 +195,26 @@ export const LanguageView = () => {
 
   // Filtros Globais Baseados no Idioma
   const currentMaterials = languageMaterials.filter(m => m.languageId === activeLanguage);
+  
+  // Roadmap Setup
+  const roadmapDays = useMemo(() => {
+    const year = new Date().getFullYear();
+    const start = new Date(year, 0, 1);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const days = [];
+    let curr = new Date(start);
+    while (curr <= today) {
+        days.push(new Date(curr));
+        curr.setDate(curr.getDate() + 1);
+    }
+    return days;
+  }, []);
+  
+  const sessionDatesSet = useMemo(() => new Set(
+    languageSessions.filter(s => s.languageId === activeLanguage).map(s => new Date(s.date).setHours(0,0,0,0))
+  ), [languageSessions, activeLanguage]);
 
   // --- Handlers: Cronograma ---
   const openEditSchedule = (day) => {
@@ -143,7 +223,7 @@ export const LanguageView = () => {
      const parsedMaterial = Array.isArray(day.material) 
         ? day.material.map(m => typeof m === 'string' ? { name: m, minutes: '' } : m) 
         : (day.material ? [{ name: day.material, minutes: '' }] : []);
-     
+
      setScheduleForm({ 
          material: parsedMaterial, 
          minMinutes: day.minMinutes || 30, 
@@ -227,13 +307,26 @@ export const LanguageView = () => {
   // SUB-RENDERERS para Abas
   const renderDashboard = () => (
     <div className={`p-6 md:p-10 rounded-[2rem] border transition-colors animate-fadeIn ${theme.classes.bg} ${theme.classes.border}`}>
+      
       <div className="mb-10 text-center md:text-left">
           <h2 className={`text-2xl md:text-4xl font-extrabold ${theme.classes.text} leading-tight`}>
               Você já estudou <span className="text-5xl mx-1 underline decoration-4 underline-offset-4 opacity-90">{stats.formattedTime}</span> e aprendeu <span className="text-5xl mx-1 underline decoration-4 underline-offset-4 opacity-90">{stats.totalWords}</span> palavras em {theme.name}!
           </h2>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="flex flex-wrap gap-4 mb-8">
+          <div className={`p-5 rounded-3xl flex items-center gap-5 bg-white dark:bg-[#000000] border border-zinc-200 dark:border-zinc-800/50 shadow-sm min-w-[250px]`}>
+             <div className={`p-4 rounded-2xl bg-orange-500/10 text-orange-500`}><Flame size={28} /></div>
+             <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Sequência Atual</p>
+                <p className="text-3xl font-black text-zinc-900 dark:text-white leading-none mb-1">{stats.currentStreak} dias</p>
+                <p className="text-xs text-zinc-400 font-medium">Maior sequência: {stats.maxStreak} dias</p>
+             </div>
+          </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Estatísticas Semanais */}
           <div className="bg-white dark:bg-[#000000] rounded-3xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-800/50">
               <div className="flex items-center gap-2 mb-6">
                   <BarChart2 className="text-zinc-400" size={20} />
@@ -250,6 +343,7 @@ export const LanguageView = () => {
               </div>
           </div>
 
+          {/* Foco de Habilidades */}
           <div className="bg-white dark:bg-[#000000] rounded-3xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-800/50">
               <div className="flex items-center gap-2 mb-6">
                   <PieChartIcon className="text-zinc-400" size={20} />
@@ -274,6 +368,32 @@ export const LanguageView = () => {
                   )}
               </div>
           </div>
+
+          {/* Tempo por Material */}
+          <div className="bg-white dark:bg-[#000000] rounded-3xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-800/50">
+              <div className="flex items-center gap-2 mb-6">
+                  <BookOpen className="text-zinc-400" size={20} />
+                  <h3 className="font-bold text-zinc-900 dark:text-white">Tempo por Material</h3>
+              </div>
+              <div className="h-64 w-full flex justify-center items-center">
+                  {stats.materialsData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie data={stats.materialsData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>
+                                {stats.materialsData.map((entry, index) => {
+                                    const colors = [theme.colors.secondary, theme.colors.primary, theme.colors.tertiary, theme.colors.quaternary];
+                                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                                })}
+                            </Pie>
+                            <Tooltip content={<CustomMaterialTooltip />} cursor={{ fill: 'transparent' }} />
+                            <Legend wrapperStyle={{ fontSize: '12px' }}/>
+                        </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="text-zinc-500 text-sm text-center italic">Registre sessões com materiais<br/>para gerar o gráfico.</p>
+                  )}
+              </div>
+          </div>
       </div>
 
       <div className="mb-10">
@@ -283,7 +403,7 @@ export const LanguageView = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {languageSchedule.map(day => (
-                  <div key={day.dayIndex} className={`bg-white dark:bg-[#000000] p-5 rounded-2xl border transition-all ${todayIndex === day.dayIndex ? theme.classes.highlight : 'border-zinc-200 dark:border-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700'} shadow-sm relative group`}>
+                  <div key={day.dayIndex} className={`bg-white dark:bg-[#000000] p-5 rounded-2xl border transition-all h-fit flex flex-col ${todayIndex === day.dayIndex ? theme.classes.highlight : 'border-zinc-200 dark:border-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700'} shadow-sm relative group`}>
                       
                       <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                           <button onClick={() => openEditSchedule(day)} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
@@ -309,12 +429,12 @@ export const LanguageView = () => {
                       <div className="space-y-4 text-sm">
                           <div>
                               <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Material</span>
-                              <p className="text-zinc-700 dark:text-zinc-300 font-medium truncate">
+                              <p className="text-zinc-700 dark:text-zinc-300 font-medium break-words whitespace-normal">
                                 {Array.isArray(day.material) && day.material.length > 0 
                                     ? day.material.map(m => {
                                         if (typeof m === 'string') return m;
                                         return m.minutes ? `${m.name} (${m.minutes} min)` : m.name;
-                                      }).join(', ') 
+                                        }).join(', ') 
                                     : (typeof day.material === 'string' && day.material ? day.material : <span className="italic text-zinc-400 font-normal">Livre</span>)}
                               </p>
                           </div>
@@ -341,12 +461,37 @@ export const LanguageView = () => {
                           {day.notes && (
                               <div>
                                   <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Notas e Metas</span>
-                                  <p className="text-zinc-600 dark:text-zinc-400 text-xs italic line-clamp-3 leading-relaxed">"{day.notes}"</p>
+                                  <p className="text-zinc-600 dark:text-zinc-400 text-xs italic leading-relaxed break-words whitespace-normal">"{day.notes}"</p>
                               </div>
                           )}
                       </div>
                   </div>
               ))}
+          </div>
+      </div>
+
+      {/* Roadmap Anual */}
+      <div className="mb-10">
+          <div className="flex items-center gap-2 mb-6">
+              <Calendar className="text-zinc-400 dark:text-zinc-500" size={24} />
+              <h3 className="font-bold text-zinc-900 dark:text-white text-xl">Roadmap Anual</h3>
+          </div>
+          <div className="bg-white dark:bg-[#000000] p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800/50 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto custom-scrollbar">
+                  <div className="flex flex-col flex-wrap h-[120px] gap-1 content-start pr-4">
+                      {roadmapDays.map((date, i) => {
+                          const hasSession = sessionDatesSet.has(date.getTime());
+                          return (
+                              <div
+                                  key={i}
+                                  title={date.toLocaleDateString('pt-BR')}
+                                  className={`w-3 h-3 rounded-sm flex-shrink-0 transition-colors ${hasSession ? theme.classes.bg.split(' ')[0] + ' ' + theme.classes.highlight.split(' ')[0] : 'bg-zinc-100 dark:bg-zinc-800'}`}
+                                  style={hasSession ? { backgroundColor: theme.colors.primary } : {}}
+                              />
+                          )
+                      })}
+                  </div>
+              </div>
           </div>
       </div>
 

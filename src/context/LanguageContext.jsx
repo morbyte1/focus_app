@@ -30,7 +30,9 @@ const DEFAULT_SCHEDULE = Array.from({ length: 7 }).map((_, i) => ({
 export const LanguageProvider = ({ children }) => {
   const [activeLanguage, setActiveLanguage] = useStickyState(null, 'lang_active');
   const [languageSessions, setLanguageSessions] = useStickyState([], 'lang_sessions');
-  const [languageSchedule, setLanguageSchedule] = useStickyState(DEFAULT_SCHEDULE, 'lang_schedule');
+  
+  // Refatorado para lidar com objeto/dicionário e prevenir vazamento entre idiomas
+  const [languageScheduleMap, setLanguageScheduleMap] = useStickyState({}, 'lang_schedule');
   const [languageMaterials, setLanguageMaterials] = useStickyState([], 'lang_materials');
 
   const addLanguageSession = (minutes, words, grammar, skills, materials) => {
@@ -99,20 +101,31 @@ export const LanguageProvider = ({ children }) => {
   const resetLanguageData = () => {
     setLanguageSessions([]);
     setLanguageMaterials([]);
+    setLanguageScheduleMap({});
     setActiveLanguage(null);
   };
 
   const updateLanguageScheduleDay = (dayIndex, updates) => {
-      setLanguageSchedule(prev => prev.map(day => 
-          day.dayIndex === dayIndex ? { ...day, ...updates } : day
-      ));
+      setLanguageScheduleMap(prev => {
+          // Fallback estrutural caso algum dado antigo seja array
+          const map = Array.isArray(prev) ? {} : prev;
+          const currentSchedule = map[activeLanguage] || DEFAULT_SCHEDULE;
+          const newSchedule = currentSchedule.map(day => 
+              day.dayIndex === dayIndex ? { ...day, ...updates } : day
+          );
+          return { ...map, [activeLanguage]: newSchedule };
+      });
   };
+
+  // Garante que a view sempre recebe o array correspondente ou o default
+  const currentMap = Array.isArray(languageScheduleMap) ? {} : languageScheduleMap;
+  const activeLanguageSchedule = currentMap[activeLanguage] || DEFAULT_SCHEDULE;
 
   return (
     <LanguageContext.Provider value={{
       activeLanguage, setActiveLanguage,
       languageSessions, addLanguageSession,
-      languageSchedule, updateLanguageScheduleDay,
+      languageSchedule: activeLanguageSchedule, updateLanguageScheduleDay,
       languageMaterials, addLanguageMaterial, deleteLanguageMaterial,
       getTheme,
       deleteLanguageSessionsByDate,
