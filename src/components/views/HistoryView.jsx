@@ -1,8 +1,15 @@
 import React, { useState, useContext, useMemo } from 'react';
-import { History, Clock, CheckSquare, AlertTriangle, Trash2, ChevronDown } from 'lucide-react';
+import { History, Clock, CheckSquare, AlertTriangle, Trash2, ChevronDown, Ear, Eye, Mic, BookOpen } from 'lucide-react';
 import { FocusContext } from '../../context/FocusContext';
 import { LanguageContext } from '../../context/LanguageContext';
 import { Card } from '../ui/Card';
+
+const SKILL_ICONS = {
+  'escuta': Ear,
+  'leitura': Eye,
+  'fala': Mic,
+  'escrita': BookOpen
+};
 
 export const HistoryView = () => {
   const { sessions, subjects, deleteDayHistory } = useContext(FocusContext);
@@ -67,7 +74,7 @@ export const HistoryView = () => {
                       onClick={(e) => { 
                         e.stopPropagation(); 
                         deleteDayHistory(date); 
-                        deleteLanguageSessionsByDate(date); 
+                        deleteLanguageSessionsByDate(date);
                       }} 
                       className="p-2 hover:bg-red-500/10 rounded-full text-zinc-400 hover:text-red-500 transition-colors" 
                       title="Apagar dia inteiro"
@@ -84,51 +91,93 @@ export const HistoryView = () => {
                   <div className="mt-6 space-y-3 animate-fadeIn border-t border-zinc-200 dark:border-zinc-800/50 pt-4">
                     {items.map(s => {
                       
-                      // Lógica de Cruzamento: Se for matéria virtual (999999), identifica o idioma real.
-                      const subject = s.subjectId === 999999 
+                      const isLanguageSession = s.subjectId === 999999;
+                      const subject = isLanguageSession 
                         ? (() => {
                             const langSession = languageSessions.find(ls => 
                               new Date(ls.date).toDateString() === new Date(s.date).toDateString() &&
                               ls.minutes === s.minutes
                             );
                             if (langSession) {
-                                if (langSession.languageId === 'EN') return { name: 'Idiomas - Inglês', color: '#1e3a8a' };
-                                if (langSession.languageId === 'ES') return { name: 'Idiomas - Espanhol', color: '#ca8a04' };
-                                if (langSession.languageId === 'DE') return { name: 'Idiomas - Alemão', color: '#991b1b' };
+                                if (langSession.languageId === 'EN') return { name: 'Prática de Inglês', color: '#1e3a8a' };
+                                if (langSession.languageId === 'ES') return { name: 'Prática de Espanhol', color: '#ca8a04' };
+                                if (langSession.languageId === 'DE') return { name: 'Prática de Alemão', color: '#991b1b' };
                             }
                             return { name: 'Prática de Idioma', color: '#3b82f6' };
-                          })()
+                        })()
                         : subjects.find(sub => sub.id === s.subjectId);
 
                       return (
                         <div key={s.id} className="bg-zinc-50 dark:bg-zinc-900/40 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]" style={{ color: subject?.color || '#555', backgroundColor: subject?.color || '#555' }}></div>
-                              <span className="text-zinc-700 dark:text-zinc-200 font-medium">
-                                {subject?.name || 'Matéria Excluída'}
-                                {s.topic && ` - ${s.topic}`}
-                              </span>
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]" style={{ color: subject?.color || '#555', backgroundColor: subject?.color || '#555' }}></div>
+                                  <span className="text-zinc-700 dark:text-zinc-200 font-medium">
+                                    {subject?.name || 'Matéria Excluída'}
+                                    {s.topic && !isLanguageSession && ` - ${s.topic}`}
+                                  </span>
+                                </div>
+                                
+                                {/* Info Específica de Idiomas */}
+                                {isLanguageSession && (() => {
+                                    const ls = languageSessions.find(ls => new Date(ls.date).toDateString() === new Date(s.date).toDateString() && ls.minutes === s.minutes);
+                                    if (!ls) return null;
+                                    
+                                    return (
+                                        <div className="mt-2 ml-6 flex flex-col gap-2">
+                                            {ls.materials && Array.isArray(ls.materials) && ls.materials.length > 0 ? (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {ls.materials.map((m, idx) => (
+                                                        <span key={idx} className="text-xs bg-zinc-200/50 dark:bg-zinc-800/50 px-2 py-1 rounded-md text-zinc-600 dark:text-zinc-300 font-medium border border-zinc-200 dark:border-zinc-700">
+                                                            {m.name} {m.minutes ? `- ${m.minutes}min` : ''}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                typeof ls.materials === 'string' && ls.materials && (
+                                                    <span className="text-xs bg-zinc-200/50 dark:bg-zinc-800/50 px-2 py-1 rounded-md text-zinc-600 dark:text-zinc-300 font-medium w-fit border border-zinc-200 dark:border-zinc-700">
+                                                        {ls.materials}
+                                                    </span>
+                                                )
+                                            )}
+                                            {ls.skills && ls.skills.length > 0 && (
+                                                <div className="flex gap-2">
+                                                    {ls.skills.map(skill => {
+                                                        const IconComp = SKILL_ICONS[skill];
+                                                        return IconComp ? <IconComp key={skill} size={14} className="text-zinc-400" title={skill} /> : null;
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                })()}
                             </div>
 
                             <div className="flex items-center gap-4 text-sm bg-black/5 dark:bg-black/20 p-2 rounded-xl sm:bg-transparent sm:p-0 self-start sm:self-auto">
                                <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300" title="Tempo Focado">
                                   <Clock size={14} className="text-zinc-500"/>
                                   <span>{s.minutes} min</span>
-                                </div>
-                               <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-800"></div>
-                               <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400" title="Questões Realizadas">
-                                  <CheckSquare size={14} />
-                                  <span className="font-bold">{s.questions || 0}</span>
                                </div>
-                               <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400" title="Erros">
-                                  <AlertTriangle size={14} />
-                                  <span className="font-bold">{s.errors || 0}</span>
-                               </div>
+                               
+                               {/* Oculta os contadores de erro/questão para Idiomas */}
+                               {!isLanguageSession && (
+                                 <>
+                                    <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-800"></div>
+                                    <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400" title="Questões Realizadas">
+                                        <CheckSquare size={14} />
+                                        <span className="font-bold">{s.questions || 0}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400" title="Erros">
+                                        <AlertTriangle size={14} />
+                                        <span className="font-bold">{s.errors || 0}</span>
+                                    </div>
+                                 </>
+                               )}
                             </div>
                           </div>
                           
-                          {s.notes && (
+                          {s.notes && !isLanguageSession && (
                             <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 w-full">
                               <p className="text-xs font-bold text-zinc-500 uppercase mb-1">Diário da Sessão</p>
                               <div className="text-sm text-zinc-600 dark:text-zinc-300 italic whitespace-pre-wrap leading-relaxed">"{s.notes}"</div>

@@ -114,7 +114,7 @@ export const LanguageView = () => {
     languageSchedule, updateLanguageScheduleDay,
     languageMaterials, addLanguageMaterial, deleteLanguageMaterial
   } = useContext(LanguageContext);
-  
+
   const { setCurrentView } = useContext(FocusContext);
   const stats = useLanguageStats(languageSessions.filter(s => s.languageId === activeLanguage));
   const theme = getTheme();
@@ -124,8 +124,8 @@ export const LanguageView = () => {
   
   // Estados - Cronograma
   const [editingDay, setEditingDay] = useState(null);
-  const [scheduleForm, setScheduleForm] = useState({ material: '', minMinutes: 30, skills: [], notes: '' });
-  
+  const [scheduleForm, setScheduleForm] = useState({ material: [], minMinutes: 30, skills: [], notes: '' });
+
   // Estados - Materiais
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [materialForm, setMaterialForm] = useState({ name: '', level: 'A1', link: '', instructions: '' });
@@ -139,8 +139,11 @@ export const LanguageView = () => {
   // --- Handlers: Cronograma ---
   const openEditSchedule = (day) => {
      setEditingDay(day.dayIndex);
+     // Tratamento de segurança para dados legados (string para array)
+     const parsedMaterial = Array.isArray(day.material) ? day.material : (day.material ? [day.material] : []);
+     
      setScheduleForm({ 
-         material: day.material || '', 
+         material: parsedMaterial, 
          minMinutes: day.minMinutes || 30, 
          skills: day.skills || [], 
          notes: day.notes || '' 
@@ -153,6 +156,18 @@ export const LanguageView = () => {
          updateLanguageScheduleDay(editingDay, scheduleForm);
          setEditingDay(null);
      }
+  };
+
+  const handleToggleMaterial = (materialName) => {
+    setScheduleForm(prev => {
+        const isSelected = prev.material.includes(materialName);
+        return {
+            ...prev,
+            material: isSelected 
+                ? prev.material.filter(m => m !== materialName) 
+                : [...prev.material, materialName]
+        };
+    });
   };
 
   // --- Handlers: Materiais ---
@@ -280,7 +295,11 @@ export const LanguageView = () => {
                       <div className="space-y-4 text-sm">
                           <div>
                               <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Material</span>
-                              <p className="text-zinc-700 dark:text-zinc-300 font-medium truncate">{day.material || <span className="italic text-zinc-400 font-normal">Livre</span>}</p>
+                              <p className="text-zinc-700 dark:text-zinc-300 font-medium truncate">
+                                {Array.isArray(day.material) && day.material.length > 0 
+                                    ? day.material.join(', ') 
+                                    : (typeof day.material === 'string' && day.material ? day.material : <span className="italic text-zinc-400 font-normal">Livre</span>)}
+                              </p>
                           </div>
                           <div>
                               <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider flex items-center gap-1"><Clock size={12}/> Meta de Tempo</span>
@@ -418,8 +437,19 @@ export const LanguageView = () => {
       <Modal isOpen={editingDay !== null} onClose={() => setEditingDay(null)} title={`Planejar: ${editingDay !== null ? DAYS_OF_WEEK[editingDay] : ''}`}>
           <form onSubmit={handleSaveSchedule} className="space-y-5">
               <div>
-                  <label className="text-xs font-bold text-zinc-500 uppercase">Material de Estudo</label>
-                  <input type="text" placeholder="Ex: Duolingo, Livro X, Podcast..." className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 text-sm outline-none focus:border-primary text-zinc-900 dark:text-white" value={scheduleForm.material} onChange={e => setScheduleForm(p => ({ ...p, material: e.target.value }))} />
+                  <label className="text-xs font-bold text-zinc-500 uppercase block mb-2">Materiais de Estudo</label>
+                  <div className="flex flex-wrap gap-2">
+                     {currentMaterials.map(m => {
+                        const isSelected = scheduleForm.material.includes(m.name);
+                        return (
+                            <button type="button" key={m.id} onClick={() => handleToggleMaterial(m.name)} 
+                                className={`px-3 py-1.5 rounded-xl border text-sm font-bold transition-all ${isSelected ? 'bg-primary/10 text-primary border-primary/30' : 'bg-zinc-50 dark:bg-[#09090b] text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'}`}>
+                               {m.name}
+                            </button>
+                        );
+                     })}
+                     {currentMaterials.length === 0 && <span className="text-xs text-zinc-400 italic">Cadastre materiais na aba de Materiais.</span>}
+                  </div>
               </div>
               
               <div>

@@ -4,7 +4,7 @@ import {
     Watch, CornerDownRight, AlertTriangle, BookOpen, Mic, Ear, Type, Eye, X 
 } from 'lucide-react';
 import { FocusContext, formatTime } from '../../context/FocusContext';
-import { LanguageContext } from '../../context/LanguageContext'; // Integração com o novo contexto
+import { LanguageContext } from '../../context/LanguageContext';
 import { triggerCelebration } from '../../utils/celebration';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -18,27 +18,29 @@ const useLanguageForm = () => {
         hasGrammar: false,
         grammarText: '',
         skills: [],
-        materials: ''
+        materials: [] // Transformado em array [{ name, minutes }]
     });
 
-    const handleKeyDownWord = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            if (langForm.currentWord.trim()) {
-                setLangForm(p => ({ ...p, words: [...p.words, p.currentWord.trim()], currentWord: '' }));
-            }
+    const handleAddWord = (e) => {
+        if(e) e.preventDefault();
+        if (langForm.currentWord.trim()) {
+            setLangForm(p => ({ ...p, words: [...p.words, p.currentWord.trim()], currentWord: '' }));
         }
     };
 
-    const removeWord = (idx) => setLangForm(p => ({ ...p, words: p.words.filter((_, i) => i !== idx) }));
+    const handleKeyDownWord = (e) => {
+        if (e.key === 'Enter') handleAddWord(e);
+    };
 
+    const removeWord = (idx) => setLangForm(p => ({ ...p, words: p.words.filter((_, i) => i !== idx) }));
+    
     const toggleSkill = (skill) => setLangForm(p => ({
         ...p, skills: p.skills.includes(skill) ? p.skills.filter(s => s !== skill) : [...p.skills, skill]
     }));
 
-    const resetLangForm = () => setLangForm({ words: [], currentWord: '', hasGrammar: false, grammarText: '', skills: [], materials: '' });
+    const resetLangForm = () => setLangForm({ words: [], currentWord: '', hasGrammar: false, grammarText: '', skills: [], materials: [] });
 
-    return { langForm, setLangForm, handleKeyDownWord, removeWord, toggleSkill, resetLangForm };
+    return { langForm, setLangForm, handleAddWord, handleKeyDownWord, removeWord, toggleSkill, resetLangForm };
 };
 
 export const FocusView = () => {
@@ -57,11 +59,12 @@ export const FocusView = () => {
   } = useContext(FocusContext);
 
   // Contexto de Idiomas
-  const { getTheme, addLanguageSession } = useContext(LanguageContext);
+  const { getTheme, addLanguageSession, languageMaterials, activeLanguage } = useContext(LanguageContext);
   const langTheme = getTheme();
-  
+
   // ID e Matéria Virtual de Idiomas
   const LANG_SUBJECT_ID = 999999;
+  
   const languagePseudoSubject = useMemo(() => langTheme ? { 
       id: LANG_SUBJECT_ID, 
       name: `Idiomas - ${langTheme.name}`, 
@@ -69,46 +72,75 @@ export const FocusView = () => {
       isLanguage: true 
   } : null, [langTheme]);
 
-  // Lista de matérias expandida
   const displaySubjects = useMemo(() => 
     languagePseudoSubject ? [...subjects, languagePseudoSubject] : subjects
   , [subjects, languagePseudoSubject]);
+
+  const currentMaterials = languageMaterials.filter(m => m.languageId === activeLanguage);
 
   const [taskT, setTaskT] = useState(""); 
   const [finMod, setFinMod] = useState(false); 
   const [manMod, setManMod] = useState(false);
   const [langFinMod, setLangFinMod] = useState(false);
+  
   const [mForm, setMForm] = useState({ t: "", n: "", s: "", q: "", e: "", topic: "" });
   const [fForm, setFForm] = useState({ n: "", q: "", e: "" }); 
   const [manualDate, setManualDate] = useState('');
-
+  
   const [switchModal, setSwitchModal] = useState(false);
   const [pendingMode, setPendingMode] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState("");
+  
+  const { langForm, setLangForm, handleAddWord, handleKeyDownWord, removeWord, toggleSkill, resetLangForm } = useLanguageForm();
 
-  const { langForm, setLangForm, handleKeyDownWord, removeWord, toggleSkill, resetLangForm } = useLanguageForm();
+  const isCurrentSubCursinho = useMemo(() => subjects.find(s => s.id === selectedSubjectId)?.isCursinho, [subjects, selectedSubjectId]);
+  const isManSubCursinho = useMemo(() => subjects.find(s => s.id === Number(mForm.s))?.isCursinho, [subjects, mForm.s]);
+  const isManSubLanguage = useMemo(() => Number(mForm.s) === LANG_SUBJECT_ID, [mForm.s]);
 
-const finishLanguageTimer = (e) => {
+  // Cálculo de tempo dinâmico dos materiais
+  const totalMaterialTime = langForm.materials.reduce((acc, m) => acc + (Number(m.minutes) || 0), 0);
+
+  const finishLanguageTimer = (e) => {
       e.preventDefault();
-      const totalSeconds = accumulatedTime + elapsedTime;
-      const mins = Math.round(totalSeconds / 60); 
+      const timerTotalSeconds = accumulatedTime + elapsedTime;
+      // Se preencheu tempo nos materiais, o tempo total é a soma deles. Se não, usa o do relógio.
+      const mins = totalMaterialTime > 0 ? totalMaterialTime : Math.round(timerTotalSeconds / 60); 
       
       if (mins > 0) {
-          // Lança nas estatísticas exclusivas da aba Idiomas
           addLanguageSession(mins, langForm.words, langForm.grammarText, langForm.skills, langForm.materials);
-          // Lança no KPI global para contar progresso de horas/streak gerais
-          addSession(mins, langForm.materials || "Prática de Idioma", LANG_SUBJECT_ID, 0, 0, "Idioma");
+          addSession(mins, "Prática de Idioma", LANG_SUBJECT_ID, 0, 0, "Idioma");
           triggerCelebration(); 
       }
       
-      // Rotina de Reset do Timer
-      setIsActive(false); 
+      setIsActive(false);
       setTimerMode('WORK'); 
       setTimeLeft(timerType === 'FLOW' ? 0 : timerConfig.work * 60); 
       setElapsedTime(0); 
       setCycles(0);
       setLangFinMod(false); 
       resetLangForm(); 
+  };
+
+  const manual = (e) => { 
+      e.preventDefault();
+      // Validação de tempo para registro manual
+      const finalTime = isManSubLanguage && langForm.materials.length > 0 ? totalMaterialTime : mForm.t;
+      if (!finalTime || !mForm.s) return alert("Preencha tempo e matéria."); 
+      
+      const tValid = Math.max(1, parseInt(finalTime) || 0);
+
+      if (isManSubLanguage) {
+          addLanguageSession(tValid, langForm.words, langForm.grammarText, langForm.skills, langForm.materials);
+          addSession(tValid, "Prática de Idioma", LANG_SUBJECT_ID, 0, 0, "Idioma");
+          resetLangForm();
+      } else {
+          addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e, mForm.topic, isManSubCursinho && manualDate ? manualDate : null);
+      }
+
+      setMForm({ t: "", n: "", s: "", q: "", e: "", topic: "" });
+      setManualDate('');
+      setManMod(false); 
+      triggerCelebration();
   };
 
   // Tópicos disponíveis (Filtragem original)
@@ -130,10 +162,6 @@ const finishLanguageTimer = (e) => {
       .filter(i => !i.completed)
       .map(i => i.text);
   }, [mForm.s, themes]);
-
-  const isCurrentSubCursinho = useMemo(() => subjects.find(s => s.id === selectedSubjectId)?.isCursinho, [subjects, selectedSubjectId]);
-  const isManSubCursinho = useMemo(() => subjects.find(s => s.id === Number(mForm.s))?.isCursinho, [subjects, mForm.s]);
-  const isManSubLanguage = useMemo(() => Number(mForm.s) === LANG_SUBJECT_ID, [mForm.s]);
 
   useEffect(() => {
     if (mForm.s && isManSubCursinho) {
@@ -173,7 +201,7 @@ const finishLanguageTimer = (e) => {
     setTimerMode('WORK');
     setElapsedTime(0);
     setAccumulatedTime(0);
-    setCycles(0); 
+    setCycles(0);
     setTimeLeft(newType === 'POMODORO' ? timerConfig.work * 60 : 0);
     setSwitchModal(false);
     setPendingMode(null);
@@ -184,36 +212,17 @@ const finishLanguageTimer = (e) => {
       const totalSeconds = accumulatedTime + elapsedTime;
       const mins = Math.round(totalSeconds / 60); 
       if (mins > 0) { 
-          addSession(mins, fForm.n, null, fForm.q, fForm.e, selectedTopic); 
+          addSession(mins, fForm.n, null, fForm.q, fForm.e, selectedTopic);
           triggerCelebration(); 
       }
       setIsActive(false); 
       setTimerMode('WORK'); 
       setTimeLeft(timerType === 'FLOW' ? 0 : timerConfig.work * 60); 
       setElapsedTime(0); 
-      setCycles(0); 
+      setCycles(0);
       setFinMod(false); 
       setFForm({ n: "", q: "", e: "" }); 
       setSelectedTopic(""); 
-  };
-
-  const manual = (e) => { 
-      e.preventDefault(); 
-      if (!mForm.t || !mForm.s) return alert("Preencha tempo e matéria."); 
-      const tValid = Math.max(1, parseInt(mForm.t) || 0);
-
-      if (isManSubLanguage) {
-          addLanguageSession(tValid, langForm.words, langForm.grammarText, langForm.skills, langForm.materials);
-          addSession(tValid, langForm.materials || "Prática de Idioma", LANG_SUBJECT_ID, 0, 0, "Idioma");
-          resetLangForm();
-      } else {
-          addSession(tValid, mForm.n, mForm.s, mForm.q, mForm.e, mForm.topic, isManSubCursinho && manualDate ? manualDate : null); 
-      }
-
-      setMForm({ t: "", n: "", s: "", q: "", e: "", topic: "" }); 
-      setManualDate('');
-      setManMod(false); 
-      triggerCelebration();
   };
 
   const handleCreateTask = (e) => {
@@ -221,12 +230,11 @@ const finishLanguageTimer = (e) => {
       if (!selectedTopic) return alert("Selecione um tópico acima para criar tarefas vinculadas.");
       if (taskT && selectedSubjectId) { 
           addTask(taskT, selectedSubjectId, selectedTopic); 
-          setTaskT(""); 
+          setTaskT("");
       }
   };
 
   const filteredTasks = tasks.filter(t => t.subjectId === selectedSubjectId && t.topic === selectedTopic);
-  const displayTotalTime = accumulatedTime + elapsedTime;
 
   return (
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn pb-24 md:pb-0">
@@ -300,13 +308,13 @@ const finishLanguageTimer = (e) => {
               </button>
               <button onClick={() => { setIsActive(false); setTimerMode('WORK'); setTimeLeft(timerType === 'FLOW' ? 0 : timerConfig.work * 60); setElapsedTime(0); setAccumulatedTime(0); setCycles(0); }} className="p-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 transition-colors"><RotateCcw size={24} /></button>
               <button onClick={() => { 
-    setIsActive(false); 
-    if (selectedSubjectId === LANG_SUBJECT_ID) {
-        setLangFinMod(true);
-    } else {
-        setFinMod(true); 
-    }
-}} className="p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 transition-colors"><CheckCircle size={24} /></button>
+                setIsActive(false);
+                if (selectedSubjectId === LANG_SUBJECT_ID) {
+                    setLangFinMod(true);
+                } else {
+                    setFinMod(true);
+                }
+              }} className="p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 transition-colors"><CheckCircle size={24} /></button>
             </div>
           </div>
         </Card>
@@ -375,13 +383,16 @@ const finishLanguageTimer = (e) => {
         </form>
       </Modal>
 
-{/* MODAL DE RESUMO (FIM DO TIMER REAL-TIME DE IDIOMAS) */}
+      {/* MODAL DE RESUMO (FIM DO TIMER REAL-TIME DE IDIOMAS) */}
       <Modal isOpen={langFinMod} onClose={() => setLangFinMod(false)} title="Resumo: Prática de Idioma">
         <form onSubmit={finishLanguageTimer} className="space-y-4">
             <div className="space-y-4 animate-fadeIn mb-4">
                 <div>
                     <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-1"><Type size={14}/> Palavras Aprendidas</label>
-                    <input type="text" placeholder="Pressione Enter..." className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 rounded-xl p-3 text-sm outline-none focus:border-primary" value={langForm.currentWord} onChange={e => setLangForm(p => ({ ...p, currentWord: e.target.value }))} onKeyDown={handleKeyDownWord}/>
+                    <div className="flex items-center gap-2 mt-1">
+                        <input type="text" placeholder="Adicionar palavra..." className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 rounded-xl p-3 text-sm outline-none focus:border-primary" value={langForm.currentWord} onChange={e => setLangForm(p => ({ ...p, currentWord: e.target.value }))} onKeyDown={handleKeyDownWord}/>
+                        <button type="button" onClick={handleAddWord} className="bg-primary hover:bg-primary-dark text-white p-3 rounded-xl transition-colors"><Plus size={16}/></button>
+                    </div>
                     <div className="flex flex-wrap gap-2 mt-2">
                         {langForm.words.map((w, idx) => (
                             <span key={idx} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2">{w} <button type="button" onClick={() => removeWord(idx)}><X size={12}/></button></span>
@@ -404,8 +415,33 @@ const finishLanguageTimer = (e) => {
                     </div>
                 </div>
                 <div>
-                    <label className="text-xs font-bold text-zinc-500 uppercase">Materiais</label>
-                    <input type="text" placeholder="Duolingo, Livros..." className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 rounded-xl p-3 text-sm outline-none focus:border-primary" value={langForm.materials} onChange={e => setLangForm(p => ({ ...p, materials: e.target.value }))}/>
+                    <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">Materiais e Tempo Opcional</label>
+                    <div className="flex flex-wrap gap-2">
+                        {currentMaterials.map(m => {
+                            const isSel = langForm.materials.some(x => x.name === m.name);
+                            return (
+                                <button type="button" key={m.id} onClick={() => {
+                                    setLangForm(p => {
+                                        if(isSel) return {...p, materials: p.materials.filter(x => x.name !== m.name)};
+                                        return {...p, materials: [...p.materials, { name: m.name, minutes: '' }]};
+                                    })
+                                }} className={`px-3 py-1.5 rounded-xl border text-sm font-bold transition-all ${isSel ? 'bg-primary/10 text-primary border-primary/30' : 'bg-zinc-50 dark:bg-[#09090b] text-zinc-500 border-zinc-200 dark:border-zinc-800'}`}>{m.name}</button>
+                            )
+                        })}
+                        {currentMaterials.length === 0 && <span className="text-xs text-zinc-400 italic">Nenhum material cadastrado.</span>}
+                    </div>
+                    {langForm.materials.map((m, idx) => (
+                        <div key={idx} className="flex items-center gap-2 animate-fadeIn mt-2">
+                            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 w-1/2 truncate">{m.name}</span>
+                            <input type="number" min="1" placeholder="Minutos" className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 text-sm outline-none focus:border-primary" value={m.minutes} onChange={e => {
+                                setLangForm(p => ({
+                                    ...p,
+                                    materials: p.materials.map(x => x.name === m.name ? { ...x, minutes: e.target.value } : x)
+                                }))
+                            }}/>
+                        </div>
+                    ))}
+                    {langForm.materials.length > 0 && <p className="text-xs text-primary mt-2">*A soma dos minutos substituirá o tempo automático do relógio.</p>}
                 </div>
             </div>
             <div className="pt-2 flex gap-2">
@@ -447,8 +483,13 @@ const finishLanguageTimer = (e) => {
             )}
 
             <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-500 uppercase">Tempo (min)</label>
-                <input required type="number" min="1" className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 rounded-2xl p-3 outline-none focus:border-primary" value={mForm.t} onChange={e => setMForm({ ...mForm, t: e.target.value })} />
+                <label className="text-xs font-bold text-zinc-500 uppercase">Tempo Total (min)</label>
+                <input required type="number" min="1" 
+                    className={`w-full bg-zinc-100 dark:bg-black border border-zinc-200 rounded-2xl p-3 outline-none focus:border-primary ${isManSubLanguage && langForm.materials.length > 0 ? 'bg-zinc-200 dark:bg-zinc-800 cursor-not-allowed opacity-80' : ''}`} 
+                    value={isManSubLanguage && langForm.materials.length > 0 ? totalMaterialTime : mForm.t} 
+                    onChange={e => setMForm({ ...mForm, t: e.target.value })}
+                    readOnly={isManSubLanguage && langForm.materials.length > 0} 
+                />
             </div>
 
             {!isManSubLanguage ? (
@@ -466,7 +507,10 @@ const finishLanguageTimer = (e) => {
                 <div className="space-y-4 animate-fadeIn border-t border-zinc-200 dark:border-zinc-800 pt-4 mt-4">
                     <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-1"><Type size={14}/> Palavras Aprendidas</label>
-                        <input type="text" placeholder="Pressione Enter..." className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 rounded-xl p-3 text-sm outline-none focus:border-primary" value={langForm.currentWord} onChange={e => setLangForm(p => ({ ...p, currentWord: e.target.value }))} onKeyDown={handleKeyDownWord}/>
+                        <div className="flex items-center gap-2 mt-1">
+                            <input type="text" placeholder="Adicionar palavra..." className="w-full bg-zinc-100 dark:bg-black border border-zinc-200 rounded-xl p-3 text-sm outline-none focus:border-primary" value={langForm.currentWord} onChange={e => setLangForm(p => ({ ...p, currentWord: e.target.value }))} onKeyDown={handleKeyDownWord}/>
+                            <button type="button" onClick={handleAddWord} className="bg-primary hover:bg-primary-dark text-white p-3 rounded-xl transition-colors"><Plus size={16}/></button>
+                        </div>
                         <div className="flex flex-wrap gap-2 mt-2">
                             {langForm.words.map((w, idx) => (
                                 <span key={idx} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2">{w} <button type="button" onClick={() => removeWord(idx)}><X size={12}/></button></span>
@@ -489,19 +533,43 @@ const finishLanguageTimer = (e) => {
                         </div>
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Materiais</label>
-                        <input type="text" placeholder="Duolingo, Livros..." className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 rounded-xl p-3 text-sm outline-none focus:border-primary" value={langForm.materials} onChange={e => setLangForm(p => ({ ...p, materials: e.target.value }))}/>
+                        <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">Materiais e Tempo Exato</label>
+                        <div className="flex flex-wrap gap-2">
+                            {currentMaterials.map(m => {
+                                const isSel = langForm.materials.some(x => x.name === m.name);
+                                return (
+                                    <button type="button" key={m.id} onClick={() => {
+                                        setLangForm(p => {
+                                            if(isSel) return {...p, materials: p.materials.filter(x => x.name !== m.name)};
+                                            return {...p, materials: [...p.materials, { name: m.name, minutes: '' }]};
+                                        })
+                                    }} className={`px-3 py-1.5 rounded-xl border text-sm font-bold transition-all ${isSel ? 'bg-primary/10 text-primary border-primary/30' : 'bg-zinc-50 dark:bg-[#09090b] text-zinc-500 border-zinc-200 dark:border-zinc-800'}`}>{m.name}</button>
+                                )
+                            })}
+                            {currentMaterials.length === 0 && <span className="text-xs text-zinc-400 italic">Nenhum material cadastrado.</span>}
+                        </div>
+                        {langForm.materials.map((m, idx) => (
+                            <div key={idx} className="flex items-center gap-2 animate-fadeIn mt-2">
+                                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 w-1/2 truncate">{m.name}</span>
+                                <input type="number" min="1" placeholder="Minutos" className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-2 text-sm outline-none focus:border-primary" value={m.minutes} onChange={e => {
+                                    setLangForm(p => ({
+                                        ...p,
+                                        materials: p.materials.map(x => x.name === m.name ? { ...x, minutes: e.target.value } : x)
+                                    }))
+                                }}/>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
-            <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-primary/20">Confirmar</Button>
+            <Button type="submit" className="w-full py-3 mt-2 shadow-xl shadow-primary/20">Confirmar Registro</Button>
         </form>
       </Modal>
 
       <Modal isOpen={switchModal} onClose={() => setSwitchModal(false)} title="Trocar de Modo?">
          <div className="flex flex-col items-center gap-4 text-center">
             <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-500 mb-2"><AlertTriangle size={32} /></div>
-            <p className="text-zinc-600 dark:text-zinc-300">Você tem progresso não salvo. <br/><span className="font-bold text-zinc-900 dark:text-white">Trocar agora perderá o progresso do relógio.</span></p>
+            <p className="text-zinc-600 dark:text-zinc-300">Você tem progresso não salvo.<br/><span className="font-bold text-zinc-900 dark:text-white">Trocar agora perderá o progresso do relógio.</span></p>
             <div className="flex gap-3 w-full mt-4"><Button variant="secondary" onClick={() => setSwitchModal(false)} className="flex-1">Cancelar</Button><Button onClick={() => executeModeSwitch(pendingMode)} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white border-amber-600">Sim, continuar</Button></div>
          </div>
       </Modal>
