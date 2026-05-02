@@ -1,4 +1,3 @@
-// src/context/LanguageContext.jsx
 import React, { createContext, useState, useEffect } from 'react';
 
 export const LanguageContext = createContext();
@@ -32,10 +31,7 @@ export const LanguageProvider = ({ children }) => {
   const [activeLanguage, setActiveLanguage] = useStickyState(null, 'lang_active');
   const [languageSessions, setLanguageSessions] = useStickyState([], 'lang_sessions');
   const [languageSchedule, setLanguageSchedule] = useStickyState(DEFAULT_SCHEDULE, 'lang_schedule');
-  
-  // NOVOS ESTADOS: Materiais e Anotações
   const [languageMaterials, setLanguageMaterials] = useStickyState([], 'lang_materials');
-  const [languageNotes, setLanguageNotes] = useStickyState([], 'lang_notes');
 
   const addLanguageSession = (minutes, words, grammar, skills, materials) => {
     setLanguageSessions(prev => [...prev, {
@@ -57,39 +53,6 @@ export const LanguageProvider = ({ children }) => {
 
   const deleteLanguageMaterial = (id) => {
     setLanguageMaterials(prev => prev.filter(m => m.id !== id));
-  };
-
-  // --- CRUD: ANOTAÇÕES (OBSIDIAN STYLE) ---
-  const addNoteFolder = (folderName) => {
-    setLanguageNotes(prev => [...prev, { id: Date.now(), languageId: activeLanguage, folderName, notes: [] }]);
-  };
-
-  const deleteNoteFolder = (folderId) => {
-    setLanguageNotes(prev => prev.filter(f => f.id !== folderId));
-  };
-
-  const addNote = (folderId, title) => {
-    setLanguageNotes(prev => prev.map(f => 
-      f.id === folderId 
-        ? { ...f, notes: [...f.notes, { id: Date.now(), title, content: '', createdAt: new Date().toISOString() }] } 
-        : f
-    ));
-  };
-
-  const updateNote = (folderId, noteId, content) => {
-    setLanguageNotes(prev => prev.map(f => 
-      f.id === folderId 
-        ? { ...f, notes: f.notes.map(n => n.id === noteId ? { ...n, content } : n) } 
-        : f
-    ));
-  };
-
-  const deleteNote = (folderId, noteId) => {
-    setLanguageNotes(prev => prev.map(f => 
-      f.id === folderId 
-        ? { ...f, notes: f.notes.filter(n => n.id !== noteId) } 
-        : f
-    ));
   };
 
   const getTheme = () => {
@@ -136,7 +99,6 @@ export const LanguageProvider = ({ children }) => {
   const resetLanguageData = () => {
     setLanguageSessions([]);
     setLanguageMaterials([]);
-    setLanguageNotes([]);
     setActiveLanguage(null);
   };
 
@@ -152,7 +114,6 @@ export const LanguageProvider = ({ children }) => {
       languageSessions, addLanguageSession,
       languageSchedule, updateLanguageScheduleDay,
       languageMaterials, addLanguageMaterial, deleteLanguageMaterial,
-      languageNotes, addNoteFolder, deleteNoteFolder, addNote, updateNote, deleteNote,
       getTheme,
       deleteLanguageSessionsByDate,
       resetLanguageData

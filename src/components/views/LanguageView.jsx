@@ -1,9 +1,8 @@
-// src/components/views/LanguageView.jsx
-import React, { useContext, useMemo, useState, useEffect } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 import { 
   Globe, ArrowRight, BarChart2, PieChart as PieChartIcon, 
   Calendar, Clock, Edit2, RefreshCw, Ear, Eye, Mic, BookOpen, 
-  Plus, Folder, FileText, Trash2, ExternalLink 
+  Plus, Trash2, ExternalLink 
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { LanguageContext } from '../../context/LanguageContext';
@@ -62,11 +61,10 @@ const useLanguageStats = (sessions) => {
         }
     });
 
-    // PASSO 2.1: Formatação de Tempo Amigável
+    // Formatação de Tempo Amigável
     const hours = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
     let formattedTime = "";
-    
     if (hours > 0) {
       formattedTime += `${hours} hora${hours > 1 ? 's' : ''}`;
     }
@@ -78,7 +76,6 @@ const useLanguageStats = (sessions) => {
     }
 
     const skillsData = Object.entries(skillsCount).map(([name, value]) => ({ name, value }));
-
     return { totalWords, totalGrammarRules, chartData, formattedTime, skillsData };
   }, [sessions]);
 };
@@ -115,21 +112,13 @@ export const LanguageView = () => {
     activeLanguage, setActiveLanguage, 
     languageSessions, getTheme, 
     languageSchedule, updateLanguageScheduleDay,
-    languageMaterials, addLanguageMaterial, deleteLanguageMaterial,
-    languageNotes, addNoteFolder, deleteNoteFolder, addNote, updateNote, deleteNote
+    languageMaterials, addLanguageMaterial, deleteLanguageMaterial
   } = useContext(LanguageContext);
   
   const { setCurrentView } = useContext(FocusContext);
-  
-  // Limpa sub-estados se o idioma mudar ativamente
-  useEffect(() => {
-    setSelectedFolderId(null);
-    setSelectedNoteId(null);
-  }, [activeLanguage]);
-
   const stats = useLanguageStats(languageSessions.filter(s => s.languageId === activeLanguage));
   const theme = getTheme();
-  
+
   // Estados - Navegação
   const [activeTab, setActiveTab] = useState('dashboard');
   
@@ -140,22 +129,12 @@ export const LanguageView = () => {
   // Estados - Materiais
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [materialForm, setMaterialForm] = useState({ name: '', level: 'A1', link: '', instructions: '' });
-  
-  // Estados - Anotações
-  const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
-  const [newNoteModalOpen, setNewNoteModalOpen] = useState(false);
-  const [folderNameInput, setFolderNameInput] = useState('');
-  const [noteTitleInput, setNoteTitleInput] = useState('');
-  const [selectedFolderId, setSelectedFolderId] = useState(null);
-  const [selectedNoteId, setSelectedNoteId] = useState(null);
-  const [editorContent, setEditorContent] = useState('');
 
   const DAYS_OF_WEEK = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
   const todayIndex = new Date().getDay();
 
   // Filtros Globais Baseados no Idioma
   const currentMaterials = languageMaterials.filter(m => m.languageId === activeLanguage);
-  const currentFolders = languageNotes.filter(f => f.languageId === activeLanguage);
 
   // --- Handlers: Cronograma ---
   const openEditSchedule = (day) => {
@@ -198,23 +177,6 @@ export const LanguageView = () => {
     return map[level] || map['A1'];
   };
 
-  // --- Handlers: Anotações ---
-  const handleSaveNote = () => {
-    if (selectedFolderId && selectedNoteId) {
-      updateNote(selectedFolderId, selectedNoteId, editorContent);
-    }
-  };
-
-  useEffect(() => {
-    if (selectedFolderId && selectedNoteId) {
-      const folder = currentFolders.find(f => f.id === selectedFolderId);
-      const note = folder?.notes.find(n => n.id === selectedNoteId);
-      if (note) setEditorContent(note.content);
-    } else {
-      setEditorContent('');
-    }
-  }, [selectedFolderId, selectedNoteId]);
-
   // Fase Onboarding
   if (!activeLanguage) {
     return (
@@ -234,7 +196,7 @@ export const LanguageView = () => {
             <button 
                 key={lang.id} 
                 onClick={() => setActiveLanguage(lang.id)}
-                className={`${lang.color} text-white p-10 rounded-3xl transition-transform hover:-translate-y-2 flex flex-col items-center gap-4 shadow-xl shadow-black/10`}
+                className={`${lang.color} text-white p-10 rounded-3xl transition-transform hover:-translate-y-2 flex flex-col items-center gap-4 shadow-xl shadow-black/10 no-tap-highlight select-none focus:outline-none`}
             >
               <span className="text-7xl drop-shadow-md">{lang.flag}</span>
               <span className="text-xl font-bold tracking-wide">{lang.name}</span>
@@ -402,96 +364,6 @@ export const LanguageView = () => {
     </div>
   );
 
-  const renderNotes = () => {
-    const selectedFolder = currentFolders.find(f => f.id === selectedFolderId);
-    
-    return (
-      <div className="animate-fadeIn h-[calc(100vh-220px)] min-h-[500px] flex gap-6">
-        
-        {/* SIDEBAR (Pastas e Notas) */}
-        <div className="w-72 flex flex-col bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 flex justify-between items-center">
-                <h3 className="font-bold text-zinc-900 dark:text-white text-sm uppercase tracking-wide flex items-center gap-2">
-                    <Folder size={16} /> Pastas
-                </h3>
-                <button onClick={() => setNewFolderModalOpen(true)} className="text-zinc-400 hover:text-primary transition-colors">
-                    <Plus size={18} />
-                </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                {currentFolders.length === 0 && <p className="text-xs text-zinc-400 text-center py-4 italic">Nenhuma pasta criada.</p>}
-                
-                {currentFolders.map(folder => (
-                    <div key={folder.id} className="mb-2">
-                        <div 
-                            className={`flex justify-between items-center px-3 py-2 rounded-xl cursor-pointer transition-colors ${selectedFolderId === folder.id ? 'bg-primary/10 text-primary font-bold' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
-                            onClick={() => { setSelectedFolderId(folder.id); setSelectedNoteId(null); }}
-                        >
-                            <span className="text-sm truncate">{folder.folderName}</span>
-                            <div className="flex items-center gap-1">
-                                {selectedFolderId === folder.id && (
-                                    <button onClick={(e) => { e.stopPropagation(); setNewNoteModalOpen(true); }} className="p-1 hover:text-primary-dark transition-colors"><Plus size={14} /></button>
-                                )}
-                                <button onClick={(e) => { e.stopPropagation(); if(window.confirm("Apagar pasta e anotações?")) deleteNoteFolder(folder.id); }} className="p-1 hover:text-red-500 opacity-50 hover:opacity-100 transition-all"><Trash2 size={12} /></button>
-                            </div>
-                        </div>
-
-                        {selectedFolderId === folder.id && (
-                            <div className="ml-4 mt-1 space-y-1 border-l-2 border-zinc-100 dark:border-zinc-800 pl-2">
-                                {folder.notes.length === 0 && <p className="text-[10px] text-zinc-400 italic py-1">Vazio.</p>}
-                                {folder.notes.map(note => (
-                                    <div 
-                                        key={note.id} 
-                                        onClick={() => setSelectedNoteId(note.id)}
-                                        className={`flex justify-between items-center px-2 py-1.5 rounded-lg cursor-pointer text-sm transition-colors ${selectedNoteId === note.id ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white font-medium' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}
-                                    >
-                                        <div className="flex items-center gap-2 truncate">
-                                            <FileText size={12} /> <span className="truncate">{note.title}</span>
-                                        </div>
-                                        {selectedNoteId === note.id && (
-                                            <button onClick={(e) => { e.stopPropagation(); deleteNote(folder.id, note.id); setSelectedNoteId(null); }} className="hover:text-red-500"><Trash2 size={12} /></button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-        </div>
-
-        {/* ÁREA DO EDITOR (Main Area) */}
-        <div className="flex-1 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm flex flex-col relative group">
-            {selectedFolderId && selectedNoteId ? (
-                <>
-                    <div className="px-8 py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex justify-between items-center bg-zinc-50/50 dark:bg-black/20">
-                        <div>
-                            <span className="text-xs text-zinc-400 uppercase tracking-wider font-bold">{selectedFolder?.folderName}</span>
-                            <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{selectedFolder?.notes.find(n => n.id === selectedNoteId)?.title}</h2>
-                        </div>
-                        <Button onClick={handleSaveNote} variant="secondary" className="text-xs py-1.5 px-4"><Edit2 size={14} className="mr-1 inline"/> Salvar Base</Button>
-                    </div>
-                    <textarea 
-                        className="flex-1 w-full p-8 bg-transparent text-zinc-800 dark:text-zinc-200 outline-none resize-none leading-relaxed text-sm lg:text-base custom-scrollbar placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
-                        placeholder="Comece a escrever sua nota de idioma aqui..."
-                        value={editorContent}
-                        onChange={(e) => setEditorContent(e.target.value)}
-                        onBlur={handleSaveNote}
-                    />
-                </>
-            ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 opacity-60">
-                    <FileText size={48} className="mb-4 stroke-1" />
-                    <p className="font-medium">Selecione ou crie uma anotação na barra lateral.</p>
-                </div>
-            )}
-        </div>
-
-      </div>
-    );
-  };
-
   // --- RENDER GERAL ---
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0 h-full flex flex-col">
@@ -503,27 +375,25 @@ export const LanguageView = () => {
             <p className="text-zinc-500 dark:text-zinc-400">Gerencie sua jornada rumo à fluência.</p>
         </div>
         
-        {/* PASSO 2.3: Botão de Troca de Idioma Refatorado */}
         <button 
             onClick={() => setActiveLanguage(null)} 
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#09090b] text-sm font-bold text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#09090b] text-sm font-bold text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all shadow-sm active:scale-95 no-tap-highlight select-none focus:outline-none"
         >
             <RefreshCw size={16} /> Trocar Idioma
         </button>
       </header>
 
-      {/* PASSO 3: Sistema de Abas Internas ("Pills") */}
+      {/* Sistema de Abas Internas ("Pills") */}
       <div className="flex justify-center md:justify-start">
         <div className="bg-zinc-200/50 dark:bg-zinc-900/50 p-1 rounded-xl flex gap-1 overflow-x-auto custom-scrollbar w-full md:w-auto border border-zinc-200/50 dark:border-zinc-800">
             {[
                 { id: 'dashboard', label: 'Dashboard', icon: BarChart2 },
-                { id: 'materials', label: 'Materiais', icon: BookOpen },
-                { id: 'notes', label: 'Anotações', icon: Edit2 }
+                { id: 'materials', label: 'Materiais', icon: BookOpen }
             ].map(tab => (
                 <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap no-tap-highlight select-none focus:outline-none ${
                         activeTab === tab.id 
                             ? `bg-white dark:bg-black text-zinc-900 dark:text-white shadow-sm border border-zinc-200/50 dark:border-zinc-800` 
                             : `text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800`
@@ -540,7 +410,6 @@ export const LanguageView = () => {
       <div className="flex-1">
         {activeTab === 'dashboard' && renderDashboard()}
         {activeTab === 'materials' && renderMaterials()}
-        {activeTab === 'notes' && renderNotes()}
       </div>
 
       {/* --- MODAIS DE SUPORTE --- */}
@@ -610,28 +479,6 @@ export const LanguageView = () => {
             <div className="pt-2">
                 <Button type="submit" className="w-full py-3">Salvar Material</Button>
             </div>
-        </form>
-      </Modal>
-
-      {/* Modal: Nova Pasta de Notas */}
-      <Modal isOpen={newFolderModalOpen} onClose={() => {setNewFolderModalOpen(false); setFolderNameInput('');}} title="Nova Pasta">
-        <form onSubmit={(e) => { e.preventDefault(); if(folderNameInput.trim()) { addNoteFolder(folderNameInput.trim()); setNewFolderModalOpen(false); setFolderNameInput(''); } }} className="space-y-4">
-            <div>
-                <label className="text-xs font-bold text-zinc-500 uppercase">Nome da Pasta</label>
-                <input autoFocus required type="text" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary" value={folderNameInput} onChange={e => setFolderNameInput(e.target.value)} />
-            </div>
-            <Button type="submit" className="w-full">Criar Pasta</Button>
-        </form>
-      </Modal>
-
-      {/* Modal: Nova Anotação */}
-      <Modal isOpen={newNoteModalOpen} onClose={() => {setNewNoteModalOpen(false); setNoteTitleInput('');}} title="Nova Anotação">
-        <form onSubmit={(e) => { e.preventDefault(); if(noteTitleInput.trim() && selectedFolderId) { addNote(selectedFolderId, noteTitleInput.trim()); setNewNoteModalOpen(false); setNoteTitleInput(''); } }} className="space-y-4">
-            <div>
-                <label className="text-xs font-bold text-zinc-500 uppercase">Título da Anotação</label>
-                <input autoFocus required type="text" className="w-full mt-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-700 rounded-xl p-3 text-sm text-zinc-900 dark:text-white outline-none focus:border-primary" value={noteTitleInput} onChange={e => setNoteTitleInput(e.target.value)} />
-            </div>
-            <Button type="submit" className="w-full">Criar Anotação</Button>
         </form>
       </Modal>
 
