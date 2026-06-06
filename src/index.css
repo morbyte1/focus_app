@@ -48,6 +48,9 @@ body {
   .no-tap-highlight {
     -webkit-tap-highlight-color: transparent;
   }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
 /* === Animações (Usada no animate-fadeIn) === */
