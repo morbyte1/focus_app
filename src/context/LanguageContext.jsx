@@ -30,15 +30,13 @@ const DEFAULT_SCHEDULE = Array.from({ length: 7 }).map((_, i) => ({
 export const LanguageProvider = ({ children }) => {
   const [activeLanguage, setActiveLanguage] = useStickyState(null, 'lang_active');
   const [languageSessions, setLanguageSessions] = useStickyState([], 'lang_sessions');
-  
-  // Refatorado para lidar com objeto/dicionário e prevenir vazamento entre idiomas
   const [languageScheduleMap, setLanguageScheduleMap] = useStickyState({}, 'lang_schedule');
   const [languageMaterials, setLanguageMaterials] = useStickyState([], 'lang_materials');
 
-  const addLanguageSession = (minutes, words, grammar, skills, materials) => {
+  const addLanguageSession = (minutes, words, grammar, skills, materials, customDate = null) => {
     setLanguageSessions(prev => [...prev, {
         id: Date.now(),
-        date: new Date().toISOString(),
+        date: customDate ? new Date(customDate).toISOString() : new Date().toISOString(),
         minutes: Number(minutes),
         words: words || [],
         grammar: grammar || '',
@@ -47,6 +45,12 @@ export const LanguageProvider = ({ children }) => {
         languageId: activeLanguage
     }]);
   };
+
+  const deleteLanguageSession = (id) => {
+    setLanguageSessions(prev => prev.filter(s => s.id !== id));
+  };
+
+  const activeLanguageSessions = languageSessions.filter(s => s.languageId === activeLanguage);
 
   // --- CRUD: MATERIAIS ---
   const addLanguageMaterial = (material) => {
@@ -107,7 +111,6 @@ export const LanguageProvider = ({ children }) => {
 
   const updateLanguageScheduleDay = (dayIndex, updates) => {
       setLanguageScheduleMap(prev => {
-          // Fallback estrutural caso algum dado antigo seja array
           const map = Array.isArray(prev) ? {} : prev;
           const currentSchedule = map[activeLanguage] || DEFAULT_SCHEDULE;
           const newSchedule = currentSchedule.map(day => 
@@ -117,14 +120,13 @@ export const LanguageProvider = ({ children }) => {
       });
   };
 
-  // Garante que a view sempre recebe o array correspondente ou o default
   const currentMap = Array.isArray(languageScheduleMap) ? {} : languageScheduleMap;
   const activeLanguageSchedule = currentMap[activeLanguage] || DEFAULT_SCHEDULE;
 
   return (
     <LanguageContext.Provider value={{
       activeLanguage, setActiveLanguage,
-      languageSessions, addLanguageSession,
+      languageSessions, activeLanguageSessions, addLanguageSession, deleteLanguageSession,
       languageSchedule: activeLanguageSchedule, updateLanguageScheduleDay,
       languageMaterials, addLanguageMaterial, deleteLanguageMaterial,
       getTheme,
