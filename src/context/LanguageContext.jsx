@@ -33,18 +33,19 @@ export const LanguageProvider = ({ children }) => {
   const [languageScheduleMap, setLanguageScheduleMap] = useStickyState({}, 'lang_schedule');
   const [languageMaterials, setLanguageMaterials] = useStickyState([], 'lang_materials');
 
-  const addLanguageSession = (minutes, words, grammar, skills, materials, customDate = null) => {
-    setLanguageSessions(prev => [...prev, {
-        id: Date.now(),
-        date: customDate ? new Date(customDate).toISOString() : new Date().toISOString(),
-        minutes: Number(minutes),
-        words: words || [],
-        grammar: grammar || '',
-        skills: skills || [],
-        materials: materials || '',
-        languageId: activeLanguage
-    }]);
+// Atualize ou substitua a função existente no seu LanguageContext.jsx
+const addLanguageSession = (minutes, sessionSummary, skills, materials, date = new Date().toISOString()) => {
+  const newSession = {
+    id: Date.now(),
+    languageId: activeLanguage,
+    date,
+    minutes: Number(minutes),
+    sessionSummary: sessionSummary || '',
+    skills: skills || [],
+    materials: materials || []
   };
+  setActiveLanguageSessions(prev => [...prev, newSession]);
+};
 
   const deleteLanguageSession = (id) => {
     setLanguageSessions(prev => prev.filter(s => s.id !== id));
