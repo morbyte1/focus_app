@@ -1,5 +1,5 @@
 import React, { useContext, useState } from 'react';
-import { LayoutDashboard, Zap, Globe, Target, BarChart2, History, Settings, Menu, X, Compass, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap, Trophy, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Zap, Languages, Target, BarChart2, History, Settings, Menu, X, Compass, ChevronRight, ChevronLeft, Calendar, AlertTriangle, GraduationCap, Trophy, ClipboardList } from 'lucide-react';
 import { FocusContext, getXP, getRank } from '../context/FocusContext';
 
 import { DashboardView } from '../components/views/DashboardView';
@@ -37,7 +37,7 @@ export const AppLayout = () => {
     { id: 'focus', l: 'Focar', i: Zap }, 
     { id: 'exams', l: 'Provas', i: ClipboardList },
     { id: 'achievements', l: 'Conquistas', i: Trophy },
-    { id: 'languages', l: 'Idiomas', i: Globe },
+    { id: 'languages', l: 'Idiomas', i: Languages },
     { id: 'mistakes', l: 'Erros', i: AlertTriangle }, 
     { id: 'calendar', l: 'Calendário', i: Calendar }, 
     { id: 'goals', l: 'Matérias', i: Target }, 
