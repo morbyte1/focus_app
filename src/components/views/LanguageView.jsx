@@ -108,7 +108,7 @@ function useLanguageStats(mockDataProps = {}) {
 // ==========================================
 // COMPONENTE PRINCIPAL
 // ==========================================
-export default function LanguageView(props) {
+export function LanguageView(props) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const { theme, stats, cefrData, sessionsThisMonth, heatmapData } = useLanguageStats(props);
 
