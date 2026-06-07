@@ -524,6 +524,10 @@ export const LanguageView = () => {
         </Card>
       </div>
 
+      <Button onClick={() => setManMod(true)} className="w-full mt-6 py-4 text-lg">
+        Enviar Sessão de Estudos
+      </Button>
+
     </div>
   );
 
@@ -873,8 +877,8 @@ export const LanguageView = () => {
                       cursor={{ fill: 'transparent' }}
                     />
                     <Bar dataKey="count" name="cartões" radius={[4, 4, 0, 0]}>
-                      {intervalDistribution.map((entry, index) => (
-                        <Cell key={index} fill={entry.fill} />
+                      {intervalDistribution.map((entry) => (
+                        <Cell key={entry.label} fill={entry.fill} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -891,7 +895,7 @@ export const LanguageView = () => {
                 <p className="text-xs text-zinc-500 mb-4">Cartões com Ease Factor abaixo de 200% ou mais de 3 erros acumulados. Priorize revisá-los com recall ativo.</p>
                 <div className="space-y-2">
                   {topProblematic.map((card, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-4">
+                    <div key={card.id || i} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-zinc-800 gap-4">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{card.front}</p>
                         <p className="text-xs text-zinc-500 truncate">{card.deck}</p>
@@ -920,8 +924,8 @@ export const LanguageView = () => {
                   Saúde por Baralho
                 </h3>
                 <div className="space-y-3">
-                  {deckStats.map((deck, i) => (
-                    <div key={i} className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  {deckStats.map((deck) => (
+                    <div key={deck.deck} className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-zinc-800">
                       <div className="flex justify-between items-center mb-2">
                         <p className="font-bold text-sm text-zinc-800 dark:text-zinc-200 truncate flex-1 mr-4">{deck.deck}</p>
                         <span className="text-xs text-zinc-500">{deck.total} cartões</span>
@@ -958,7 +962,7 @@ export const LanguageView = () => {
         background: `linear-gradient(180deg, ${theme.colors.primary}0d 0%, transparent 180px)`
       }}
     >
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 relative z-10">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 flex-shrink-0 relative z-10">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
@@ -981,15 +985,6 @@ export const LanguageView = () => {
         {activeTab === 'anki' && renderAnki()}
         {activeTab === 'history' && renderHistory()}
       </div>
-
-      <button
-        onClick={() => setManMod(true)}
-        className="fixed bottom-8 right-8 z-30 w-14 h-14 rounded-full text-white shadow-2xl flex items-center justify-center transition-transform hover:scale-110 active:scale-95 md:bottom-10 md:right-10"
-        style={{ backgroundColor: theme.colors.primary }}
-        title="Lançar Sessão Manual"
-      >
-        <Plus size={24} />
-      </button>
 
       <Modal isOpen={editingDay !== null} onClose={() => setEditingDay(null)} title={`Editar Plano: ${editingDay !== null ? DAYS_OF_WEEK[editingDay] : ''}`}>
         <form onSubmit={handleSaveSchedule} className="space-y-4">
@@ -1094,12 +1089,16 @@ export const LanguageView = () => {
         </form>
       </Modal>
 
-      <Modal isOpen={isMaterialModalOpen} onClose={() => setIsMaterialModalOpen(false)} title="Novo Material de Estudo">
+      <Modal isOpen={isMaterialModalOpen} onClose={() => setMaterialModalOpen(false)} title="Novo Material de Estudo">
         <form onSubmit={(e) => {
           e.preventDefault();
           if(materialForm.name) {
-            addLanguageMaterial(materialForm);
-            setMaterialForm({ name: '', level: 'A1', link: '', instructions: '' });
+            if (materialForm.id) {
+              updateLanguageMaterial(materialForm.id, materialForm);
+            } else {
+              addLanguageMaterial(materialForm);
+            }
+            setMaterialForm({ id: null, name: '', type: 'curso', totalUnits: '', currentUnit: '' });
             setIsMaterialModalOpen(false);
           }
         }} className="space-y-4">
